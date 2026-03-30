@@ -1,0 +1,48 @@
+const mongoose = require("mongoose");
+
+const expenseSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+      default() {
+        return this.user;
+      },
+    },
+    date: {
+      type: Date,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    category: {
+      type: String,
+      required: true,
+      default: "Other",
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+  },
+  { timestamps: true }
+);
+
+expenseSchema.pre("validate", function alignLegacyFields(next) {
+  if (!this.user && this.userId) {
+    this.user = this.userId;
+  }
+  next();
+});
+
+module.exports = mongoose.model("Expense", expenseSchema);
