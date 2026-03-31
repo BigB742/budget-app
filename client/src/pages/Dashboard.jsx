@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
+import AddExpenseModal from "../components/AddExpenseModal";
 import DayExpensesModal from "../components/DayExpensesModal";
 import RecurringPanel from "../components/RecurringPanel";
 import SavingsPanel from "../components/SavingsPanel";
@@ -19,6 +20,14 @@ const formatDateLabel = (iso) => {
   return `${month}/${day}/${year}`;
 };
 
+const formatReadableDate = (iso) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
@@ -32,6 +41,7 @@ const Dashboard = () => {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
   const [triggerAddBill, setTriggerAddBill] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [showAddExpense, setShowAddExpense] = useState(false);
 
   // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -243,7 +253,7 @@ const Dashboard = () => {
       </header>
 
       <section className="paycheck-summary">
-        <div className="paycheck-summary-header">
+        <div className="section-heading">
           <h2>Current Budget Period</h2>
           {summary && (
             <p className="muted">
@@ -259,6 +269,10 @@ const Dashboard = () => {
         {summary && !summaryLoading && !summaryError && (
           <>
             <div className="paycheck-grid">
+              <div className="paycheck-card highlight">
+                <p className="eyebrow">Balance</p>
+                <p className="paycheck-value accent">{currency.format(summary.balance || 0)}</p>
+              </div>
               <div className="paycheck-card">
                 <p className="eyebrow">Total income</p>
                 <p className="paycheck-value">{currency.format(summary.totalIncome || 0)}</p>
@@ -281,10 +295,19 @@ const Dashboard = () => {
                   {currency.format(summary.investmentsThisPeriod || 0)}
                 </p>
               </div>
-              <div className="paycheck-card highlight">
-                <p className="eyebrow">Left to spend</p>
-                <p className="paycheck-value">{currency.format(summary.leftToSpend || 0)}</p>
-              </div>
+              {summary.nextPaycheckBalance != null && (
+                <div className="paycheck-card next-balance">
+                  <p className="eyebrow">Next Paycheck Balance</p>
+                  <p className="paycheck-value">
+                    {currency.format(summary.nextPaycheckBalance)}
+                  </p>
+                  {summary.nextPayDateLabel && (
+                    <p className="card-subtitle">
+                      Est. as of {formatReadableDate(summary.nextPayDateLabel)}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="paycheck-card">
                 <p className="eyebrow">Days until next paycheck</p>
                 <p className="paycheck-value">
@@ -313,10 +336,17 @@ const Dashboard = () => {
         )}
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold" style={{ marginBottom: "0.5rem" }}>
-          Daily planner
-        </h2>
+      <section className="dashboard-section">
+        <div className="section-heading">
+          <h2>Daily Planner</h2>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => setShowAddExpense(true)}
+          >
+            + Add Expense
+          </button>
+        </div>
         {payPeriodError && (
           <p className="status status-error">Unable to load daily planner: {payPeriodError}</p>
         )}
@@ -344,7 +374,9 @@ const Dashboard = () => {
                 {day.billsTotal > 0 && (
                   <div className="daily-line bills">Bills: ${day.billsTotal.toFixed(2)}</div>
                 )}
-                <div className="daily-line expenses">Expenses: ${day.expensesTotal.toFixed(2)}</div>
+                {day.expensesTotal > 0 && (
+                  <div className="daily-line expenses">Expenses: ${day.expensesTotal.toFixed(2)}</div>
+                )}
                 {day.billsTotal === 0 && day.expensesTotal === 0 && (
                   <div className="daily-line muted">No activity yet</div>
                 )}
@@ -415,7 +447,17 @@ const Dashboard = () => {
           onClose={() => setSelectedDay(null)}
           onExpenseSaved={() => {
             setSelectedDay(null);
-            refreshPayPeriod();
+            refreshAll();
+          }}
+        />
+      )}
+
+      {showAddExpense && (
+        <AddExpenseModal
+          onClose={() => setShowAddExpense(false)}
+          onSaved={() => {
+            setShowAddExpense(false);
+            refreshAll();
           }}
         />
       )}

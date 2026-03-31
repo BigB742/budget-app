@@ -100,7 +100,7 @@ const OnboardingPaySchedule = () => {
           <label htmlFor="frequency">Frequency</label>
           <select id="frequency" name="frequency" value={form.frequency} onChange={handleChange}>
             <option value="weekly">Weekly</option>
-            <option value="biweekly">Biweekly</option>
+            <option value="biweekly">Bi-weekly</option>
             <option value="monthly">Monthly</option>
           </select>
         </div>

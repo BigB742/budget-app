@@ -15,6 +15,22 @@ const CATEGORY_OPTIONS = [
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+const formatFrequency = (freq) => {
+  if (freq === "biweekly") return "Bi-weekly";
+  if (freq === "weekly") return "Weekly";
+  if (freq === "monthly") return "Monthly";
+  return freq;
+};
+
+const formatReadableDate = (iso) => {
+  if (!iso) return "";
+  const str = typeof iso === "string" ? iso : iso.toISOString?.() || String(iso);
+  const [y, m, d] = str.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return str.slice(0, 10);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
 const RecurringPanel = ({
   bills = [],
   incomeSources = [],
@@ -56,8 +72,8 @@ const RecurringPanel = ({
 
   return (
     <div className={`recurring-panel ${mobileOpen ? "open" : ""}`}>
-      <div className="recurring-header">
-        <h3>Income &amp; Bills</h3>
+      <div className="recurring-header section-heading">
+        <h2>Income &amp; Bills</h2>
         <button type="button" className="ghost-button" onClick={onToggleMobile}>
           {mobileOpen ? "Hide" : "Show"}
         </button>
@@ -82,7 +98,7 @@ const RecurringPanel = ({
                     {source.isPrimary && <span className="pill primary-pill">Primary</span>}
                   </p>
                   <p className="muted">
-                    {source.frequency} &middot; next: {source.nextPayDate?.slice(0, 10)}
+                    {formatFrequency(source.frequency)} &middot; next: {formatReadableDate(source.nextPayDate)}
                   </p>
                 </div>
                 <div className="recurring-actions">

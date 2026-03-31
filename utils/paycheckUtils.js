@@ -10,6 +10,22 @@ const addMonths = (date, months) => {
   return d;
 };
 
+// MongoDB stores dates as UTC midnight (e.g. "2026-04-10T00:00:00Z").
+// In non-UTC timezones, new Date() shifts this to the PREVIOUS local day
+// (e.g. April 9 5PM PDT). This recovers the intended calendar date as
+// local midnight so day-level arithmetic works correctly.
+const toLocalDate = (d) => {
+  const date = new Date(d);
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
+
+// Truncate a local Date to midnight. Safe for dates already in local time
+// (e.g. new Date(), or outputs from toLocalDate/addDays on local dates).
+const startOfLocalDay = (d) => {
+  const date = new Date(d);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
 const getNextPayDate = (lastPaycheckDate, frequency, n) => {
   const base = new Date(lastPaycheckDate);
   if (Number.isNaN(base.getTime())) return null;
@@ -48,15 +64,26 @@ const getPayPeriodBounds = ({ lastPaycheckDate, frequency, index }) => {
 
 const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Date() }) => {
   if (!lastPaycheckDate || !frequency) return null;
-  const base = new Date(lastPaycheckDate);
-  const target = new Date(targetDate);
-  if (Number.isNaN(base.getTime()) || Number.isNaN(target.getTime())) return null;
+  const rawBase = new Date(lastPaycheckDate);
+  const rawTarget = new Date(targetDate);
+  if (Number.isNaN(rawBase.getTime()) || Number.isNaN(rawTarget.getTime())) return null;
+
+  // Normalize: anchor from DB uses UTC calendar date; target uses local date
+  const base = toLocalDate(rawBase);
+  const target = startOfLocalDay(rawTarget);
 
   let payDate = new Date(base);
   let nextPayDate = null;
 
   if (frequency === "weekly" || frequency === "biweekly") {
     const stepDays = frequency === "weekly" ? 7 : 14;
+
+    // Walk backward if anchor is ahead of target
+    while (payDate > target) {
+      payDate = addDays(payDate, -stepDays);
+    }
+
+    // Walk forward to find the period containing target
     while (payDate <= target) {
       const candidateNext = addDays(payDate, stepDays);
       if (candidateNext > target) {
@@ -70,17 +97,19 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
     }
   } else if (frequency === "monthly") {
     let monthIndex = 0;
+
+    // Walk backward if anchor is ahead of target
+    while (addMonths(base, monthIndex) > target) {
+      monthIndex--;
+    }
+
+    // Walk forward to find the period containing target
     while (true) {
       const candidate = addMonths(base, monthIndex);
       const nextCandidate = addMonths(base, monthIndex + 1);
       if (candidate <= target && nextCandidate > target) {
         payDate = candidate;
         nextPayDate = nextCandidate;
-        break;
-      }
-      if (candidate > target) {
-        payDate = base;
-        nextPayDate = addMonths(base, 1);
         break;
       }
       monthIndex += 1;
@@ -93,15 +122,15 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
     return null;
   }
 
-  const periodStart = payDate;
-  const periodEnd = new Date(nextPayDate);
-  periodEnd.setDate(periodEnd.getDate() - 1);
+  // Normalize outputs to local midnight (guards against DST hour drift from addDays)
+  const periodStart = startOfLocalDay(payDate);
+  const periodEnd = startOfLocalDay(addDays(nextPayDate, -1));
 
   return {
     index: 0,
     start: periodStart,
     end: periodEnd,
-    nextPayDate,
+    nextPayDate: startOfLocalDay(nextPayDate),
   };
 };
 
@@ -114,9 +143,10 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
 const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
   if (!anchorDate || !frequency || !rangeStart || !rangeEnd) return [];
 
-  const anchor = new Date(anchorDate);
-  const start = new Date(rangeStart);
-  const end = new Date(rangeEnd);
+  // Normalize: anchor from DB uses UTC calendar date; range bounds use local
+  const anchor = toLocalDate(new Date(anchorDate));
+  const start = startOfLocalDay(new Date(rangeStart));
+  const end = startOfLocalDay(new Date(rangeEnd));
 
   if (Number.isNaN(anchor.getTime()) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return [];
@@ -244,6 +274,8 @@ const getPeriodsForSources = (sources, targetDate = new Date()) => {
 module.exports = {
   addDays,
   addMonths,
+  toLocalDate,
+  startOfLocalDay,
   getNextPayDate,
   getPaycheckIndexForDate,
   getPayPeriodBounds,

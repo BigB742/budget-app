@@ -4,15 +4,17 @@ import { authFetch } from "../apiClient";
 import { parseLocalDateString, stripTime } from "../utils/dateUtils";
 
 const CATEGORY_OPTIONS = [
-  "Subscriptions",
-  "Food",
-  "Gas",
-  "Rent",
-  "Utilities",
-  "Gym",
-  "Car Payment",
-  "Insurance",
-  "Other",
+  { value: "Food", label: "\ud83c\udf54 Food" },
+  { value: "Dining Out", label: "\ud83c\udf7d\ufe0f Dining Out" },
+  { value: "Entertainment", label: "\ud83c\udfac Entertainment" },
+  { value: "Gas", label: "\u26fd Gas" },
+  { value: "Groceries", label: "\ud83d\uded2 Groceries" },
+  { value: "Home", label: "\ud83c\udfe0 Home" },
+  { value: "Health", label: "\ud83d\udc8a Health" },
+  { value: "Shopping", label: "\ud83d\udc57 Shopping" },
+  { value: "Travel", label: "\u2708\ufe0f Travel" },
+  { value: "Subscriptions", label: "\ud83d\udce6 Subscriptions" },
+  { value: "Other", label: "\ud83d\udcb8 Other" },
 ];
 
 const DayExpensesModal = ({ isOpen, onClose, date, items = [], total = 0, onExpenseSaved }) => {
@@ -108,9 +110,9 @@ const DayExpensesModal = ({ isOpen, onClose, date, items = [], total = 0, onExpe
             required
           />
           <select name="category" value={form.category} onChange={handleChange}>
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
+            {CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>

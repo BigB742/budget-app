@@ -10,6 +10,55 @@ const { getBudgetPeriod, getPeriodsForSources } = require("../utils/paycheckUtil
 
 const router = express.Router();
 
+// Strip time component — return midnight local for a given Date
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+// Helper: sum bills that fall within a date range
+function sumBillsInPeriod(bills, start, end) {
+  // Normalize to midnight local so day-level comparisons are consistent
+  const pStart = startOfDay(start);
+  const pEnd = startOfDay(end);
+
+  let total = 0;
+  bills.forEach((bill) => {
+    const dueDates = [];
+    dueDates.push(new Date(pStart.getFullYear(), pStart.getMonth(), bill.dueDayOfMonth));
+    if (pStart.getMonth() !== pEnd.getMonth() || pStart.getFullYear() !== pEnd.getFullYear()) {
+      dueDates.push(new Date(pEnd.getFullYear(), pEnd.getMonth(), bill.dueDayOfMonth));
+    }
+    const uniqueTimes = new Set(dueDates.map((d) => d.getTime()));
+    uniqueTimes.forEach((time) => {
+      const d = new Date(time);
+      if (d >= pStart && d <= pEnd) {
+        total += Number(bill.amount) || 0;
+      }
+    });
+  });
+  return total;
+}
+
+// Helper: sum expenses within a date range
+async function sumExpensesInPeriod(userId, start, end) {
+  // Normalize to full-day boundaries for the MongoDB query
+  const from = startOfDay(start);
+  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+
+  const expenseDocs = await Expense.find({
+    $and: [
+      { $or: [{ user: userId }, { userId: userId }] },
+      {
+        $or: [
+          { date: { $gte: from, $lte: to } },
+          { date: { $exists: false }, createdAt: { $gte: from, $lte: to } },
+        ],
+      },
+    ],
+  });
+  return expenseDocs.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+}
+
 // GET /paycheck-current — current budget period summary using income sources
 router.get("/paycheck-current", authRequired, async (req, res) => {
   try {
@@ -28,37 +77,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     // Bills due in this period
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
-    let totalBills = 0;
-    bills.forEach((bill) => {
-      const dueDates = [];
-      const startMonthDate = new Date(start.getFullYear(), start.getMonth(), bill.dueDayOfMonth);
-      dueDates.push(startMonthDate);
-      if (start.getMonth() !== end.getMonth() || start.getFullYear() !== end.getFullYear()) {
-        const endMonthDate = new Date(end.getFullYear(), end.getMonth(), bill.dueDayOfMonth);
-        dueDates.push(endMonthDate);
-      }
-      const uniqueTimes = new Set(dueDates.map((d) => d.getTime()));
-      uniqueTimes.forEach((time) => {
-        const d = new Date(time);
-        if (d >= start && d <= end) {
-          totalBills += Number(bill.amount) || 0;
-        }
-      });
-    });
+    const totalBills = sumBillsInPeriod(bills, start, end);
 
-    // Expenses in this period (fixed: use $and to avoid duplicate $or keys)
-    const expenseDocs = await Expense.find({
-      $and: [
-        { $or: [{ user: req.userId }, { userId: req.userId }] },
-        {
-          $or: [
-            { date: { $gte: start, $lte: end } },
-            { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
-          ],
-        },
-      ],
-    });
-    const totalExpenses = expenseDocs.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+    // Expenses in this period
+    const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
 
     // Savings this period
     const savingsGoals = await SavingsGoal.find({ userId: req.userId });
@@ -78,8 +100,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    const leftToSpend =
-      totalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
+    // Balance = income - bills - expenses (savings/investments shown separately)
+    const balance = totalIncome - totalBills - totalExpenses;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -97,6 +119,30 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       daysUntilNextPaycheck = diffDays;
     }
 
+    // ── Next Paycheck Balance ──────────────────────────────────
+    let nextPaycheckBalance = null;
+    let nextPeriod = null;
+    if (nextPayDate) {
+      const nextBudget = getBudgetPeriod(sources, nextPayDate);
+      if (nextBudget) {
+        const nextStart = nextBudget.start;
+        const nextEnd = nextBudget.end;
+        const nextTotalIncome = nextBudget.totalIncome;
+        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd);
+        const nextTotalExpenses = await sumExpensesInPeriod(req.userId, nextStart, nextEnd);
+
+        // Current balance rolls over + next period income - next period bills - next period expenses
+        nextPaycheckBalance = balance + nextTotalIncome - nextTotalBills - nextTotalExpenses;
+        nextPeriod = {
+          start: nextStart.toISOString().slice(0, 10),
+          end: nextEnd.toISOString().slice(0, 10),
+          totalIncome: nextTotalIncome,
+          totalBills: nextTotalBills,
+          totalExpenses: nextTotalExpenses,
+        };
+      }
+    }
+
     res.json({
       period: { start, end },
       totalIncome,
@@ -104,9 +150,12 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       totalExpenses,
       savingsThisPeriod,
       investmentsThisPeriod,
-      leftToSpend,
+      balance,
+      leftToSpend: balance, // backward compat
       nextPayDate,
       daysUntilNextPaycheck,
+      nextPaycheckBalance,
+      nextPeriod,
       sources: sourceBreakdown,
       periodLabel: {
         start: start.toISOString().slice(0, 10),
