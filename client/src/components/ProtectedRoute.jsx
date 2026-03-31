@@ -3,29 +3,34 @@ import { Navigate, useLocation } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
 
-const ONBOARDING_PATHS = ["/onboarding/income", "/onboarding/bills"];
-
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
   const isOnOnboardingRoute =
     location.pathname.startsWith("/onboarding/income") ||
     location.pathname.startsWith("/onboarding/bills");
+
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem("user");
     return stored ? JSON.parse(stored) : null;
   });
-  const [loading, setLoading] = useState(!!token && !user);
+  const [incomeSources, setIncomeSources] = useState(null);
+  const [loading, setLoading] = useState(!!token);
 
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-    const loadUser = async () => {
+
+    const loadData = async () => {
       try {
-        const profile = await authFetch("/api/user/me");
+        const [profile, sources] = await Promise.all([
+          authFetch("/api/user/me"),
+          authFetch("/api/income-sources"),
+        ]);
         setUser(profile);
+        setIncomeSources(Array.isArray(sources) ? sources : []);
         localStorage.setItem("user", JSON.stringify(profile));
       } catch (err) {
         if (err.status === 401) {
@@ -36,14 +41,14 @@ const ProtectedRoute = ({ children }) => {
         setLoading(false);
       }
     };
-    loadUser();
+
+    loadData();
   }, [token]);
 
   const needsOnboarding = useMemo(() => {
-    if (!user) return false;
-    const settings = user.incomeSettings || {};
-    return !settings.lastPaycheckDate || !settings.amount;
-  }, [user]);
+    if (incomeSources === null) return false;
+    return incomeSources.length === 0;
+  }, [incomeSources]);
 
   if (!token) {
     return <Navigate to="/login" replace />;
