@@ -36,6 +36,9 @@ const ProtectedRoute = ({ children }) => {
         if (err.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
+        } else {
+          // On any other failure, treat as no sources so the user is sent to onboarding
+          setIncomeSources([]);
         }
       } finally {
         setLoading(false);

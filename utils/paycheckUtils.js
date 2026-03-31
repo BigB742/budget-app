@@ -57,6 +57,13 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
 
   if (frequency === "weekly" || frequency === "biweekly") {
     const stepDays = frequency === "weekly" ? 7 : 14;
+
+    // If the anchor is in the future, walk backward until we reach a payday at or before today
+    while (payDate > target) {
+      payDate = addDays(payDate, -stepDays);
+    }
+
+    // Walk forward to find the boundary of the period containing target
     while (payDate <= target) {
       const candidateNext = addDays(payDate, stepDays);
       if (candidateNext > target) {
@@ -70,6 +77,12 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
     }
   } else if (frequency === "monthly") {
     let monthIndex = 0;
+
+    // If the anchor is in the future, walk backward to the month containing target
+    while (addMonths(base, monthIndex) > target) {
+      monthIndex -= 1;
+    }
+
     while (true) {
       const candidate = addMonths(base, monthIndex);
       const nextCandidate = addMonths(base, monthIndex + 1);
