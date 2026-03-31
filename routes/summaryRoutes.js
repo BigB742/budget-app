@@ -7,7 +7,7 @@ const Expense = require("../models/Expense");
 const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
 const PaymentOverride = require("../models/PaymentOverride");
-const { getBudgetPeriod, getPeriodsForSources, toLocalDate } = require("../utils/paycheckUtils");
+const { getBudgetPeriod, getPeriodsForSources, toLocalDate, getPaydaysInRange } = require("../utils/paycheckUtils");
 
 const router = express.Router();
 
@@ -414,6 +414,87 @@ router.get("/projected-balance", authRequired, async (req, res) => {
   } catch (error) {
     console.error("Error computing projected balance:", error);
     res.status(500).json({ error: "Unable to compute projected balance." });
+  }
+});
+
+// GET /year-to-date — YTD income projection, bills, expenses by category
+router.get("/year-to-date", authRequired, async (req, res) => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
+
+    // 1. Active income sources — projected income for the full year
+    const sources = await IncomeSource.find({ user: req.userId, isActive: true });
+    let projectedIncome = 0;
+    for (const source of sources) {
+      const paydays = getPaydaysInRange(source.nextPayDate, source.frequency, yearStart, yearEnd);
+      projectedIncome += paydays.length * Number(source.amount);
+    }
+
+    // 2. Active bills — projected annual cost, respecting lastPaymentDate
+    const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
+    let projectedBills = 0;
+    const billBreakdown = [];
+
+    for (const bill of bills) {
+      const lastPay = bill.lastPaymentDate ? startOfDay(toLocalDate(bill.lastPaymentDate)) : null;
+      let annualTotal = 0;
+
+      for (let month = 0; month < 12; month++) {
+        const dueDate = new Date(year, month, bill.dueDayOfMonth);
+        // Skip if past lastPaymentDate
+        if (lastPay && dueDate > lastPay) continue;
+        annualTotal += Number(bill.amount) || 0;
+      }
+
+      projectedBills += annualTotal;
+      billBreakdown.push({ name: bill.name, annualTotal });
+    }
+
+    // 3. Expenses for the year, grouped by category
+    const yearFrom = startOfDay(yearStart);
+    const yearTo = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    const expenseDocs = await Expense.find({
+      $and: [
+        { $or: [{ user: req.userId }, { userId: req.userId }] },
+        {
+          $or: [
+            { date: { $gte: yearFrom, $lte: yearTo } },
+            { date: { $exists: false }, createdAt: { $gte: yearFrom, $lte: yearTo } },
+          ],
+        },
+      ],
+    });
+
+    const catMap = {};
+    let totalExpenses = 0;
+    expenseDocs.forEach((e) => {
+      const amt = Number(e.amount) || 0;
+      const cat = e.category || "Other";
+      catMap[cat] = (catMap[cat] || 0) + amt;
+      totalExpenses += amt;
+    });
+
+    const expenseBreakdown = Object.entries(catMap).map(([category, total]) => ({ category, total }));
+
+    // 4. Remaining
+    const remaining = projectedIncome - projectedBills - totalExpenses;
+
+    res.json({
+      year,
+      projectedIncome,
+      projectedBills,
+      totalExpenses,
+      remaining,
+      billBreakdown,
+      expenseBreakdown,
+    });
+  } catch (error) {
+    console.error("Error computing year-to-date summary:", error);
+    res.status(500).json({ error: "Unable to compute year-to-date summary." });
   }
 });
 

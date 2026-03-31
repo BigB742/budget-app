@@ -49,7 +49,7 @@ const Calendar = () => {
   const [overrides, setOverrides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [showFullYear, setShowFullYear] = useState(false);
+  // Premium users can view all months; free users limited to current month
   const [snapshot, setSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
@@ -164,7 +164,7 @@ const Calendar = () => {
   };
 
   const isFutureMonth = viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth > today.getMonth());
-  const locked = isFutureMonth && !isPremium() && !showFullYear;
+  const locked = isFutureMonth && !isPremium();
 
   // Load paycheck snapshot when clicking a payday
   const loadSnapshot = useCallback(async (dateKey) => {
@@ -225,13 +225,9 @@ const Calendar = () => {
         <button type="button" className="cal-nav-btn" onClick={goNext}>&rarr;</button>
       </div>
 
-      <div className="cal-toolbar">
-        <label className="cal-toggle">
-          <input type="checkbox" checked={showFullYear} onChange={(e) => setShowFullYear(e.target.checked)} />
-          <span>Show full year</span>
-        </label>
-        {!isPremium() && <span className="premium-badge">Premium</span>}
-      </div>
+      {!isPremium() && isFutureMonth && (
+        <div className="cal-toolbar"><span className="premium-badge">Premium required for future months</span></div>
+      )}
 
       {loading && <p className="status">Loading...</p>}
 

@@ -1,5 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
-import AdSlot from "./AdSlot";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 const NAV_ITEMS = [
   { to: "/app", label: "Dashboard", icon: "\u2302" },
@@ -10,12 +9,22 @@ const NAV_ITEMS = [
 ];
 
 const AppShell = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
   return (
     <div className="app-shell">
       <nav className="sidebar">
-        <div className="sidebar-brand">PayPulse</div>
+        <div className="sidebar-brand">
+          <span className="brand-dot" />PayPulse
+        </div>
         <ul className="sidebar-nav">
-          {NAV_ITEMS.slice(0, 3).map((item) => (
+          {NAV_ITEMS.map((item) => (
             <li key={item.to}>
               <NavLink to={item.to} end={item.to === "/app"} className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
                 <span className="sidebar-icon">{item.icon}</span>{item.label}
@@ -23,18 +32,13 @@ const AppShell = () => {
             </li>
           ))}
         </ul>
-        <div className="sidebar-ad"><AdSlot placement="sidebar" /></div>
-        <ul className="sidebar-nav">
-          {NAV_ITEMS.slice(3).map((item) => (
-            <li key={item.to}>
-              <NavLink to={item.to} className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
-                <span className="sidebar-icon">{item.icon}</span>{item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+        <div className="sidebar-bottom">
+          <button type="button" className="sidebar-logout" onClick={handleLogout}>Log out</button>
+        </div>
       </nav>
+
       <main className="shell-main"><Outlet /></main>
+
       <nav className="bottom-tabs">
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.to === "/app"} className={({ isActive }) => `tab-item${isActive ? " active" : ""}`}>

@@ -2,43 +2,44 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
 
+const TEXT_SIZES = [
+  { value: "small", label: "A", size: "0.8rem" },
+  { value: "medium", label: "A", size: "0.875rem" },
+  { value: "large", label: "A", size: "0.95rem" },
+];
+
 const Settings = () => {
   const navigate = useNavigate();
 
-  // ── Appearance state ──
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "system");
   const [textSize, setTextSize] = useState(() => localStorage.getItem("textSize") || "medium");
-  const [accent, setAccent] = useState(() => localStorage.getItem("accent") || "teal");
 
-  // ── Account state ──
   const [user, setUser] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [profileError, setProfileError] = useState("");
-  const [profileForm, setProfileForm] = useState({
-    firstName: "",
-    lastName: "",
-  });
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmNewPassword: "",
-  });
+  const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "", email: "", dateOfBirth: "" });
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState("");
+  const [saveMsg, setSaveMsg] = useState("");
 
-  // ── Notifications state (UI only) ──
-  const [billReminder, setBillReminder] = useState(false);
-  const [lowBalance, setLowBalance] = useState(false);
-  const [lowBalanceThreshold, setLowBalanceThreshold] = useState("100");
+  const [showPwModal, setShowPwModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState("");
 
-  // ── Danger zone state ──
+  const [billReminders, setBillReminders] = useState(true);
+  const [lowBalanceWarning, setLowBalanceWarning] = useState(false);
+  const [lowBalanceThreshold, setLowBalanceThreshold] = useState(100);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
 
-  // ── Apply appearance settings on mount and change ──
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
+    const r = document.documentElement;
+    if (theme === "system") {
+      r.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    } else {
+      r.setAttribute("data-theme", theme);
+    }
     localStorage.setItem("theme", theme);
   }, [theme]);
 
@@ -47,345 +48,169 @@ const Settings = () => {
     localStorage.setItem("textSize", textSize);
   }, [textSize]);
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-accent", accent);
-    localStorage.setItem("accent", accent);
-  }, [accent]);
-
-  // ── Fetch user profile ──
   const loadProfile = useCallback(async () => {
     setProfileLoading(true);
     try {
-      const profile = await authFetch("/api/user/me");
-      setUser(profile);
-      setProfileForm({
-        firstName: profile?.firstName || "",
-        lastName: profile?.lastName || "",
-      });
+      const p = await authFetch("/api/user/me");
+      setUser(p);
+      setProfileForm({ firstName: p.firstName || "", lastName: p.lastName || "", email: p.email || "", dateOfBirth: p.dateOfBirth?.slice?.(0, 10) || "" });
+      setBillReminders(p.notificationPrefs?.billReminders !== false);
+      setLowBalanceWarning(!!p.notificationPrefs?.lowBalanceWarning);
+      setLowBalanceThreshold(p.notificationPrefs?.lowBalanceThreshold || 100);
     } catch (err) {
-      if (err?.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
-      }
-      setProfileError(err?.message || "Unable to load profile.");
-    } finally {
-      setProfileLoading(false);
-    }
+      if (err?.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); }
+    } finally { setProfileLoading(false); }
   }, [navigate]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
-  // ── Save profile ──
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    setSaveError("");
-    setSaveSuccess("");
-    setSaving(true);
-
-    try {
-      const body = {
-        firstName: profileForm.firstName,
-        lastName: profileForm.lastName,
-      };
-
-      if (showPasswordSection) {
-        body.passwordChange = {
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
-          confirmNewPassword: passwordForm.confirmNewPassword,
-        };
-      }
-
-      const updated = await authFetch("/api/user/me", {
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
-
-      setUser(updated);
-      localStorage.setItem("user", JSON.stringify(updated));
-      setProfileForm({
-        firstName: updated?.firstName || "",
-        lastName: updated?.lastName || "",
-      });
-      setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
-      setShowPasswordSection(false);
-      setSaveSuccess("Profile updated.");
-    } catch (err) {
-      setSaveError(err?.message || "Unable to update profile.");
-    } finally {
-      setSaving(false);
-    }
+  const handleFieldChange = (field, value) => {
+    setProfileForm((p) => ({ ...p, [field]: value }));
+    setDirty(true);
+    setSaveMsg("");
   };
 
-  // ── Avatar initials ──
-  const initials =
-    ((profileForm.firstName?.[0] || "") + (profileForm.lastName?.[0] || "")).toUpperCase() || "?";
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const updated = await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ firstName: profileForm.firstName, lastName: profileForm.lastName, email: profileForm.email, dateOfBirth: profileForm.dateOfBirth || undefined }) });
+      setUser(updated);
+      localStorage.setItem("user", JSON.stringify(updated));
+      setDirty(false);
+      setSaveMsg("Saved");
+      setTimeout(() => setSaveMsg(""), 2000);
+    } catch (err) { setSaveMsg(err?.message || "Error saving."); }
+    finally { setSaving(false); }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwError("");
+    if (pwForm.newPw !== pwForm.confirm) { setPwError("Passwords don't match."); return; }
+    setPwSaving(true);
+    try {
+      await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ passwordChange: { currentPassword: pwForm.current, newPassword: pwForm.newPw, confirmNewPassword: pwForm.confirm } }) });
+      setShowPwModal(false);
+      setPwForm({ current: "", newPw: "", confirm: "" });
+    } catch (err) { setPwError(err?.message || "Failed."); }
+    finally { setPwSaving(false); }
+  };
+
+  const handleToggleNotif = async (field, value) => {
+    const prefs = { billReminders, lowBalanceWarning, lowBalanceThreshold };
+    prefs[field] = value;
+    if (field === "billReminders") setBillReminders(value);
+    if (field === "lowBalanceWarning") setLowBalanceWarning(value);
+    if (field === "lowBalanceThreshold") setLowBalanceThreshold(value);
+    try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ notificationPrefs: prefs }) }); } catch { /* best effort */ }
+  };
+
+  const initials = ((profileForm.firstName?.[0] || "") + (profileForm.lastName?.[0] || "")).toUpperCase() || "?";
 
   return (
     <div className="settings-page">
-      <h1 className="settings-page-title">Settings</h1>
+      <h1>Settings</h1>
 
-      {/* ── APPEARANCE ── */}
+      {/* APPEARANCE */}
       <div className="settings-section">
         <h2 className="section-title">Appearance</h2>
-
-        <div className="settings-field">
-          <span className="settings-label">Theme</span>
-          <div className="settings-radio-group">
-            {["light", "dark", "system"].map((value) => (
-              <label key={value} className="settings-radio">
-                <input
-                  type="radio"
-                  name="theme"
-                  value={value}
-                  checked={theme === value}
-                  onChange={() => setTheme(value)}
-                />
-                {value.charAt(0).toUpperCase() + value.slice(1)}
-              </label>
+        <div className="s-row">
+          <span className="s-label">Theme</span>
+          <div className="s-pills">
+            {["light", "dark", "system"].map((v) => (
+              <button key={v} type="button" className={`s-pill${theme === v ? " active" : ""}`} onClick={() => setTheme(v)}>
+                {v === "light" ? "Light" : v === "dark" ? "Dark" : "System"}
+              </button>
             ))}
           </div>
         </div>
-
-        <div className="settings-field">
-          <span className="settings-label">Text size</span>
-          <div className="settings-radio-group">
-            {["small", "medium", "large"].map((value) => (
-              <label key={value} className="settings-radio">
-                <input
-                  type="radio"
-                  name="textSize"
-                  value={value}
-                  checked={textSize === value}
-                  onChange={() => setTextSize(value)}
-                />
-                {value.charAt(0).toUpperCase() + value.slice(1)}
-              </label>
+        <div className="s-row">
+          <span className="s-label">Text size</span>
+          <div className="s-size-track">
+            {TEXT_SIZES.map((t) => (
+              <button key={t.value} type="button" className={`s-size-btn${textSize === t.value ? " active" : ""}`} style={{ fontSize: t.size }} onClick={() => setTextSize(t.value)}>{t.label}</button>
             ))}
           </div>
         </div>
-
-        <div className="settings-field">
-          <span className="settings-label">Accent color</span>
-          <div className="settings-color-group">
-            {[
-              { value: "teal", color: "#14b8a6" },
-              { value: "purple", color: "#a855f7" },
-              { value: "blue", color: "#3b82f6" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className={`settings-color-swatch${accent === opt.value ? " active" : ""}`}
-                style={{ backgroundColor: opt.color }}
-                onClick={() => setAccent(opt.value)}
-                aria-label={opt.value}
-                title={opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}
-              />
-            ))}
-          </div>
-        </div>
+        <p className="s-preview" style={{ fontSize: textSize === "small" ? "0.8rem" : textSize === "large" ? "0.95rem" : "0.875rem" }}>This is how your text will look.</p>
       </div>
 
-      {/* ── ACCOUNT ── */}
+      {/* ACCOUNT */}
       <div className="settings-section">
         <h2 className="section-title">Account</h2>
-
-        {profileLoading && <p className="status">Loading profile...</p>}
-        {profileError && <p className="status status-error">{profileError}</p>}
-
-        {!profileLoading && user && (
-          <form className="settings-account-form" onSubmit={handleSaveProfile}>
-            <div className="settings-avatar">{initials}</div>
-
-            <label>
-              First name
-              <input
-                type="text"
-                value={profileForm.firstName}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, firstName: e.target.value }))
-                }
-                required
-              />
-            </label>
-
-            <label>
-              Last name
-              <input
-                type="text"
-                value={profileForm.lastName}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, lastName: e.target.value }))
-                }
-                required
-              />
-            </label>
-
-            <label>
-              Email
-              <input type="email" value={user.email || ""} disabled readOnly />
-            </label>
-
-            <button
-              type="button"
-              className="ghost-button"
-              style={{ alignSelf: "flex-start", marginTop: "0.25rem" }}
-              onClick={() => {
-                setShowPasswordSection((prev) => !prev);
-                setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
-              }}
-            >
-              {showPasswordSection ? "Cancel password change" : "Change password"}
-            </button>
-
-            {showPasswordSection && (
-              <>
-                <label>
-                  Current password
-                  <input
-                    type="password"
-                    value={passwordForm.currentPassword}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  New password
-                  <input
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  Confirm new password
-                  <input
-                    type="password"
-                    value={passwordForm.confirmNewPassword}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({
-                        ...prev,
-                        confirmNewPassword: e.target.value,
-                      }))
-                    }
-                    required
-                  />
-                </label>
-              </>
-            )}
-
-            {saveError && <div className="inline-error">{saveError}</div>}
-            {saveSuccess && <div className="inline-success">{saveSuccess}</div>}
-
-            <div className="modal-actions">
-              <button type="submit" className="primary-button" disabled={saving}>
-                {saving ? "Saving..." : "Save changes"}
-              </button>
+        {profileLoading ? <p className="status">Loading...</p> : user && (
+          <>
+            <div className="s-avatar">{initials}</div>
+            <div className="s-field-list">
+              <div className="s-field"><span className="s-field-label">First name</span><input value={profileForm.firstName} onChange={(e) => handleFieldChange("firstName", e.target.value)} /></div>
+              <div className="s-field"><span className="s-field-label">Last name</span><input value={profileForm.lastName} onChange={(e) => handleFieldChange("lastName", e.target.value)} /></div>
+              <div className="s-field"><span className="s-field-label">Date of birth</span><input type="date" value={profileForm.dateOfBirth} onChange={(e) => handleFieldChange("dateOfBirth", e.target.value)} /></div>
+              <div className="s-field"><span className="s-field-label">Email</span><input value={profileForm.email} onChange={(e) => handleFieldChange("email", e.target.value)} /></div>
+              <div className="s-field">
+                <span className="s-field-label">Password</span>
+                <div className="s-pw-row"><span className="s-pw-dots">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span><button type="button" className="link-button s-change-pw" onClick={() => setShowPwModal(true)}>Change</button></div>
+              </div>
             </div>
-          </form>
+            {dirty && (
+              <div className="s-save-bar">
+                <button type="button" className="primary-button" onClick={handleSaveProfile} disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>
+                {saveMsg && <span className="s-save-msg">{saveMsg}</span>}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* ── NOTIFICATIONS ── */}
+      {/* NOTIFICATIONS */}
       <div className="settings-section">
         <h2 className="section-title">Notifications</h2>
-
-        <div className="settings-field">
-          <label className="settings-toggle-row">
-            <span>
-              Remind me when a bill is due
-              <span className="settings-badge">Coming soon</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={billReminder}
-              onChange={() => setBillReminder((prev) => !prev)}
-            />
-          </label>
-        </div>
-
-        <div className="settings-field">
-          <label className="settings-toggle-row">
-            <span>
-              Low balance warning
-              <span className="settings-badge">Coming soon</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={lowBalance}
-              onChange={() => setLowBalance((prev) => !prev)}
-            />
-          </label>
-          {lowBalance && (
-            <label className="settings-threshold">
-              Threshold ($)
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={lowBalanceThreshold}
-                onChange={(e) => setLowBalanceThreshold(e.target.value)}
-              />
-            </label>
-          )}
-        </div>
+        <label className="s-toggle-row">
+          <div><span className="s-toggle-label">Bill reminders</span><span className="s-toggle-sub">Get emailed 3 days before a bill is due</span></div>
+          <input type="checkbox" className="s-toggle" checked={billReminders} onChange={(e) => handleToggleNotif("billReminders", e.target.checked)} />
+        </label>
+        <label className="s-toggle-row">
+          <div><span className="s-toggle-label">Low balance warning</span><span className="s-toggle-sub">Get alerted when balance drops below:</span></div>
+          <input type="checkbox" className="s-toggle" checked={lowBalanceWarning} onChange={(e) => handleToggleNotif("lowBalanceWarning", e.target.checked)} />
+        </label>
+        {lowBalanceWarning && (
+          <div className="s-threshold-row">
+            <span>$</span>
+            <input type="number" min="0" value={lowBalanceThreshold} onChange={(e) => handleToggleNotif("lowBalanceThreshold", Number(e.target.value))} />
+          </div>
+        )}
       </div>
 
-      {/* ── DANGER ZONE ── */}
-      <div className="settings-section">
-        <h2 className="section-title">Danger Zone</h2>
-
-        <div className="settings-danger-card">
-          <p>Permanently delete your account and all associated data.</p>
-          <button
-            type="button"
-            className="danger-button"
-            onClick={() => setShowDeleteModal(true)}
-          >
-            Delete account
-          </button>
-        </div>
+      {/* DANGER ZONE */}
+      <div className="settings-section danger-zone">
+        <h2 className="section-title">Danger zone</h2>
+        <button type="button" className="s-danger-btn" onClick={() => setShowDeleteModal(true)}>Delete account</button>
       </div>
 
-      {/* ── Delete confirmation modal ── */}
+      {/* Password modal */}
+      {showPwModal && (
+        <div className="modal-overlay" onClick={() => setShowPwModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h4>Change password</h4><button type="button" className="ghost-button" onClick={() => setShowPwModal(false)}>&#x2715;</button></div>
+            <form className="modal-form" onSubmit={handleChangePassword}>
+              <label>Current password<input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} required /></label>
+              <label>New password<input type="password" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} required /></label>
+              <label>Confirm new password<input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} required /></label>
+              {pwError && <div className="inline-error">{pwError}</div>}
+              <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowPwModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={pwSaving}>{pwSaving ? "Saving..." : "Update password"}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete modal */}
       {showDeleteModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <h4>Delete account</h4>
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                &#x2715;
-              </button>
-            </div>
-            <div className="modal-form">
-              <p>Are you sure? This cannot be undone.</p>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancel
-              </button>
-              <button type="button" className="danger-button" disabled>
-                Not yet available
-              </button>
-            </div>
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h4>Delete account</h4><button type="button" className="ghost-button" onClick={() => setShowDeleteModal(false)}>&#x2715;</button></div>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will permanently delete your account and all your data. This cannot be undone.</p>
+            <label className="modal-form" style={{ gap: "0.25rem" }}>Enter your password to confirm<input type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} /></label>
+            <div className="modal-actions" style={{ marginTop: "0.5rem" }}><button type="button" className="ghost-button" onClick={() => setShowDeleteModal(false)}>Cancel</button><button type="button" className="delete-button" disabled={!deletePassword} onClick={() => { console.log("Account deletion coming soon"); setShowDeleteModal(false); }}>Delete my account</button></div>
           </div>
         </div>
       )}

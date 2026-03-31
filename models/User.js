@@ -25,6 +25,9 @@ const UserSchema = new mongoose.Schema(
       frequency: { type: String, enum: ["weekly", "biweekly", "monthly"], default: "biweekly" },
       lastPaycheckDate: { type: Date },
     },
+    emailVerified: { type: Boolean, default: false },
+    verificationToken: { type: String },
+    verificationTokenExpiry: { type: Date },
   },
   { timestamps: true }
 );

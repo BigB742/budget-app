@@ -6,9 +6,12 @@ import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Settings from "./pages/Settings";
 import ExpenseHistory from "./pages/ExpenseHistory";
+import BillsIncome from "./pages/BillsIncome";
 import Onboarding from "./pages/Onboarding";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import VerifyEmail from "./pages/VerifyEmail";
+import CheckEmail from "./pages/CheckEmail";
 import OnboardingIncome from "./pages/OnboardingIncome";
 
 const RootRedirect = () => {
@@ -24,21 +27,19 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/register" element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/check-email" element={<CheckEmail />} />
 
-        {/* Onboarding wizard */}
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-        {/* Legacy onboarding routes redirect */}
         <Route path="/onboarding/income" element={<Navigate to="/onboarding" replace />} />
         <Route path="/onboarding/bills" element={<Navigate to="/onboarding" replace />} />
-        {/* Manage income — standalone page */}
         <Route path="/settings/income" element={<ProtectedRoute><OnboardingIncome /></ProtectedRoute>} />
 
-        {/* Main app routes inside AppShell */}
         <Route path="/app" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="history" element={<ExpenseHistory />} />
-          <Route path="bills" element={<Dashboard />} />
+          <Route path="bills" element={<BillsIncome />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

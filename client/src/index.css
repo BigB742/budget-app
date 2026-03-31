@@ -79,6 +79,9 @@ h1, h2, h3, h4, h5 { color: var(--text); }
    ═══════════════════════════════════════ */
 .app-shell { display: flex; min-height: 100vh; width: 100%; background: var(--bg); }
 .sidebar { display: none; }
+.sidebar-bottom { display: none; }
+.sidebar-logout { display: none; }
+.brand-dot { display: none; }
 .shell-main { flex: 1; min-width: 0; padding-bottom: 64px; }
 
 .bottom-tabs {
@@ -220,6 +223,10 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 
 /* Panels */
 .panels-section { padding: 0 1.25rem 2rem; display: flex; flex-direction: column; gap: 0.65rem; }
+
+/* Dashboard 2-column layout (mobile: stacked) */
+.dash-columns { display: flex; flex-direction: column; gap: 1rem; padding: 0 1.25rem 1.5rem; }
+.dash-chart-col { min-width: 0; }
 
 /* ═══════════════════════════════════════
    Shared components
@@ -377,7 +384,7 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .cal-week:not(:last-child) { border-bottom: 1px solid var(--card-border); }
 
 .cal-cell {
-  min-height: 80px; padding: 0.35rem 0.4rem;
+  min-height: 90px; padding: 0.4rem 0.45rem;
   border-right: 1px solid var(--card-border); background: var(--card);
   display: flex; flex-direction: column; gap: 2px; cursor: pointer;
   text-align: left; border-top: none; border-bottom: none; border-left: none;
@@ -590,6 +597,63 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .history-pagination { display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.75rem 0; font-size: 0.82rem; color: var(--text-secondary); }
 
 /* ═══════════════════════════════════════
+   Settings redesign
+   ═══════════════════════════════════════ */
+.settings-page h1 { text-align: left; font-size: 1.25rem; margin-bottom: 1rem; }
+.s-row { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--card-border); }
+.s-row:last-child { border-bottom: none; }
+.s-label { font-size: var(--font-base); font-weight: 500; color: var(--text); }
+.s-pills { display: flex; gap: 0.25rem; }
+.s-pill { padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid var(--card-border); background: var(--card); font-size: 0.78rem; font-weight: 600; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
+.s-pill.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.s-size-track { display: flex; gap: 0.35rem; align-items: baseline; }
+.s-size-btn { width: 36px; height: 36px; border-radius: var(--radius); border: 1px solid var(--card-border); background: var(--card); cursor: pointer; font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+.s-size-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.s-preview { font-style: italic; color: var(--text-muted); margin: 0.35rem 0 0; }
+.s-avatar { width: 52px; height: 52px; border-radius: 999px; background: var(--navy); color: #fff; font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.65rem; }
+.s-field-list { display: flex; flex-direction: column; gap: 0; }
+.s-field { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--card-border); gap: 0.5rem; }
+.s-field:last-child { border-bottom: none; }
+.s-field-label { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; min-width: 90px; }
+.s-field input { flex: 1; min-width: 0; padding: 0 0.5rem; height: 34px; border: 1px solid transparent; border-radius: var(--radius); font-size: var(--font-base); font-family: inherit; background: transparent; color: var(--text); text-align: right; }
+.s-field input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
+.s-pw-row { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: flex-end; }
+.s-pw-dots { color: var(--text-muted); font-size: 0.9rem; letter-spacing: 0.1em; }
+.s-change-pw { color: var(--accent) !important; font-size: 0.78rem !important; }
+.s-save-bar { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.65rem; }
+.s-save-msg { font-size: 0.78rem; color: var(--teal); }
+.s-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--card-border); cursor: pointer; gap: 0.75rem; }
+.s-toggle-row:last-child { border-bottom: none; }
+.s-toggle-label { font-size: var(--font-base); font-weight: 500; color: var(--text); display: block; }
+.s-toggle-sub { font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 0.1rem; }
+.s-toggle { accent-color: var(--accent); width: 18px; height: 18px; flex-shrink: 0; margin-top: 0.1rem; }
+.s-threshold-row { display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0 0.55rem; font-size: var(--font-base); }
+.s-threshold-row input { width: 80px; padding: 0 0.5rem; height: 34px; border: 1px solid var(--card-border); border-radius: var(--radius); font-family: inherit; font-size: var(--font-base); }
+.s-danger-btn { padding: 0.5rem 1rem; border-radius: var(--radius); border: 1px solid var(--red); background: transparent; color: var(--red); font-weight: 600; font-size: var(--font-base); cursor: pointer; }
+.s-danger-btn:hover { background: var(--red); color: #fff; }
+
+/* ═══════════════════════════════════════
+   Dual spending charts
+   ═══════════════════════════════════════ */
+.dual-charts { display: flex; flex-direction: column; gap: 1.25rem; }
+.chart-col { flex: 1; min-width: 0; }
+.chart-label { margin: 0 0 0.35rem; font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.donut-wrapper { position: relative; }
+.donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.donut-center-label { display: block; font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.donut-center-value { display: block; font-size: 0.95rem; font-weight: 800; color: var(--text); }
+
+/* ═══════════════════════════════════════
+   Bills & Income page
+   ═══════════════════════════════════════ */
+.bills-income-page { padding: 1.25rem; max-width: 700px; margin: 0 auto; }
+.bills-income-page h1 { text-align: left; font-size: 1.25rem; margin-bottom: 0.75rem; }
+.bi-summary-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.55rem 0.85rem; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); margin-bottom: 1rem; font-size: var(--font-base); }
+.bi-section { margin-bottom: 1.25rem; }
+.bi-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.bi-section-head h2 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+
+/* ═══════════════════════════════════════
    Responsive
    ═══════════════════════════════════════ */
 @media (max-width: 640px) {
@@ -619,35 +683,81 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
   .spending-layout { flex-direction: row; }
   .spending-chart { flex: 0 0 200px; }
   .spending-legend { flex: 1; }
+  .dual-charts { flex-direction: row; }
 }
 
 @media (min-width: 901px) {
   #root { padding: 0; }
+
+  /* ── Sidebar ── */
   .sidebar {
-    display: flex; flex-direction: column; width: 220px; background: var(--navy);
-    color: #fff; padding: 1.25rem 0; flex-shrink: 0; min-height: 100vh;
+    display: flex; flex-direction: column; width: 230px; background: var(--navy);
+    color: #fff; padding: 1.5rem 0 1rem; flex-shrink: 0; min-height: 100vh;
     position: sticky; top: 0;
   }
-  .sidebar-brand { font-size: 1.15rem; font-weight: 800; padding: 0 1.15rem 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 0.65rem; }
-  .sidebar-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar-brand {
+    font-size: 1.25rem; font-weight: 800; padding: 0 1.25rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 0.75rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .brand-dot {
+    width: 10px; height: 10px; border-radius: 999px; background: var(--teal);
+    display: inline-block; flex-shrink: 0;
+  }
+  .sidebar-nav {
+    list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
+    flex: 1;
+  }
   .sidebar-link {
-    display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 1.15rem;
-    color: rgba(255,255,255,0.45); text-decoration: none; font-size: 0.85rem; font-weight: 500;
+    display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 1.25rem;
+    color: rgba(255,255,255,0.45); text-decoration: none; font-size: 0.88rem; font-weight: 500;
     transition: background 0.12s, color 0.12s; position: relative;
   }
   .sidebar-link:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
   .sidebar-link.active { background: rgba(255,255,255,0.08); color: #fff; font-weight: 600; }
   .sidebar-link.active::before {
     content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-    width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent);
+    width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--teal);
   }
-  .sidebar-icon { font-size: 0.95rem; width: 1.15rem; text-align: center; }
-
-  /* Desktop ad slot between nav items */
-  .sidebar-ad { padding: 0.85rem 1.15rem; }
+  .sidebar-icon { font-size: 1rem; width: 1.25rem; text-align: center; }
+  .sidebar-bottom {
+    padding: 0.75rem 1.25rem 0; margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .sidebar-logout {
+    background: none; border: none; color: rgba(255,255,255,0.35); font-size: 0.78rem;
+    font-weight: 500; cursor: pointer; padding: 0.35rem 0; transition: color 0.12s;
+  }
+  .sidebar-logout:hover { color: rgba(255,255,255,0.7); }
 
   .bottom-tabs { display: none; }
   .shell-main { padding-bottom: 0; }
-  .dashboard-page { max-width: 700px; margin: 1.25rem auto; }
-  .calendar-page { max-width: 960px; }
+
+  /* ── Dashboard: full width, not narrow card ── */
+  .dashboard-page { max-width: 100%; margin: 0; border-radius: 0; box-shadow: none; min-height: auto; overflow: visible; }
+  .hero { border-radius: 0; padding: 1.5rem 2rem 2.25rem; }
+  .stat-grid { padding: 0 2rem; grid-template-columns: repeat(4, 1fr); }
+  .stat-card { height: auto; }
+  .quick-add { padding: 0.75rem 2rem; }
+  .planner-section { padding: 0; }
+  .dash-columns { display: flex; gap: 1.5rem; padding: 0 2rem 2rem; }
+  .dash-columns .planner-section { flex: 3; min-width: 0; }
+  .dash-chart-col { flex: 2; min-width: 0; }
+
+  /* ── Calendar: full width ── */
+  .calendar-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
+  .cal-cell { min-height: 100px; }
+  .cal-month-label { font-size: 1.35rem; }
+  .cal-day-num { font-size: 0.85rem; }
+
+  /* ── Bills & Income: 2-column ── */
+  .bi-two-col { display: flex; gap: 1.5rem; }
+  .bi-two-col > .bi-section { flex: 1; min-width: 0; }
+  .bills-income-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
+
+  /* ── History ── */
+  .history-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
+
+  /* ── Settings ── */
+  .settings-page { max-width: 600px; }
 }
