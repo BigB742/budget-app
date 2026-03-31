@@ -24,7 +24,7 @@ router.get("/", authRequired, async (req, res) => {
 
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { name, amount, category } = req.body;
+    const { name, amount, category, lastPaymentDate, lastPaymentAmount } = req.body;
     const dueDayOfMonth = req.body?.dueDayOfMonth ?? req.body?.dueDay;
     if (!name || amount == null || !dueDayOfMonth) {
       return res.status(400).json({ error: "Name, amount, and due day of month are required." });
@@ -35,6 +35,8 @@ router.post("/", authRequired, async (req, res) => {
       amount,
       dueDayOfMonth,
       category,
+      lastPaymentDate: lastPaymentDate || null,
+      lastPaymentAmount: lastPaymentAmount != null ? Number(lastPaymentAmount) : null,
     });
     const json = bill.toObject();
     res.status(201).json({ ...json, dueDay: json.dueDayOfMonth });
@@ -46,7 +48,8 @@ router.post("/", authRequired, async (req, res) => {
 
 router.put("/:id", authRequired, async (req, res) => {
   try {
-    const { name, amount, category, isActive } = req.body || {};
+    const { name, amount, category, isActive, lastPaymentDate, lastPaymentAmount } =
+      req.body || {};
     const dueDayOfMonth = req.body?.dueDayOfMonth ?? req.body?.dueDay;
     const update = {};
     if (name !== undefined) update.name = name;
@@ -54,13 +57,14 @@ router.put("/:id", authRequired, async (req, res) => {
     if (dueDayOfMonth !== undefined) update.dueDayOfMonth = dueDayOfMonth;
     if (category !== undefined) update.category = category;
     if (isActive !== undefined) update.isActive = isActive;
+    if (lastPaymentDate !== undefined) update.lastPaymentDate = lastPaymentDate || null;
+    if (lastPaymentAmount !== undefined)
+      update.lastPaymentAmount = lastPaymentAmount != null ? Number(lastPaymentAmount) : null;
 
     const updatedBill = await Bill.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
       update,
-      {
-        new: true,
-      }
+      { new: true }
     );
 
     if (!updatedBill) {

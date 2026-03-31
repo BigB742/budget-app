@@ -6,7 +6,8 @@ const Bill = require("../models/Bill");
 const Expense = require("../models/Expense");
 const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
-const { getBudgetPeriod, getPeriodsForSources } = require("../utils/paycheckUtils");
+const PaymentOverride = require("../models/PaymentOverride");
+const { getBudgetPeriod, getPeriodsForSources, toLocalDate } = require("../utils/paycheckUtils");
 
 const router = express.Router();
 
@@ -15,9 +16,37 @@ function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-// Helper: sum bills that fall within a date range
-function sumBillsInPeriod(bills, start, end) {
-  // Normalize to midnight local so day-level comparisons are consistent
+/**
+ * Determine the effective amount for a bill on a specific date.
+ * Checks: (1) payment overrides, (2) lastPaymentDate/lastPaymentAmount, (3) regular amount.
+ * Returns null if the bill should be excluded (past its lastPaymentDate).
+ */
+function getEffectiveBillAmount(bill, dateLocal, overrideMap) {
+  const lastPay = bill.lastPaymentDate ? startOfDay(toLocalDate(bill.lastPaymentDate)) : null;
+
+  // If we're past the lastPaymentDate, skip this bill entirely
+  if (lastPay && dateLocal > lastPay) return null;
+
+  // Check for a one-time payment override
+  const key = `${bill._id}_${dateLocal.getFullYear()}-${String(dateLocal.getMonth() + 1).padStart(2, "0")}-${String(dateLocal.getDate()).padStart(2, "0")}`;
+  if (overrideMap.has(key)) return overrideMap.get(key);
+
+  // If this is the last payment date month/day, use lastPaymentAmount
+  if (
+    lastPay &&
+    dateLocal.getMonth() === lastPay.getMonth() &&
+    dateLocal.getDate() === lastPay.getDate() &&
+    dateLocal.getFullYear() === lastPay.getFullYear() &&
+    bill.lastPaymentAmount != null
+  ) {
+    return Number(bill.lastPaymentAmount);
+  }
+
+  return Number(bill.amount) || 0;
+}
+
+// Helper: sum bills that fall within a date range, respecting overrides and lastPayment rules
+function sumBillsInPeriod(bills, start, end, overrideMap = new Map()) {
   const pStart = startOfDay(start);
   const pEnd = startOfDay(end);
 
@@ -32,11 +61,29 @@ function sumBillsInPeriod(bills, start, end) {
     uniqueTimes.forEach((time) => {
       const d = new Date(time);
       if (d >= pStart && d <= pEnd) {
-        total += Number(bill.amount) || 0;
+        const amt = getEffectiveBillAmount(bill, d, overrideMap);
+        if (amt != null) total += amt;
       }
     });
   });
   return total;
+}
+
+// Build a Map of override keys ("billId_YYYY-MM-DD") to amounts
+async function loadOverrideMap(userId, start, end) {
+  const from = startOfDay(start);
+  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+  const docs = await PaymentOverride.find({
+    user: userId,
+    date: { $gte: from, $lte: to },
+  });
+  const map = new Map();
+  docs.forEach((d) => {
+    const local = startOfDay(toLocalDate(d.date));
+    const key = `${d.bill}_${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}`;
+    map.set(key, Number(d.amount) || 0);
+  });
+  return map;
 }
 
 // Helper: sum expenses within a date range
@@ -75,9 +122,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     const { start, end, nextPayDate, totalIncome, sources: sourceBreakdown } = budget;
 
-    // Bills due in this period
+    // Bills due in this period (with override + lastPayment support)
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
-    const totalBills = sumBillsInPeriod(bills, start, end);
+    const overrideMap = await loadOverrideMap(req.userId, start, end);
+    const totalBills = sumBillsInPeriod(bills, start, end, overrideMap);
 
     // Expenses in this period
     const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
@@ -128,7 +176,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
         const nextStart = nextBudget.start;
         const nextEnd = nextBudget.end;
         const nextTotalIncome = nextBudget.totalIncome;
-        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd);
+        const nextOverrideMap = await loadOverrideMap(req.userId, nextStart, nextEnd);
+        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd, nextOverrideMap);
         const nextTotalExpenses = await sumExpensesInPeriod(req.userId, nextStart, nextEnd);
 
         // Current balance rolls over + next period income - next period bills - next period expenses

@@ -18,6 +18,7 @@ const summaryRoutes = require("./routes/summaryRoutes");
 const savingsRoutes = require("./routes/savingsRoutes");
 const investmentRoutes = require("./routes/investmentRoutes");
 const incomeSourceRoutes = require("./routes/incomeSourceRoutes");
+const paymentOverrideRoutes = require("./routes/paymentOverrideRoutes");
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/summary", summaryRoutes);
 app.use("/api/savings-goals", savingsRoutes);
 app.use("/api/investments", investmentRoutes);
 app.use("/api/income-sources", incomeSourceRoutes);
+app.use("/api/payment-overrides", paymentOverrideRoutes);
 
 const PORT = process.env.PORT || 5000;
 

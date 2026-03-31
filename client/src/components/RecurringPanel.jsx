@@ -31,6 +31,15 @@ const formatReadableDate = (iso) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+const formatEndDate = (iso) => {
+  if (!iso) return "";
+  const str = typeof iso === "string" ? iso : iso.toISOString?.() || String(iso);
+  const [y, m] = str.slice(0, 10).split("-").map(Number);
+  if (!y || !m) return "";
+  const date = new Date(y, m - 1, 1);
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+};
+
 const RecurringPanel = ({
   bills = [],
   incomeSources = [],
@@ -47,6 +56,8 @@ const RecurringPanel = ({
     amount: "",
     dueDay: "",
     category: "Other",
+    lastPaymentDate: "",
+    lastPaymentAmount: "",
   });
   const [billError, setBillError] = useState("");
 
@@ -58,7 +69,14 @@ const RecurringPanel = ({
     setBillError("");
     try {
       await onAddBill?.(billForm);
-      setBillForm({ name: "", amount: "", dueDay: "", category: "Other" });
+      setBillForm({
+        name: "",
+        amount: "",
+        dueDay: "",
+        category: "Other",
+        lastPaymentDate: "",
+        lastPaymentAmount: "",
+      });
       setShowBillModal(false);
     } catch (err) {
       console.error(err);
@@ -72,7 +90,7 @@ const RecurringPanel = ({
 
   return (
     <div className={`recurring-panel ${mobileOpen ? "open" : ""}`}>
-      <div className="recurring-header section-heading">
+      <div className="recurring-header">
         <h2>Income &amp; Bills</h2>
         <button type="button" className="ghost-button" onClick={onToggleMobile}>
           {mobileOpen ? "Hide" : "Show"}
@@ -98,7 +116,8 @@ const RecurringPanel = ({
                     {source.isPrimary && <span className="pill primary-pill">Primary</span>}
                   </p>
                   <p className="muted">
-                    {formatFrequency(source.frequency)} &middot; next: {formatReadableDate(source.nextPayDate)}
+                    {formatFrequency(source.frequency)} &middot; next:{" "}
+                    {formatReadableDate(source.nextPayDate)}
                   </p>
                 </div>
                 <div className="recurring-actions">
@@ -130,7 +149,14 @@ const RecurringPanel = ({
             {safeBills.map((bill) => (
               <div key={bill._id} className="recurring-card">
                 <div>
-                  <p className="entry-title">{bill.name}</p>
+                  <p className="entry-title">
+                    {bill.name}
+                    {bill.lastPaymentDate && (
+                      <span className="pill ends-pill">
+                        Ends {formatEndDate(bill.lastPaymentDate)}
+                      </span>
+                    )}
+                  </p>
                   <p className="muted">
                     Day {bill.dueDayOfMonth || bill.dueDay} &middot; {bill.category}
                   </p>
@@ -161,7 +187,7 @@ const RecurringPanel = ({
                 className="ghost-button"
                 onClick={() => setShowBillModal(false)}
               >
-                ✕
+                &#x2715;
               </button>
             </div>
             <form className="modal-form" onSubmit={handleBillSubmit}>
@@ -210,6 +236,30 @@ const RecurringPanel = ({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                Last payment date (optional)
+                <input
+                  type="date"
+                  name="lastPaymentDate"
+                  value={billForm.lastPaymentDate}
+                  onChange={(e) =>
+                    setBillForm((prev) => ({ ...prev, lastPaymentDate: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Last payment amount (optional)
+                <input
+                  type="number"
+                  step="0.01"
+                  name="lastPaymentAmount"
+                  placeholder="If different from regular amount"
+                  value={billForm.lastPaymentAmount}
+                  onChange={(e) =>
+                    setBillForm((prev) => ({ ...prev, lastPaymentAmount: e.target.value }))
+                  }
+                />
               </label>
               {billError && <div className="inline-error">{billError}</div>}
               <div className="modal-actions">

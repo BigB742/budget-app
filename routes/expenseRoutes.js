@@ -63,6 +63,12 @@ router.get("/day", authRequired, async (req, res) => {
   }
 });
 
+// TODO: This POST endpoint will be the entry point for future iOS/Android
+// quick-expense widgets (Widget 2 — two fields: description + amount, submits
+// without opening the app). When building the React Native or PWA version,
+// the widget should POST directly to this route with a valid auth token.
+// The same applies to a real-time balance widget (Widget 1) which would read
+// from GET /api/summary/paycheck-current.
 router.post("/", authRequired, async (req, res) => {
   try {
     const { date, amount, category, note, description } = req.body;

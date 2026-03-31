@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
-import AddExpenseModal from "../components/AddExpenseModal";
 import DayExpensesModal from "../components/DayExpensesModal";
 import RecurringPanel from "../components/RecurringPanel";
 import SavingsPanel from "../components/SavingsPanel";
@@ -13,19 +12,34 @@ import { useIncomeSources } from "../hooks/useIncomeSources";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-const formatDateLabel = (iso) => {
-  if (!iso) return "";
-  const [year, month, day] = iso.split("-");
-  if (!year || !month || !day) return "";
-  return `${month}/${day}/${year}`;
-};
+const CATEGORY_OPTIONS = [
+  { value: "Food", label: "\ud83c\udf54 Food" },
+  { value: "Dining Out", label: "\ud83c\udf7d\ufe0f Dining Out" },
+  { value: "Entertainment", label: "\ud83c\udfac Entertainment" },
+  { value: "Gas", label: "\u26fd Gas" },
+  { value: "Groceries", label: "\ud83d\uded2 Groceries" },
+  { value: "Home", label: "\ud83c\udfe0 Home" },
+  { value: "Health", label: "\ud83d\udc8a Health" },
+  { value: "Shopping", label: "\ud83d\udc57 Shopping" },
+  { value: "Travel", label: "\u2708\ufe0f Travel" },
+  { value: "Subscriptions", label: "\ud83d\udce6 Subscriptions" },
+  { value: "Other", label: "\ud83d\udcb8 Other" },
+];
 
 const formatReadableDate = (iso) => {
   if (!iso) return "";
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return "";
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 const Dashboard = () => {
@@ -41,9 +55,18 @@ const Dashboard = () => {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
   const [triggerAddBill, setTriggerAddBill] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showAllDays, setShowAllDays] = useState(false);
 
-  // Profile modal state
+  // Quick-add expense form
+  const [quickForm, setQuickForm] = useState({
+    description: "",
+    amount: "",
+    category: "Food",
+  });
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState("");
+
+  // Profile modal
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
     firstName: user?.firstName || "",
@@ -139,13 +162,16 @@ const Dashboard = () => {
           amount: Number(payload.amount),
           dueDayOfMonth: Number(payload.dueDay),
           category: payload.category || "Other",
+          lastPaymentDate: payload.lastPaymentDate || null,
+          lastPaymentAmount: payload.lastPaymentAmount
+            ? Number(payload.lastPaymentAmount)
+            : null,
         }),
       });
       setBills((prev) =>
         [...prev, newBill].sort((a, b) => (a.dueDayOfMonth || 0) - (b.dueDayOfMonth || 0))
       );
-      refreshSummary();
-      refreshPayPeriod();
+      refreshAll();
     } catch (err) {
       handleAuthError(err, "Unable to save bill.");
     }
@@ -155,8 +181,7 @@ const Dashboard = () => {
     try {
       await authFetch(`/api/bills/${id}`, { method: "DELETE" });
       setBills((prev) => prev.filter((bill) => bill._id !== id));
-      refreshSummary();
-      refreshPayPeriod();
+      refreshAll();
     } catch (err) {
       handleAuthError(err, "Unable to remove bill.");
     }
@@ -166,6 +191,32 @@ const Dashboard = () => {
     refreshSummary();
     refreshPayPeriod();
     refreshSources();
+  };
+
+  // Quick-add expense handler
+  const handleQuickExpense = async (e) => {
+    e.preventDefault();
+    if (!quickForm.amount || Number(quickForm.amount) <= 0) return;
+    setQuickSaving(true);
+    setQuickError("");
+    try {
+      await authFetch("/api/expenses", {
+        method: "POST",
+        body: JSON.stringify({
+          date: todayISO(),
+          amount: Number(quickForm.amount),
+          category: quickForm.category,
+          description: quickForm.description,
+        }),
+      });
+      setQuickForm({ description: "", amount: "", category: "Food" });
+      refreshAll();
+    } catch (err) {
+      console.error(err);
+      setQuickError("Couldn't save. Try again.");
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   const handleProfileFieldChange = (field, value) => {
@@ -216,19 +267,23 @@ const Dashboard = () => {
 
   const showOnboarding = !loading && bills.length === 0 && incomeSources.length === 0;
 
+  // Filter planner days: only show days with activity unless toggled
+  const activeDays = payPeriodDays.filter(
+    (d) => d.billsTotal > 0 || d.expensesTotal > 0 || d.isPayday
+  );
+  const displayDays = showAllDays ? payPeriodDays : activeDays;
+
   return (
     <div className="dashboard-page">
-      <header className="planner-header">
-        <div>
-          <h1 className="text-3xl font-bold">
-            Welcome Back, {user?.firstName || user?.name || "User"}!
-          </h1>
-          <p className="muted">Here's your current budget snapshot.</p>
-        </div>
-        <div className="planner-actions">
+      {/* ── Top bar ── */}
+      <header className="top-bar">
+        <span className="top-bar-greeting">
+          Hi, {user?.firstName || user?.name || "there"}
+        </span>
+        <div className="top-bar-actions">
           <button
             type="button"
-            className="ghost-button"
+            className="link-button"
             onClick={() => {
               setProfileError("");
               setProfileForm((prev) => ({
@@ -244,167 +299,192 @@ const Dashboard = () => {
               setShowProfileModal(true);
             }}
           >
-            Edit profile
+            Profile
           </button>
-          <button type="button" className="secondary-button" onClick={handleLogout}>
-            Logout
+          <button type="button" className="link-button" onClick={handleLogout}>
+            Log out
           </button>
         </div>
       </header>
 
-      <section className="paycheck-summary">
-        <div className="section-heading">
-          <h2>Current Budget Period</h2>
-          {summary && (
-            <p className="muted">
-              {formatDateLabel(summary.periodLabel?.start)} –{" "}
-              {formatDateLabel(summary.periodLabel?.end)}
-            </p>
-          )}
-        </div>
-        {summaryLoading && <p className="status">Loading budget summary...</p>}
+
+      {/* ── Hero balance ── */}
+      <section className="hero">
+        {summaryLoading && <p className="hero-loading">Loading...</p>}
         {summaryError && (
-          <p className="status status-error">Unable to load budget summary: {summaryError}</p>
+          <p className="hero-error">Unable to load balance: {summaryError}</p>
         )}
         {summary && !summaryLoading && !summaryError && (
           <>
-            <div className="paycheck-grid">
-              <div className="paycheck-card highlight">
-                <p className="eyebrow">Balance</p>
-                <p className="paycheck-value accent">{currency.format(summary.balance || 0)}</p>
-              </div>
-              <div className="paycheck-card">
-                <p className="eyebrow">Total income</p>
-                <p className="paycheck-value">{currency.format(summary.totalIncome || 0)}</p>
-              </div>
-              <div className="paycheck-card">
-                <p className="eyebrow">Bills this period</p>
-                <p className="paycheck-value">{currency.format(summary.totalBills || 0)}</p>
-              </div>
-              <div className="paycheck-card">
-                <p className="eyebrow">Expenses this period</p>
-                <p className="paycheck-value">{currency.format(summary.totalExpenses || 0)}</p>
-              </div>
-              <div className="paycheck-card">
-                <p className="eyebrow">Savings this period</p>
-                <p className="paycheck-value">{currency.format(summary.savingsThisPeriod || 0)}</p>
-              </div>
-              <div className="paycheck-card">
-                <p className="eyebrow">Investments this period</p>
-                <p className="paycheck-value">
-                  {currency.format(summary.investmentsThisPeriod || 0)}
-                </p>
-              </div>
-              {summary.nextPaycheckBalance != null && (
-                <div className="paycheck-card next-balance">
-                  <p className="eyebrow">Next Paycheck Balance</p>
-                  <p className="paycheck-value">
-                    {currency.format(summary.nextPaycheckBalance)}
-                  </p>
-                  {summary.nextPayDateLabel && (
-                    <p className="card-subtitle">
-                      Est. as of {formatReadableDate(summary.nextPayDateLabel)}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="paycheck-card">
-                <p className="eyebrow">Days until next paycheck</p>
-                <p className="paycheck-value">
-                  {summary.daysUntilNextPaycheck != null ? summary.daysUntilNextPaycheck : "\u2014"}
-                </p>
-              </div>
-            </div>
-
-            {summary.sources && summary.sources.length > 1 && (
-              <div className="income-breakdown">
-                <h4>Income breakdown</h4>
-                <div className="income-breakdown-list">
-                  {summary.sources.map((source) => (
-                    <div key={source.sourceId} className="income-breakdown-item">
-                      <span>{source.name}</span>
-                      <span className="muted">
-                        {source.paydaysInPeriod}x {currency.format(source.amount)} ={" "}
-                        {currency.format(source.totalForPeriod)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            <p className="hero-label">You can spend</p>
+            <p className="hero-balance">{currency.format(summary.balance || 0)}</p>
+            <p className="hero-sub">
+              After all bills through {formatReadableDate(summary.periodLabel?.end)}
+            </p>
+            {summary.nextPaycheckBalance != null && summary.nextPayDateLabel && (
+              <div className="hero-next-pill">
+                Next paycheck ({formatReadableDate(summary.nextPayDateLabel)}):{" "}
+                <strong>{currency.format(summary.nextPaycheckBalance)}</strong>
               </div>
             )}
           </>
         )}
       </section>
 
-      <section className="dashboard-section">
-        <div className="section-heading">
-          <h2>Daily Planner</h2>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => setShowAddExpense(true)}
-          >
-            + Add Expense
-          </button>
+      {/* ── Stat cards 2x2 ── */}
+      {summary && !summaryLoading && !summaryError && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <span className="stat-label">Bills to pay</span>
+            <span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">What I've spent</span>
+            <span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Days left</span>
+            <span className="stat-value">
+              {summary.daysUntilNextPaycheck != null ? summary.daysUntilNextPaycheck : "\u2014"}
+            </span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Savings goal</span>
+            <span className="stat-value">{currency.format(summary.savingsThisPeriod || 0)}</span>
+          </div>
         </div>
-        {payPeriodError && (
-          <p className="status status-error">Unable to load daily planner: {payPeriodError}</p>
-        )}
-        {payPeriodLoading ? (
-          <p className="status">Loading current pay period...</p>
-        ) : !payPeriodDays.length ? (
-          <div className="onboarding-card">
-            <p>Set your income sources to see your daily planner.</p>
-          </div>
-        ) : (
-          <div className="paycheck-daily-grid">
-            {payPeriodDays.map((day) => (
-              <button
-                key={day.dateKey}
-                type="button"
-                className="daily-day-card"
-                onClick={() => setSelectedDay(day)}
-              >
-                <div className="daily-day-header">
-                  <span className="daily-day-label">
-                    {day.weekdayLabel} {day.dayOfMonth}
-                  </span>
-                  {day.isPayday && <span className="pill payday">Payday</span>}
-                </div>
-                {day.billsTotal > 0 && (
-                  <div className="daily-line bills">Bills: ${day.billsTotal.toFixed(2)}</div>
-                )}
-                {day.expensesTotal > 0 && (
-                  <div className="daily-line expenses">Expenses: ${day.expensesTotal.toFixed(2)}</div>
-                )}
-                {day.billsTotal === 0 && day.expensesTotal === 0 && (
-                  <div className="daily-line muted">No activity yet</div>
-                )}
-              </button>
+      )}
+
+      {/* ── Quick expense bar ── */}
+      <section className="quick-add">
+        <form className="quick-add-form" onSubmit={handleQuickExpense}>
+          <input
+            type="text"
+            name="description"
+            placeholder="Description"
+            value={quickForm.description}
+            onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))}
+            className="quick-input quick-desc"
+          />
+          <input
+            type="number"
+            name="amount"
+            placeholder="$0.00"
+            step="0.01"
+            min="0.01"
+            value={quickForm.amount}
+            onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))}
+            required
+            className="quick-input quick-amount"
+          />
+          <select
+            name="category"
+            value={quickForm.category}
+            onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))}
+            className="quick-input quick-cat"
+          >
+            {CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
-          </div>
-        )}
-        <p className="muted" style={{ marginTop: "0.35rem" }}>
-          Click a day to add or review expenses.
-        </p>
+          </select>
+          <button type="submit" className="quick-add-btn" disabled={quickSaving}>
+            {quickSaving ? "..." : "+ Add"}
+          </button>
+        </form>
+        {quickError && <p className="quick-error">{quickError}</p>}
       </section>
 
+      {/* ── Daily planner (activity-only by default) ── */}
+      <section className="planner-section">
+        <div className="planner-header-row">
+          <h2 className="section-title">Upcoming</h2>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setShowAllDays((p) => !p)}
+          >
+            {showAllDays ? "Active only" : "Show all days"}
+          </button>
+        </div>
+
+        {payPeriodError && (
+          <p className="status status-error">{payPeriodError}</p>
+        )}
+        {payPeriodLoading ? (
+          <p className="status">Loading...</p>
+        ) : !payPeriodDays.length ? (
+          <div className="empty-state">
+            <p>Set up your income to see your daily plan.</p>
+          </div>
+        ) : displayDays.length === 0 ? (
+          <p className="empty-hint">No upcoming bills or expenses this period.</p>
+        ) : (
+          <ul className="activity-list">
+            {displayDays.map((day) => (
+              <li key={day.dateKey}>
+                <button
+                  type="button"
+                  className="activity-row"
+                  onClick={() => setSelectedDay(day)}
+                >
+                  <span className="activity-date">
+                    {day.weekdayLabel} {day.dayOfMonth}
+                    {day.isPayday && <span className="payday-dot" title="Payday" />}
+                  </span>
+                  <span className="activity-details">
+                    {day.bills.map((b) => (
+                      <span key={b._id} className="activity-item bill-item">
+                        {b.name} &minus;{currency.format(b.amount)}
+                      </span>
+                    ))}
+                    {day.expenses.map((exp, i) => (
+                      <span key={exp._id || i} className="activity-item expense-item">
+                        {exp.description || exp.category || "Expense"}{" "}
+                        {currency.format(exp.amount)}
+                      </span>
+                    ))}
+                    {day.billsTotal === 0 && day.expensesTotal === 0 && !day.isPayday && (
+                      <span className="activity-item empty-item">No activity</span>
+                    )}
+                    {day.billsTotal === 0 && day.expensesTotal === 0 && day.isPayday && (
+                      <span className="activity-item payday-label">Payday</span>
+                    )}
+                  </span>
+                  <span className="activity-total">
+                    {day.billsTotal > 0 && (
+                      <span className="amt-bill">&minus;{currency.format(day.billsTotal)}</span>
+                    )}
+                    {day.expensesTotal > 0 && (
+                      <span className="amt-exp">{currency.format(day.expensesTotal)}</span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="planner-hint">Tap a day to add or review expenses.</p>
+      </section>
+
+      {/* ── Income & Bills / Savings / Investments ── */}
       {error && <p className="status status-error">{error}</p>}
-      {loading && <p className="status">Loading your data...</p>}
+      {loading && <p className="status">Loading...</p>}
 
       {!loading && (
         <>
           {showOnboarding && (
-            <div className="onboarding-card">
+            <div className="empty-state" style={{ marginTop: "1.5rem" }}>
               <h3>Let's set up your money flow</h3>
-              <p>Add your income sources and recurring bills so we can build your daily plan.</p>
+              <p>Add your income and bills so we can show your real balance.</p>
               <div className="onboarding-actions">
                 <button
                   type="button"
                   className="primary-button"
                   onClick={() => navigate("/settings/income")}
                 >
-                  Add income source
+                  Add income
                 </button>
                 <button
                   type="button"
@@ -417,27 +497,24 @@ const Dashboard = () => {
             </div>
           )}
 
-          <div className="planner-grid">
-            <section className="planner-right" style={{ gridColumn: "1 / -1" }}>
-              <div className="space-y-6">
-                <RecurringPanel
-                  bills={bills}
-                  incomeSources={incomeSources}
-                  onAddBill={handleCreateBill}
-                  onDeleteBill={handleDeleteBill}
-                  onSourcesChanged={refreshAll}
-                  mobileOpen={mobilePanelOpen}
-                  onToggleMobile={() => setMobilePanelOpen((prev) => !prev)}
-                  triggerAddBill={triggerAddBill}
-                />
-                <SavingsPanel />
-                <InvestmentsPanel />
-              </div>
-            </section>
+          <div className="panels-section">
+            <RecurringPanel
+              bills={bills}
+              incomeSources={incomeSources}
+              onAddBill={handleCreateBill}
+              onDeleteBill={handleDeleteBill}
+              onSourcesChanged={refreshAll}
+              mobileOpen={mobilePanelOpen}
+              onToggleMobile={() => setMobilePanelOpen((prev) => !prev)}
+              triggerAddBill={triggerAddBill}
+            />
+            <SavingsPanel />
+            <InvestmentsPanel />
           </div>
         </>
       )}
 
+      {/* ── Day expenses modal ── */}
       {selectedDay && (
         <DayExpensesModal
           isOpen={!!selectedDay}
@@ -452,16 +529,7 @@ const Dashboard = () => {
         />
       )}
 
-      {showAddExpense && (
-        <AddExpenseModal
-          onClose={() => setShowAddExpense(false)}
-          onSaved={() => {
-            setShowAddExpense(false);
-            refreshAll();
-          }}
-        />
-      )}
-
+      {/* ── Profile modal ── */}
       {showProfileModal && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -472,7 +540,7 @@ const Dashboard = () => {
                 className="ghost-button"
                 onClick={() => setShowProfileModal(false)}
               >
-                ✕
+                &#x2715;
               </button>
             </div>
             <form className="modal-form" onSubmit={handleProfileSubmit}>
