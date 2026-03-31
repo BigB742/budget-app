@@ -146,6 +146,14 @@ const Dashboard = () => {
     }
   }, [handleAuthError]);
 
+  const loadSpendingCategories = useCallback(async () => {
+    try {
+      const data = await authFetch("/api/summary/expense-categories");
+      setSpendingCats(data.categories || []);
+      setPrevTotal(data.previousTotal);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     loadBills();
     loadUserProfile();
@@ -192,14 +200,6 @@ const Dashboard = () => {
       handleAuthError(err, "Unable to remove bill.");
     }
   };
-
-  const loadSpendingCategories = useCallback(async () => {
-    try {
-      const data = await authFetch("/api/summary/expense-categories");
-      setSpendingCats(data.categories || []);
-      setPrevTotal(data.previousTotal);
-    } catch { /* ignore */ }
-  }, []);
 
   const refreshAll = () => {
     refreshSummary();
