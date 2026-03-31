@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { authFetch } from "../apiClient";
 
@@ -6,29 +6,49 @@ const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
   const isOnboarding = location.pathname === "/onboarding";
-  const isSettingsIncome = location.pathname === "/settings/income";
 
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Start with cached user from localStorage so the page doesn't blank
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  });
+  const [loading, setLoading] = useState(!user && !!token);
+  const [authFailed, setAuthFailed] = useState(false);
+  const didFetch = useRef(false);
 
   useEffect(() => {
-    if (!token) { setLoading(false); return; }
+    if (!token || didFetch.current) return;
+    didFetch.current = true;
 
     let cancelled = false;
+
+    // Timeout safety net
+    const timer = setTimeout(() => {
+      if (!cancelled && !user) {
+        // API is hanging — if we have a cached user, use it; otherwise fail
+        const cached = (() => { try { return JSON.parse(localStorage.getItem("user")); } catch { return null; } })();
+        if (cached) {
+          setUser(cached);
+          setLoading(false);
+        } else {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setAuthFailed(true);
+          setLoading(false);
+        }
+      }
+    }, 5000);
+
     (async () => {
-      setLoading(true);
       try {
-        // Fetch profile and income sources in parallel
         const [profile, sources] = await Promise.all([
           authFetch("/api/user/me"),
           authFetch("/api/income-sources"),
         ]);
         if (cancelled) return;
 
-        // Auto-complete onboarding for existing users who already have data
+        // Auto-complete onboarding for existing users with data
         const hasSources = Array.isArray(sources) && sources.length > 0;
         if (!profile.onboardingComplete && hasSources) {
-          // Existing user with data — mark onboarding done silently
           try {
             await authFetch("/api/user/complete-onboarding", { method: "POST" });
             profile.onboardingComplete = true;
@@ -38,28 +58,56 @@ const ProtectedRoute = ({ children }) => {
         setUser(profile);
         localStorage.setItem("user", JSON.stringify(profile));
       } catch (err) {
-        if (err.status === 401) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-        }
+        if (cancelled) return;
+        // Auth failed — clear token so we don't loop back from /login
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setAuthFailed(true);
       } finally {
+        clearTimeout(timer);
         if (!cancelled) setLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [token, location.pathname]);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [token]);
 
-  if (!token) return <Navigate to="/login" replace />;
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", color: "var(--text-secondary)" }}>Loading...</div>;
+  // No token or auth definitively failed → login (token already cleared)
+  if (!token || authFailed) {
+    return <Navigate to="/login" replace />;
+  }
 
-  const needsOnboarding = user && user.onboardingComplete === false;
+  // Still loading and no cached user → show spinner
+  if (loading && !user) {
+    return (
+      <div style={{
+        display: "flex", flexDirection: "column", justifyContent: "center",
+        alignItems: "center", minHeight: "100vh", gap: "0.5rem",
+        color: "#8492A6", fontFamily: "inherit",
+      }}>
+        <div style={{
+          width: 28, height: 28, border: "3px solid currentColor",
+          borderTopColor: "transparent", borderRadius: "50%",
+          animation: "spin 0.6s linear infinite",
+        }} />
+        <span style={{ fontSize: "0.85rem" }}>Loading...</span>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    );
+  }
 
-  // User needs onboarding and isn't on the onboarding page → redirect there
-  if (needsOnboarding && !isOnboarding) return <Navigate to="/onboarding" replace />;
+  // If we still have no user at all, bail to login
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
-  // User has completed onboarding but is on the onboarding page → redirect to dashboard
-  if (user && user.onboardingComplete && isOnboarding) return <Navigate to="/app" replace />;
+  // Onboarding routing
+  if (user.onboardingComplete === false && !isOnboarding) {
+    return <Navigate to="/onboarding" replace />;
+  }
+  if (user.onboardingComplete !== false && isOnboarding) {
+    return <Navigate to="/app" replace />;
+  }
 
   return children;
 };
