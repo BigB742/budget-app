@@ -4,9 +4,11 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AppShell from "./components/AppShell";
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
+import Settings from "./pages/Settings";
+import ExpenseHistory from "./pages/ExpenseHistory";
+import Onboarding from "./pages/Onboarding";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import OnboardingBills from "./pages/OnboardingBills";
 import OnboardingIncome from "./pages/OnboardingIncome";
 
 const RootRedirect = () => {
@@ -21,42 +23,23 @@ function App() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/onboarding/income"
-          element={
-            <ProtectedRoute>
-              <OnboardingIncome />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/onboarding/bills"
-          element={
-            <ProtectedRoute>
-              <OnboardingBills />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings/income"
-          element={
-            <ProtectedRoute>
-              <OnboardingIncome />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/register" element={<Signup />} />
+
+        {/* Onboarding wizard */}
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+        {/* Legacy onboarding routes redirect */}
+        <Route path="/onboarding/income" element={<Navigate to="/onboarding" replace />} />
+        <Route path="/onboarding/bills" element={<Navigate to="/onboarding" replace />} />
+        {/* Manage income — standalone page */}
+        <Route path="/settings/income" element={<ProtectedRoute><OnboardingIncome /></ProtectedRoute>} />
+
         {/* Main app routes inside AppShell */}
-        <Route
-          path="/app"
-          element={
-            <ProtectedRoute>
-              <AppShell />
-            </ProtectedRoute>
-          }
-        >
+        <Route path="/app" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="calendar" element={<Calendar />} />
+          <Route path="history" element={<ExpenseHistory />} />
           <Route path="bills" element={<Dashboard />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

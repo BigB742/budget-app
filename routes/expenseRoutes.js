@@ -20,20 +20,30 @@ router.delete("/dev-reset", authRequired, async (req, res) => {
 
 router.get("/", authRequired, async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, category, search, page, limit: limitStr } = req.query;
     const query = { $or: [{ user: req.userId }, { userId: req.userId }] };
 
     if (from || to) {
       query.date = {};
-      if (from) {
-        query.date.$gte = new Date(from);
-      }
-      if (to) {
-        query.date.$lte = new Date(to);
-      }
+      if (from) query.date.$gte = new Date(from);
+      if (to) query.date.$lte = new Date(to);
+    }
+    if (category) query.category = category;
+    if (search) query.description = { $regex: search, $options: "i" };
+
+    // If pagination requested
+    if (page) {
+      const lim = Math.min(Number(limitStr) || 25, 100);
+      const pg = Math.max(Number(page) || 1, 1);
+      const [expenses, total] = await Promise.all([
+        Expense.find(query).sort({ date: -1 }).skip((pg - 1) * lim).limit(lim),
+        Expense.countDocuments(query),
+      ]);
+      return res.json({ expenses, total, count: expenses.length, page: pg, pages: Math.ceil(total / lim) });
     }
 
-    const expenses = await Expense.find(query).sort({ date: 1 });
+    // Default: return all (backwards compat)
+    const expenses = await Expense.find(query).sort({ date: -1 });
     res.json(expenses);
   } catch (error) {
     console.error("Error fetching expenses", error);

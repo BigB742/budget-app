@@ -17,7 +17,12 @@ const createTokenResponse = (user) => {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      phone: user.phone,
       dateOfBirth: user.dateOfBirth,
+      onboardingComplete: !!user.onboardingComplete,
+      isPremium: !!user.isPremium,
+      locale: user.locale || "en",
+      notificationPrefs: user.notificationPrefs || {},
       incomeSettings: user.incomeSettings || {},
     },
   };
@@ -25,12 +30,10 @@ const createTokenResponse = (user) => {
 
 router.post("/signup", async (req, res) => {
   try {
-    const { firstName, lastName, dateOfBirth, email, password } = req.body;
+    const { firstName, lastName, dateOfBirth, email, password, phone } = req.body;
 
-    if (!firstName || !lastName || !dateOfBirth || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: "First name, last name, date of birth, email, and password are required." });
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
@@ -40,12 +43,14 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({
-      name: `${firstName} ${lastName}`.trim(),
-      firstName,
-      lastName,
+      name: `${firstName || ""} ${lastName || ""}`.trim() || email.split("@")[0],
+      firstName: firstName || "",
+      lastName: lastName || "",
+      phone: phone || "",
       dateOfBirth,
       email: email.toLowerCase().trim(),
       passwordHash,
+      onboardingComplete: false,
     });
 
     res.status(201).json(createTokenResponse(user));

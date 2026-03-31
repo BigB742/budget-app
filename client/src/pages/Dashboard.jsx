@@ -6,6 +6,9 @@ import DayExpensesModal from "../components/DayExpensesModal";
 import RecurringPanel from "../components/RecurringPanel";
 import SavingsPanel from "../components/SavingsPanel";
 import InvestmentsPanel from "../components/InvestmentsPanel";
+import AdSlot from "../components/AdSlot";
+import SpendingBreakdown from "../components/SpendingBreakdown";
+import DebtPanel from "../components/DebtPanel";
 import { useCurrentPaycheckSummary } from "../hooks/useCurrentPaycheckSummary";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 import { useIncomeSources } from "../hooks/useIncomeSources";
@@ -56,6 +59,8 @@ const Dashboard = () => {
   const [triggerAddBill, setTriggerAddBill] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
+  const [spendingCats, setSpendingCats] = useState([]);
+  const [prevTotal, setPrevTotal] = useState(null);
 
   // Quick-add expense form
   const [quickForm, setQuickForm] = useState({
@@ -144,7 +149,8 @@ const Dashboard = () => {
   useEffect(() => {
     loadBills();
     loadUserProfile();
-  }, [loadBills, loadUserProfile]);
+    loadSpendingCategories();
+  }, [loadBills, loadUserProfile, loadSpendingCategories]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -187,10 +193,19 @@ const Dashboard = () => {
     }
   };
 
+  const loadSpendingCategories = useCallback(async () => {
+    try {
+      const data = await authFetch("/api/summary/expense-categories");
+      setSpendingCats(data.categories || []);
+      setPrevTotal(data.previousTotal);
+    } catch { /* ignore */ }
+  }, []);
+
   const refreshAll = () => {
     refreshSummary();
     refreshPayPeriod();
     refreshSources();
+    loadSpendingCategories();
   };
 
   // Quick-add expense handler
@@ -317,7 +332,9 @@ const Dashboard = () => {
         {summary && !summaryLoading && !summaryError && (
           <>
             <p className="hero-label">You can spend</p>
-            <p className="hero-balance">{currency.format(summary.balance || 0)}</p>
+            <p className={`hero-balance${(summary.balance || 0) >= 500 ? " healthy" : (summary.balance || 0) < 100 ? " warning" : ""}`}>
+              {currency.format(summary.balance || 0)}
+            </p>
             <p className="hero-sub">
               After all bills through {formatReadableDate(summary.periodLabel?.end)}
             </p>
@@ -330,6 +347,8 @@ const Dashboard = () => {
           </>
         )}
       </section>
+
+      <AdSlot placement="banner" />
 
       {/* ── Stat cards 2x2 ── */}
       {summary && !summaryLoading && !summaryError && (
@@ -468,6 +487,11 @@ const Dashboard = () => {
         <p className="planner-hint">Tap a day to add or review expenses.</p>
       </section>
 
+      {/* ── Spending Breakdown ── */}
+      <section className="panels-section" style={{ paddingTop: 0 }}>
+        <SpendingBreakdown expensesByCategory={spendingCats} previousTotal={prevTotal} />
+      </section>
+
       {/* ── Income & Bills / Savings / Investments ── */}
       {error && <p className="status status-error">{error}</p>}
       {loading && <p className="status">Loading...</p>}
@@ -508,6 +532,7 @@ const Dashboard = () => {
               onToggleMobile={() => setMobilePanelOpen((prev) => !prev)}
               triggerAddBill={triggerAddBill}
             />
+            <DebtPanel />
             <SavingsPanel />
             <InvestmentsPanel />
           </div>

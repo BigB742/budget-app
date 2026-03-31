@@ -1,36 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-
 import { authFetch } from "../apiClient";
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   const location = useLocation();
-  const isOnOnboardingRoute =
-    location.pathname.startsWith("/onboarding/income") ||
-    location.pathname.startsWith("/onboarding/bills");
+  const isOnboarding = location.pathname === "/onboarding";
+  const isSettingsIncome = location.pathname === "/settings/income";
 
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
-  });
-  const [incomeSources, setIncomeSources] = useState(null);
-  const [loading, setLoading] = useState(!!token);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) { setLoading(false); return; }
 
-    const loadData = async () => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
       try {
+        // Fetch profile and income sources in parallel
         const [profile, sources] = await Promise.all([
           authFetch("/api/user/me"),
           authFetch("/api/income-sources"),
         ]);
+        if (cancelled) return;
+
+        // Auto-complete onboarding for existing users who already have data
+        const hasSources = Array.isArray(sources) && sources.length > 0;
+        if (!profile.onboardingComplete && hasSources) {
+          // Existing user with data — mark onboarding done silently
+          try {
+            await authFetch("/api/user/complete-onboarding", { method: "POST" });
+            profile.onboardingComplete = true;
+          } catch { /* non-critical */ }
+        }
+
         setUser(profile);
-        setIncomeSources(Array.isArray(sources) ? sources : []);
         localStorage.setItem("user", JSON.stringify(profile));
       } catch (err) {
         if (err.status === 401) {
@@ -38,33 +43,23 @@ const ProtectedRoute = ({ children }) => {
           localStorage.removeItem("user");
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    loadData();
-  }, [token]);
+    return () => { cancelled = true; };
+  }, [token, location.pathname]);
 
-  const needsOnboarding = useMemo(() => {
-    if (incomeSources === null) return false;
-    return incomeSources.length === 0;
-  }, [incomeSources]);
+  if (!token) return <Navigate to="/login" replace />;
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", color: "var(--text-secondary)" }}>Loading...</div>;
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+  const needsOnboarding = user && user.onboardingComplete === false;
 
-  if (loading) {
-    return <p>Loading...</p>;
-  }
+  // User needs onboarding and isn't on the onboarding page → redirect there
+  if (needsOnboarding && !isOnboarding) return <Navigate to="/onboarding" replace />;
 
-  if (needsOnboarding && !isOnOnboardingRoute) {
-    return <Navigate to="/onboarding/income" replace />;
-  }
-
-  if (!needsOnboarding && isOnOnboardingRoute) {
-    return <Navigate to="/app" replace />;
-  }
+  // User has completed onboarding but is on the onboarding page → redirect to dashboard
+  if (user && user.onboardingComplete && isOnboarding) return <Navigate to="/app" replace />;
 
   return children;
 };

@@ -19,6 +19,8 @@ const savingsRoutes = require("./routes/savingsRoutes");
 const investmentRoutes = require("./routes/investmentRoutes");
 const incomeSourceRoutes = require("./routes/incomeSourceRoutes");
 const paymentOverrideRoutes = require("./routes/paymentOverrideRoutes");
+const debtRoutes = require("./routes/debtRoutes");
+const exportRoutes = require("./routes/exportRoutes");
 
 const app = express();
 
@@ -30,14 +32,14 @@ const mongoURI = process.env.MONGO_URI;
 mongoose
   .connect(mongoURI, {})
   .then(() => {
-    console.log("✅ Connected to MongoDB (budget app).");
+    console.log("Connected to MongoDB (budget app).");
   })
   .catch((error) => {
-    console.error("❌ MongoDB connection error:", error);
+    console.error("MongoDB connection error:", error);
   });
 
 app.get("/", (req, res) => {
-  res.send("Budget API is running");
+  res.send("PayPulse API is running");
 });
 
 app.use("/api/auth", authRoutes);
@@ -55,9 +57,15 @@ app.use("/api/savings-goals", savingsRoutes);
 app.use("/api/investments", investmentRoutes);
 app.use("/api/income-sources", incomeSourceRoutes);
 app.use("/api/payment-overrides", paymentOverrideRoutes);
+app.use("/api/debts", debtRoutes);
+app.use("/api/export", exportRoutes);
+
+// Cron jobs (bill reminders + savings autopilot)
+require("./jobs/billReminders");
+require("./jobs/savingsAutopilot");
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}.`);
+  console.log(`Server running on port ${PORT}.`);
 });
