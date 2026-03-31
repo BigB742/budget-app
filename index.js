@@ -17,6 +17,7 @@ const transactionRoutes = require("./routes/transactionRoutes");
 const summaryRoutes = require("./routes/summaryRoutes");
 const savingsRoutes = require("./routes/savingsRoutes");
 const investmentRoutes = require("./routes/investmentRoutes");
+const incomeSourceRoutes = require("./routes/incomeSourceRoutes");
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/summary", summaryRoutes);
 app.use("/api/savings-goals", savingsRoutes);
 app.use("/api/investments", investmentRoutes);
+app.use("/api/income-sources", incomeSourceRoutes);
 
 const PORT = process.env.PORT || 5000;
 

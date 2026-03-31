@@ -1,25 +1,12 @@
 const express = require("express");
 
 const { authRequired } = require("../middleware/auth");
-const PaySchedule = require("../models/PaySchedule");
-const Income = require("../models/Income");
+const IncomeSource = require("../models/IncomeSource");
 const Bill = require("../models/Bill");
 const Expense = require("../models/Expense");
+const { getBudgetPeriod } = require("../utils/paycheckUtils");
 
 const router = express.Router();
-
-// Helpers
-function createLocalDate(y, mIndex, d) {
-  return new Date(y, mIndex, d);
-}
-
-function sameYMD(a, b) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
 
 function dateKey(d) {
   return d.toISOString().slice(0, 10);
@@ -27,13 +14,34 @@ function dateKey(d) {
 
 router.get("/summary", authRequired, async (req, res) => {
   try {
-    const userId = req.userId || req.user?._id;
+    const userId = req.userId;
     const now = new Date();
 
-    // Determine which month to show
-    let year = now.getFullYear();
-    let monthIndex = now.getMonth(); // 0-based
+    const sources = await IncomeSource.find({ user: userId, isActive: true });
+    if (!sources.length) {
+      return res.json({
+        hasSources: false,
+        currentPeriod: null,
+        calendar: null,
+        categoryTotals: [],
+      });
+    }
 
+    const budget = getBudgetPeriod(sources, now);
+    if (!budget) {
+      return res.json({
+        hasSources: true,
+        currentPeriod: null,
+        calendar: null,
+        categoryTotals: [],
+      });
+    }
+
+    const { start, end, nextPayDate, totalIncome, sources: sourceBreakdown } = budget;
+
+    // Determine month for calendar
+    let year = now.getFullYear();
+    let monthIndex = now.getMonth();
     if (req.query.month) {
       const [y, m] = req.query.month.split("-").map((v) => parseInt(v, 10));
       if (!Number.isNaN(y) && !Number.isNaN(m)) {
@@ -42,166 +50,63 @@ router.get("/summary", authRequired, async (req, res) => {
       }
     }
 
-    const monthStart = createLocalDate(year, monthIndex, 1);
-    const monthEnd = createLocalDate(year, monthIndex + 1, 0); // last day of month
+    const monthStart = new Date(year, monthIndex, 1);
+    const monthEnd = new Date(year, monthIndex + 1, 0);
 
-    const schedule = await PaySchedule.findOne({ user: userId });
-    if (!schedule) {
-      return res.json({
-        hasSchedule: false,
-        currentPeriod: null,
-        projectedBalance: [],
-        calendar: { year, month: monthIndex + 1, days: [] },
-        categoryTotals: [],
+    const bills = await Bill.find({ user: userId, isActive: { $ne: false } });
+    const periodExpenses = await Expense.find({
+      $or: [{ user: userId }, { userId }],
+      date: { $gte: start, $lte: end },
+    });
+
+    // Compute totals for current period
+    let totalBills = 0;
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      bills.forEach((bill) => {
+        if (bill.dueDayOfMonth === cursor.getDate()) {
+          totalBills += Number(bill.amount) || 0;
+        }
       });
+      cursor.setDate(cursor.getDate() + 1);
     }
 
-    // Fetch paychecks around the month
-    const paychecks = await Income.find({
-      user: userId,
-      type: "paycheck",
-      date: {
-        $gte: createLocalDate(year, monthIndex - 1, 1),
-        $lte: createLocalDate(year, monthIndex + 2, 0),
-      },
-    }).sort({ date: 1 });
+    const totalExpenses = periodExpenses.reduce(
+      (sum, exp) => sum + (Number(exp.amount) || 0),
+      0
+    );
 
-    if (!paychecks.length) {
-      return res.json({
-        hasSchedule: true,
-        currentPeriod: null,
-        projectedBalance: [],
-        calendar: { year, month: monthIndex + 1, days: [] },
-        categoryTotals: [],
-      });
-    }
+    const leftToSpend = totalIncome - totalBills - totalExpenses;
 
-    const billsQuery = { user: userId };
-    const bills = await Bill.find(billsQuery);
+    const currentPeriod = {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      nextPayDate: nextPayDate.toISOString(),
+      totalIncome,
+      totalBills,
+      totalExpenses,
+      leftToSpend,
+      sources: sourceBreakdown,
+    };
 
-    const expenses = await Expense.find({
-      user: userId,
+    // Calendar for the selected month
+    const daysInMonth = monthEnd.getDate();
+    const monthExpenses = await Expense.find({
+      $or: [{ user: userId }, { userId }],
       date: { $gte: monthStart, $lte: monthEnd },
     });
 
-    // ---------- Determine current pay period ----------
-    const todayLocal = createLocalDate(now.getFullYear(), now.getMonth(), now.getDate());
-
-    let prevPaycheck = paychecks[0];
-    let nextPaycheck = paychecks[paychecks.length - 1];
-
-    for (let i = 0; i < paychecks.length; i += 1) {
-      const p = paychecks[i];
-      if (p.date <= todayLocal) {
-        prevPaycheck = p;
-      } else {
-        nextPaycheck = p;
-        break;
-      }
-    }
-
-    const periodStart = createLocalDate(
-      prevPaycheck.date.getFullYear(),
-      prevPaycheck.date.getMonth(),
-      prevPaycheck.date.getDate()
-    );
-    const periodEndExclusive = createLocalDate(
-      nextPaycheck.date.getFullYear(),
-      nextPaycheck.date.getMonth(),
-      nextPaycheck.date.getDate()
-    );
-
-    const paycheckAmount = prevPaycheck.amount;
-    const autoSavings = schedule.autoSavings || 0;
-    const autoInvesting = schedule.autoInvesting || 0;
-
-    const startingSpendable = paycheckAmount - autoSavings - autoInvesting;
-
-    // ---------- Build per-day totals for this pay period ----------
-    const periodDaily = new Map();
-
-    let cursor = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate());
-
-    while (cursor < periodEndExclusive) {
-      const key = dateKey(cursor);
-      if (!periodDaily.has(key)) {
-        periodDaily.set(key, { billsTotal: 0, expensesTotal: 0 });
-      }
-      const entry = periodDaily.get(key);
-
-      bills.forEach((bill) => {
-        const isOngoing =
-          bill.remainingMonths === null ||
-          bill.remainingMonths === undefined ||
-          bill.remainingMonths > 0;
-
-        if (!isOngoing) return;
-
-        if (bill.dueDay === cursor.getDate()) {
-          entry.billsTotal += bill.amount;
-        }
-      });
-
-      cursor = createLocalDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
-    }
-
-    const periodExpenses = await Expense.find({
-      user: userId,
-      date: { $gte: periodStart, $lt: periodEndExclusive },
-    });
-
-    periodExpenses.forEach((exp) => {
-      const d = createLocalDate(exp.date.getFullYear(), exp.date.getMonth(), exp.date.getDate());
-      const key = dateKey(d);
-      if (!periodDaily.has(key)) {
-        periodDaily.set(key, { billsTotal: 0, expensesTotal: 0 });
-      }
-      periodDaily.get(key).expensesTotal += exp.amount;
-    });
-
-    // ---------- Compute totals for donut ----------
-    let totalBillsAndExpenses = 0;
-
-    periodDaily.forEach((val) => {
-      totalBillsAndExpenses += val.billsTotal + val.expensesTotal;
-    });
-
-    const leftToSpend = startingSpendable - totalBillsAndExpenses;
-
-    const currentPeriod = {
-      startDate: periodStart.toISOString(),
-      endDateExclusive: periodEndExclusive.toISOString(),
-      paycheckAmount,
-      autoSavings,
-      autoInvesting,
-      startingSpendable,
-      billsAndExpensesTotal: totalBillsAndExpenses,
-      leftToSpend,
-      nextPayday: nextPaycheck.date.toISOString(),
-    };
-
-    // ---------- Calendar for the selected month ----------
-    const daysInMonth = monthEnd.getDate();
     const calendarDays = [];
-
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const dateObj = createLocalDate(year, monthIndex, day);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(year, monthIndex, day);
       const iso = dateKey(dateObj);
-
-      const isPayday = paychecks.some((p) => sameYMD(p.date, dateObj));
 
       let billsTotal = 0;
       const items = [];
 
       bills.forEach((bill) => {
-        const isOngoing =
-          bill.remainingMonths === null ||
-          bill.remainingMonths === undefined ||
-          bill.remainingMonths > 0;
-        if (!isOngoing) return;
-
-        if (bill.dueDay === day) {
-          billsTotal += bill.amount;
+        if (bill.dueDayOfMonth === day) {
+          billsTotal += Number(bill.amount) || 0;
           items.push({
             type: "bill",
             name: bill.name,
@@ -211,10 +116,18 @@ router.get("/summary", authRequired, async (req, res) => {
         }
       });
 
-      const dayExpenses = expenses.filter((exp) => sameYMD(exp.date, dateObj));
+      const dayExpenses = monthExpenses.filter((exp) => {
+        const expDate = new Date(exp.date);
+        return (
+          expDate.getDate() === day &&
+          expDate.getMonth() === monthIndex &&
+          expDate.getFullYear() === year
+        );
+      });
+
       let expensesTotal = 0;
       dayExpenses.forEach((exp) => {
-        expensesTotal += exp.amount;
+        expensesTotal += Number(exp.amount) || 0;
         items.push({
           type: "expense",
           name: exp.description || exp.category,
@@ -223,42 +136,33 @@ router.get("/summary", authRequired, async (req, res) => {
         });
       });
 
-      calendarDays.push({
-        date: iso,
-        isPayday,
-        billsTotal,
-        expensesTotal,
-        items,
-      });
+      // Check if any source has a payday on this date
+      const isPayday = (sourceBreakdown || []).some((s) =>
+        (s.paydays || []).includes(iso)
+      );
+
+      calendarDays.push({ date: iso, isPayday, billsTotal, expensesTotal, items });
     }
 
-    // ---------- Category totals for the month ----------
+    // Category totals for the month
     const catMap = new Map();
-
     bills.forEach((bill) => {
       const key = bill.category || "Other";
-      catMap.set(key, (catMap.get(key) || 0) + bill.amount);
+      catMap.set(key, (catMap.get(key) || 0) + (Number(bill.amount) || 0));
     });
-
-    expenses.forEach((exp) => {
+    monthExpenses.forEach((exp) => {
       const key = exp.category || "Other";
-      catMap.set(key, (catMap.get(key) || 0) + exp.amount);
+      catMap.set(key, (catMap.get(key) || 0) + (Number(exp.amount) || 0));
     });
-
     const categoryTotals = Array.from(catMap.entries()).map(([category, total]) => ({
       category,
       total,
     }));
 
     return res.json({
-      hasSchedule: true,
+      hasSources: true,
       currentPeriod,
-      projectedBalance: [],
-      calendar: {
-        year,
-        month: monthIndex + 1,
-        days: calendarDays,
-      },
+      calendar: { year, month: monthIndex + 1, days: calendarDays },
       categoryTotals,
     });
   } catch (err) {

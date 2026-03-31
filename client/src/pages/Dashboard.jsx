@@ -1,25 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
-import DailyPlanner from "../components/DailyPlanner";
 import DayExpensesModal from "../components/DayExpensesModal";
 import RecurringPanel from "../components/RecurringPanel";
 import SavingsPanel from "../components/SavingsPanel";
 import InvestmentsPanel from "../components/InvestmentsPanel";
 import { useCurrentPaycheckSummary } from "../hooks/useCurrentPaycheckSummary";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
-import { stripTime } from "../utils/dateUtils";
+import { useIncomeSources } from "../hooks/useIncomeSources";
 
-const buildDateRange = (start, endExclusive) => {
-  const days = [];
-  if (!start || !endExclusive) return days;
-  let cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  while (cursor < endExclusive) {
-    days.push(new Date(cursor));
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
-  }
-  return days;
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+const formatDateLabel = (iso) => {
+  if (!iso) return "";
+  const [year, month, day] = iso.split("-");
+  if (!year || !month || !day) return "";
+  return `${month}/${day}/${year}`;
 };
 
 const Dashboard = () => {
@@ -30,12 +27,13 @@ const Dashboard = () => {
     return stored ? JSON.parse(stored) : null;
   });
   const [bills, setBills] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [incomes, setIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [plannerLoading, setPlannerLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
+  const [triggerAddBill, setTriggerAddBill] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
     firstName: user?.firstName || "",
@@ -48,23 +46,22 @@ const Dashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [triggerAddBill, setTriggerAddBill] = useState(0);
-  const [triggerAddIncome, setTriggerAddIncome] = useState(0);
+
+  const { sources: incomeSources, refresh: refreshSources } = useIncomeSources();
+
   const {
     summary,
     loading: summaryLoading,
     error: summaryError,
     refresh: refreshSummary,
   } = useCurrentPaycheckSummary();
+
   const {
-    summary: payPeriodSummary,
     days: payPeriodDays,
     loading: payPeriodLoading,
     error: payPeriodError,
     refresh: refreshPayPeriod,
   } = useCurrentPayPeriodDays();
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [resettingExpenses, setResettingExpenses] = useState(false);
 
   const handleAuthError = useCallback(
     (err, fallback) => {
@@ -88,237 +85,39 @@ const Dashboard = () => {
         firstName: profile?.firstName || "",
         lastName: profile?.lastName || "",
         email: profile?.email || "",
-        currentPassword: "",
-        newPassword: "",
-        confirmNewPassword: "",
       }));
       localStorage.setItem("user", JSON.stringify(profile));
     } catch (err) {
-      console.error(err);
       handleAuthError(err, "Unable to load profile.");
     }
   }, [handleAuthError]);
 
-  const loadCoreData = useCallback(async () => {
+  const loadBills = useCallback(async () => {
     setLoading(true);
     try {
-      const [fetchedIncomes, fetchedBills] = await Promise.all([
-        authFetch("/api/income"),
-        authFetch("/api/bills"),
-      ]);
-
-      const sortedBills = [...(fetchedBills || [])].sort(
-        (a, b) => (a.dueDay || 0) - (b.dueDay || 0)
+      const fetchedBills = await authFetch("/api/bills");
+      setBills(
+        [...(fetchedBills || [])].sort(
+          (a, b) => (a.dueDayOfMonth || 0) - (b.dueDayOfMonth || 0)
+        )
       );
-
-      setIncomes(fetchedIncomes || []);
-      setBills(sortedBills);
     } catch (err) {
-      console.error(err);
-      handleAuthError(err, "Unable to load dashboard.");
+      handleAuthError(err, "Unable to load bills.");
     } finally {
       setLoading(false);
     }
   }, [handleAuthError]);
 
-  const loadExpensesForPeriod = useCallback(async (periodStart, periodEndExclusive) => {
-    if (!periodStart || !periodEndExclusive) {
-      setExpenses([]);
-      return;
-    }
-    const endInclusive = new Date(
-      periodEndExclusive.getFullYear(),
-      periodEndExclusive.getMonth(),
-      periodEndExclusive.getDate() - 1
-    );
-    const params = new URLSearchParams({
-      from: stripTime(periodStart).toISOString(),
-      to: stripTime(endInclusive).toISOString(),
-    });
-    const data = await authFetch(`/api/expenses?${params.toString()}`);
-    setExpenses(data || []);
-  }, []);
-
   useEffect(() => {
-    loadCoreData();
+    loadBills();
     loadUserProfile();
-  }, [loadCoreData, loadUserProfile]);
-
-  const payPeriod = useMemo(() => {
-    if (!incomes.length) return null;
-
-    const paychecks = (incomes.some((inc) => inc.type === "paycheck")
-      ? incomes.filter((inc) => inc.type === "paycheck")
-      : incomes
-    )
-      .filter((inc) => inc?.date)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (!paychecks.length) return null;
-
-    const today = stripTime(new Date());
-    let lastPayday = paychecks[0];
-    let nextPayday = null;
-
-    paychecks.forEach((p) => {
-      const d = stripTime(new Date(p.date));
-      if (d <= today) {
-        lastPayday = p;
-      } else if (!nextPayday && d > today) {
-        nextPayday = p;
-      }
-    });
-
-    const periodStart = stripTime(new Date(lastPayday.date));
-    const periodEndExclusive = nextPayday
-      ? stripTime(new Date(nextPayday.date))
-      : stripTime(new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 14));
-
-    return { periodStart, periodEndExclusive, nextPayday: nextPayday?.date || null };
-  }, [incomes]);
-
-  const periodRange = useMemo(() => {
-    if (!payPeriod) return null;
-    return { start: payPeriod.periodStart, endExclusive: payPeriod.periodEndExclusive };
-  }, [payPeriod]);
-
-  useEffect(() => {
-    const loadExpenses = async () => {
-      setPlannerLoading(true);
-      try {
-        if (!periodRange) {
-          setExpenses([]);
-          return;
-        }
-        await loadExpensesForPeriod(periodRange.start, periodRange.endExclusive);
-      } catch (err) {
-        console.error(err);
-        handleAuthError(err, "Unable to load expenses.");
-      } finally {
-        setPlannerLoading(false);
-      }
-    };
-    loadExpenses();
-  }, [periodRange, loadExpensesForPeriod]);
-
-  const days = useMemo(() => {
-    if (!periodRange) return [];
-    return buildDateRange(periodRange.start, periodRange.endExclusive);
-  }, [periodRange]);
-
-  const entriesByDate = useMemo(() => {
-    if (!days.length) return {};
-    const map = {};
-    days.forEach((d) => {
-      const key = stripTime(d).toISOString().slice(0, 10);
-      map[key] = { income: [], expenses: [] };
-    });
-
-    const withinPeriod = (date) =>
-      periodRange &&
-      stripTime(date) >= stripTime(periodRange.start) &&
-      stripTime(date) < stripTime(periodRange.endExclusive);
-
-    incomes
-      .filter((item) => item?.date && withinPeriod(item.date))
-      .forEach((item) => {
-        const key = stripTime(new Date(item.date)).toISOString().slice(0, 10);
-        if (!map[key]) map[key] = { income: [], expenses: [] };
-        map[key].income.push({
-          id: item._id || item.id,
-          description: item.description || "Income",
-          amount: Number(item.amount) || 0,
-          category: item.category,
-          isRecurring: item.type === "paycheck",
-        });
-      });
-
-    expenses
-      .filter((exp) => exp?.date && withinPeriod(exp.date))
-      .forEach((exp) => {
-        const key = stripTime(new Date(exp.date)).toISOString().slice(0, 10);
-        if (!map[key]) map[key] = { income: [], expenses: [] };
-        map[key].expenses.push({
-          id: exp._id || exp.id,
-          description: exp.description || exp.category || "Expense",
-          amount: Number(exp.amount) || 0,
-          category: exp.category,
-        });
-      });
-
-    days.forEach((d) => {
-      const key = stripTime(d).toISOString().slice(0, 10);
-      bills.forEach((bill) => {
-        if (bill.dueDay === d.getDate()) {
-          map[key].expenses.push({
-            id: bill._id,
-            description: bill.name,
-            amount: Number(bill.amount) || 0,
-            category: bill.category,
-            isRecurring: true,
-          });
-        }
-      });
-    });
-
-    return map;
-  }, [bills, days, expenses, incomes, periodRange]);
+  }, [loadBills, loadUserProfile]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
     navigate("/login");
-  };
-
-  const handleAddIncome = async (date, payload) => {
-    if (!date) return;
-    try {
-      const isoDate = stripTime(date).toISOString();
-      const created = await authFetch("/api/income", {
-        method: "POST",
-        body: JSON.stringify({
-          amount: Number(payload.amount),
-          date: isoDate,
-          description: payload.description,
-          type: "paycheck",
-        }),
-      });
-      setIncomes((prev) => [...prev, created]);
-    } catch (err) {
-      console.error(err);
-      handleAuthError(err, "Unable to add income.");
-    }
-  };
-
-  const handleDeleteIncome = async (id) => {
-    try {
-      await authFetch(`/api/income/${id}`, { method: "DELETE" });
-      setIncomes((prev) => prev.filter((i) => i._id !== id));
-    } catch (err) {
-      console.error(err);
-      handleAuthError(err, "Unable to delete income.");
-    }
-  };
-
-  const handleAddExpense = async (date, payload) => {
-    if (!date) return;
-    try {
-      const iso = stripTime(date).toISOString().slice(0, 10);
-      const created = await authFetch("/api/expenses", {
-        method: "POST",
-        body: JSON.stringify({
-          date: iso,
-          amount: Number(payload.amount),
-          category: payload.category || "Other",
-          description: payload.description,
-        }),
-      });
-      setExpenses((prev) => [...prev, created]);
-    } catch (err) {
-      console.error(err);
-      handleAuthError(err, "Unable to add expense.");
-    }
   };
 
   const handleCreateBill = async (payload) => {
@@ -328,13 +127,16 @@ const Dashboard = () => {
         body: JSON.stringify({
           name: payload.name,
           amount: Number(payload.amount),
-          dueDay: Number(payload.dueDay),
+          dueDayOfMonth: Number(payload.dueDay),
           category: payload.category || "Other",
         }),
       });
-      setBills((prev) => [...prev, newBill].sort((a, b) => (a.dueDay || 0) - (b.dueDay || 0)));
+      setBills((prev) =>
+        [...prev, newBill].sort((a, b) => (a.dueDayOfMonth || 0) - (b.dueDayOfMonth || 0))
+      );
+      refreshSummary();
+      refreshPayPeriod();
     } catch (err) {
-      console.error(err);
       handleAuthError(err, "Unable to save bill.");
     }
   };
@@ -343,20 +145,17 @@ const Dashboard = () => {
     try {
       await authFetch(`/api/bills/${id}`, { method: "DELETE" });
       setBills((prev) => prev.filter((bill) => bill._id !== id));
+      refreshSummary();
+      refreshPayPeriod();
     } catch (err) {
-      console.error(err);
       handleAuthError(err, "Unable to remove bill.");
     }
   };
 
-  const openAddIncomeModal = () => {
-    setMobilePanelOpen(true);
-    setTriggerAddIncome((prev) => prev + 1);
-  };
-
-  const openAddBillModal = () => {
-    setMobilePanelOpen(true);
-    setTriggerAddBill((prev) => prev + 1);
+  const refreshAll = () => {
+    refreshSummary();
+    refreshPayPeriod();
+    refreshSources();
   };
 
   const handleProfileFieldChange = (field, value) => {
@@ -374,7 +173,6 @@ const Dashboard = () => {
         lastName: profileForm.lastName,
         email: profileForm.email,
       };
-
       if (showPasswordSection) {
         body.passwordChange = {
           currentPassword: profileForm.currentPassword,
@@ -382,7 +180,6 @@ const Dashboard = () => {
           confirmNewPassword: profileForm.confirmNewPassword,
         };
       }
-
       const updated = await authFetch("/api/user/me", {
         method: "PUT",
         body: JSON.stringify(body),
@@ -401,43 +198,13 @@ const Dashboard = () => {
       setShowPasswordSection(false);
       setShowProfileModal(false);
     } catch (err) {
-      console.error(err);
       setProfileError(err?.message || "Unable to update profile.");
-      handleAuthError(err, "Unable to update profile.");
     } finally {
       setProfileSaving(false);
     }
   };
 
-  const hasAnyRecurringIncome = (incomes || []).length > 0;
-  const showOnboarding = !loading && bills.length === 0 && !hasAnyRecurringIncome;
-
-  const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-  const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "—");
-  const formatDateLabel = (iso) => {
-    if (!iso) return "";
-    const [year, month, day] = iso.split("-");
-    if (!year || !month || !day) return "";
-    return `${month}/${day}/${year}`;
-  };
-
-  const handleDevResetExpenses = async () => {
-    const confirmed = window.confirm(
-      "This will delete ALL your expenses. This is for development/testing only. Continue?"
-    );
-    if (!confirmed) return;
-    try {
-      setResettingExpenses(true);
-      await authFetch("/api/expenses/dev-reset", { method: "DELETE" });
-      refreshSummary?.();
-      refreshPayPeriod?.();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to reset expenses.");
-    } finally {
-      setResettingExpenses(false);
-    }
-  };
+  const showOnboarding = !loading && bills.length === 0 && incomeSources.length === 0;
 
   return (
     <div className="dashboard-page">
@@ -446,7 +213,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold">
             Welcome Back, {user?.firstName || user?.name || "User"}!
           </h1>
-          <p className="muted">Here’s your current paycheck snapshot.</p>
+          <p className="muted">Here's your current budget snapshot.</p>
         </div>
         <div className="planner-actions">
           <button
@@ -477,61 +244,72 @@ const Dashboard = () => {
 
       <section className="paycheck-summary">
         <div className="paycheck-summary-header">
-          <h2>Current Paycheck</h2>
+          <h2>Current Budget Period</h2>
           {summary && (
             <p className="muted">
-              Period:{" "}
-              {summary.periodLabel?.start
-                ? formatDateLabel(summary.periodLabel.start)
-                : formatDate(summary?.period?.start)}{" "}
-              –{" "}
-              {summary.periodLabel?.end
-                ? formatDateLabel(summary.periodLabel.end)
-                : formatDate(summary?.period?.end)}
+              {formatDateLabel(summary.periodLabel?.start)} –{" "}
+              {formatDateLabel(summary.periodLabel?.end)}
             </p>
           )}
         </div>
-        {summaryLoading && <p className="status">Loading paycheck summary...</p>}
+        {summaryLoading && <p className="status">Loading budget summary...</p>}
         {summaryError && (
-          <p className="status status-error">Unable to load paycheck summary: {summaryError}</p>
+          <p className="status status-error">Unable to load budget summary: {summaryError}</p>
         )}
         {summary && !summaryLoading && !summaryError && (
-          <div className="paycheck-grid">
-            <div className="paycheck-card">
-              <p className="eyebrow">Paycheck amount</p>
-              <p className="paycheck-value">{currency.format(summary.paycheckAmount || 0)}</p>
+          <>
+            <div className="paycheck-grid">
+              <div className="paycheck-card">
+                <p className="eyebrow">Total income</p>
+                <p className="paycheck-value">{currency.format(summary.totalIncome || 0)}</p>
+              </div>
+              <div className="paycheck-card">
+                <p className="eyebrow">Bills this period</p>
+                <p className="paycheck-value">{currency.format(summary.totalBills || 0)}</p>
+              </div>
+              <div className="paycheck-card">
+                <p className="eyebrow">Expenses this period</p>
+                <p className="paycheck-value">{currency.format(summary.totalExpenses || 0)}</p>
+              </div>
+              <div className="paycheck-card">
+                <p className="eyebrow">Savings this period</p>
+                <p className="paycheck-value">{currency.format(summary.savingsThisPeriod || 0)}</p>
+              </div>
+              <div className="paycheck-card">
+                <p className="eyebrow">Investments this period</p>
+                <p className="paycheck-value">
+                  {currency.format(summary.investmentsThisPeriod || 0)}
+                </p>
+              </div>
+              <div className="paycheck-card highlight">
+                <p className="eyebrow">Left to spend</p>
+                <p className="paycheck-value">{currency.format(summary.leftToSpend || 0)}</p>
+              </div>
+              <div className="paycheck-card">
+                <p className="eyebrow">Days until next paycheck</p>
+                <p className="paycheck-value">
+                  {summary.daysUntilNextPaycheck != null ? summary.daysUntilNextPaycheck : "\u2014"}
+                </p>
+              </div>
             </div>
-            <div className="paycheck-card">
-              <p className="eyebrow">Bills this period</p>
-              <p className="paycheck-value">{currency.format(summary.totalBills || 0)}</p>
-            </div>
-            <div className="paycheck-card">
-              <p className="eyebrow">Expenses this period</p>
-              <p className="paycheck-value">{currency.format(summary.totalExpenses || 0)}</p>
-            </div>
-          <div className="paycheck-card">
-            <p className="eyebrow">Savings this period</p>
-            <p className="paycheck-value">
-              {currency.format(summary.savingsThisPeriod ?? summary.totalSavings ?? 0)}
-            </p>
-            </div>
-            <div className="paycheck-card">
-              <p className="eyebrow">Investments this period</p>
-              <p className="paycheck-value">
-                {currency.format(summary.investmentsThisPeriod ?? summary.totalInvestments ?? 0)}
-              </p>
-            </div>
-            <div className="paycheck-card highlight">
-              <p className="eyebrow">Left to spend</p>
-              <p className="paycheck-value">{currency.format(summary.leftToSpend || 0)}</p>
-            </div>
-            <div className="paycheck-card">
-              <p className="eyebrow">Days until next paycheck</p>
-              <p className="paycheck-value">
-                {summary.daysUntilNextPaycheck != null ? summary.daysUntilNextPaycheck : "—"}
-              </p>
-            </div>
-          </div>
+
+            {summary.sources && summary.sources.length > 1 && (
+              <div className="income-breakdown">
+                <h4>Income breakdown</h4>
+                <div className="income-breakdown-list">
+                  {summary.sources.map((source) => (
+                    <div key={source.sourceId} className="income-breakdown-item">
+                      <span>{source.name}</span>
+                      <span className="muted">
+                        {source.paydaysInPeriod}x {currency.format(source.amount)} ={" "}
+                        {currency.format(source.totalForPeriod)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -544,9 +322,9 @@ const Dashboard = () => {
         )}
         {payPeriodLoading ? (
           <p className="status">Loading current pay period...</p>
-        ) : !payPeriodSummary?.period ? (
+        ) : !payPeriodDays.length ? (
           <div className="onboarding-card">
-            <p>Set your pay schedule to see your daily planner.</p>
+            <p>Set your income sources to see your daily planner.</p>
           </div>
         ) : (
           <div className="paycheck-daily-grid">
@@ -577,32 +355,30 @@ const Dashboard = () => {
         <p className="muted" style={{ marginTop: "0.35rem" }}>
           Click a day to add or review expenses.
         </p>
-        <button
-          type="button"
-          className="ghost-button"
-          style={{ marginTop: "0.35rem", padding: "0.35rem 0.6rem", fontSize: "0.85rem" }}
-          onClick={handleDevResetExpenses}
-          disabled={resettingExpenses}
-        >
-          Reset expenses (dev only)
-          <span style={{ color: "#6b7280", marginLeft: "0.35rem" }}>(testing only)</span>
-        </button>
       </section>
 
       {error && <p className="status status-error">{error}</p>}
-      {loading && <p className="status">Loading your planner...</p>}
+      {loading && <p className="status">Loading your data...</p>}
 
       {!loading && (
         <>
           {showOnboarding && (
             <div className="onboarding-card">
-              <h3>Let’s set up your money flow</h3>
-              <p>Add your paycheck and recurring bills so we can build your daily plan.</p>
+              <h3>Let's set up your money flow</h3>
+              <p>Add your income sources and recurring bills so we can build your daily plan.</p>
               <div className="onboarding-actions">
-                <button type="button" className="primary-button" onClick={openAddIncomeModal}>
-                  Add income
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => navigate("/settings/income")}
+                >
+                  Add income source
                 </button>
-                <button type="button" className="secondary-button" onClick={openAddBillModal}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setTriggerAddBill((prev) => prev + 1)}
+                >
                   Add bills
                 </button>
               </div>
@@ -610,29 +386,17 @@ const Dashboard = () => {
           )}
 
           <div className="planner-grid">
-            <section className="planner-left">
-              <DailyPlanner
-                days={days}
-                entriesByDate={entriesByDate}
-                loading={plannerLoading}
-                onAddIncome={handleAddIncome}
-                onAddExpense={handleAddExpense}
-              />
-            </section>
-            <section className="planner-right">
+            <section className="planner-right" style={{ gridColumn: "1 / -1" }}>
               <div className="space-y-6">
                 <RecurringPanel
                   bills={bills}
-                  incomes={incomes}
+                  incomeSources={incomeSources}
                   onAddBill={handleCreateBill}
                   onDeleteBill={handleDeleteBill}
-                  onAddIncome={(payload) => handleAddIncome(new Date(payload.date), payload)}
-                  onDeleteIncome={handleDeleteIncome}
+                  onSourcesChanged={refreshAll}
                   mobileOpen={mobilePanelOpen}
                   onToggleMobile={() => setMobilePanelOpen((prev) => !prev)}
                   triggerAddBill={triggerAddBill}
-                  triggerAddIncome={triggerAddIncome}
-                  incomeSettings={user?.incomeSettings}
                 />
                 <SavingsPanel />
                 <InvestmentsPanel />
@@ -661,7 +425,11 @@ const Dashboard = () => {
           <div className="modal-card">
             <div className="modal-header">
               <h4>Edit profile</h4>
-              <button type="button" className="ghost-button" onClick={() => setShowProfileModal(false)}>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setShowProfileModal(false)}
+              >
                 ✕
               </button>
             </div>
@@ -743,7 +511,11 @@ const Dashboard = () => {
 
               {profileError && <div className="inline-error">{profileError}</div>}
               <div className="modal-actions">
-                <button type="button" className="ghost-button" onClick={() => setShowProfileModal(false)}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setShowProfileModal(false)}
+                >
                   Cancel
                 </button>
                 <button type="submit" className="primary-button" disabled={profileSaving}>

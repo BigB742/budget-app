@@ -3,18 +3,25 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
 
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
 const OnboardingIncome = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isEditMode = location.pathname.startsWith("/settings/income");
-  const [form, setForm] = useState({
-    lastPaycheckDate: "",
-    amount: "",
-    frequency: "biweekly",
-  });
+
+  const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({
+    name: "",
+    amount: "",
+    frequency: "biweekly",
+    nextPayDate: "",
+  });
 
   const handleAuthError = (err) => {
     if (err?.status === 401) {
@@ -27,28 +34,30 @@ const OnboardingIncome = () => {
   };
 
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadSources = async () => {
       try {
         setLoading(true);
-        const profile = await authFetch("/api/user/me");
-        if (profile?.incomeSettings) {
-          setForm({
-            lastPaycheckDate: profile.incomeSettings.lastPaycheckDate
-              ? profile.incomeSettings.lastPaycheckDate.slice(0, 10)
-              : "",
-            amount: profile.incomeSettings.amount || "",
-            frequency: profile.incomeSettings.frequency || "biweekly",
-          });
+        const data = await authFetch("/api/income-sources");
+        const list = Array.isArray(data) ? data : [];
+        setSources(list);
+        if (list.length === 0) {
+          setShowForm(true);
         }
-        localStorage.setItem("user", JSON.stringify(profile));
       } catch (err) {
         handleAuthError(err);
       } finally {
         setLoading(false);
       }
     };
-    loadProfile();
+    loadSources();
   }, []);
+
+  const resetForm = () => {
+    setForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" });
+    setEditingId(null);
+    setShowForm(false);
+    setError(null);
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -60,22 +69,27 @@ const OnboardingIncome = () => {
     setError(null);
     setSaving(true);
     try {
-      const updated = await authFetch("/api/user/me", {
-        method: "PUT",
-        body: JSON.stringify({
-          incomeSettings: {
-            amount: Number(form.amount),
-            frequency: form.frequency,
-            lastPaycheckDate: form.lastPaycheckDate,
-          },
-        }),
-      });
-      localStorage.setItem("user", JSON.stringify(updated));
-      if (isEditMode) {
-        navigate("/app");
+      const payload = {
+        name: form.name,
+        amount: Number(form.amount),
+        frequency: form.frequency,
+        nextPayDate: form.nextPayDate,
+      };
+
+      if (editingId) {
+        const updated = await authFetch(`/api/income-sources/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        setSources((prev) => prev.map((s) => (s._id === editingId ? updated : s)));
       } else {
-        navigate("/onboarding/bills");
+        const created = await authFetch("/api/income-sources", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setSources((prev) => [...prev, created]);
       }
+      resetForm();
     } catch (err) {
       handleAuthError(err);
     } finally {
@@ -83,51 +97,162 @@ const OnboardingIncome = () => {
     }
   };
 
+  const handleEdit = (source) => {
+    setForm({
+      name: source.name,
+      amount: source.amount,
+      frequency: source.frequency,
+      nextPayDate: source.nextPayDate?.slice(0, 10) || "",
+    });
+    setEditingId(source._id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await authFetch(`/api/income-sources/${id}`, { method: "DELETE" });
+      setSources((prev) => prev.filter((s) => s._id !== id));
+    } catch (err) {
+      handleAuthError(err);
+    }
+  };
+
+  const handleContinue = () => {
+    if (isEditMode) {
+      navigate("/app");
+    } else {
+      navigate("/onboarding/bills");
+    }
+  };
+
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>{isEditMode ? "Edit your income" : "Set up your income"}</h1>
-        <p className="auth-subtitle">Share your pay schedule so we can plan your paychecks.</p>
+      <div className="auth-card" style={{ maxWidth: "32rem" }}>
+        <h1>{isEditMode ? "Manage income sources" : "Set up your income"}</h1>
+        <p className="auth-subtitle">
+          Add your paychecks and other income sources so we can plan your budget.
+        </p>
+
         {loading ? (
           <p className="status">Loading...</p>
         ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <label>
-              Last paycheck date
-              <input
-                type="date"
-                name="lastPaycheckDate"
-                value={form.lastPaycheckDate}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              Paycheck amount
-              <input
-                type="number"
-                step="0.01"
-                name="amount"
-                value={form.amount}
-                onChange={handleChange}
-                placeholder="0.00"
-                required
-              />
-            </label>
-            <label>
-              Frequency
-              <select name="frequency" value={form.frequency} onChange={handleChange}>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </label>
+          <>
+            {sources.length > 0 && (
+              <div className="income-source-list">
+                {sources.map((source) => (
+                  <div key={source._id} className="income-source-card">
+                    <div className="income-source-info">
+                      <div className="income-source-name">
+                        {source.name}
+                        {source.isPrimary && (
+                          <span className="pill primary-pill">Primary</span>
+                        )}
+                      </div>
+                      <p className="muted">
+                        {currency.format(source.amount)} &middot; {source.frequency} &middot; next:{" "}
+                        {source.nextPayDate?.slice(0, 10)}
+                      </p>
+                    </div>
+                    <div className="income-source-actions">
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => handleEdit(source)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => handleDelete(source._id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {error && <p className="status status-error">{error}</p>}
-            <button type="submit" className="primary-button" disabled={saving}>
-              {saving ? "Saving..." : "Continue"}
-            </button>
-          </form>
+            {showForm ? (
+              <form className="auth-form" onSubmit={handleSubmit}>
+                <label>
+                  Source name
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="e.g., Main Job, Side Gig"
+                    required
+                  />
+                </label>
+                <label>
+                  Amount per paycheck
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    value={form.amount}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    required
+                  />
+                </label>
+                <label>
+                  Pay frequency
+                  <select name="frequency" value={form.frequency} onChange={handleChange}>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </label>
+                <label>
+                  Next pay date
+                  <input
+                    type="date"
+                    name="nextPayDate"
+                    value={form.nextPayDate}
+                    onChange={handleChange}
+                    required
+                  />
+                </label>
+
+                {error && <p className="status status-error">{error}</p>}
+
+                <div className="form-row">
+                  {(sources.length > 0 || editingId) && (
+                    <button type="button" className="ghost-button" onClick={resetForm}>
+                      Cancel
+                    </button>
+                  )}
+                  <button type="submit" className="primary-button" disabled={saving}>
+                    {saving ? "Saving..." : editingId ? "Update source" : "Add source"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowForm(true)}
+                style={{ marginTop: "1rem" }}
+              >
+                Add another source
+              </button>
+            )}
+
+            {sources.length > 0 && !showForm && (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleContinue}
+                style={{ marginTop: "1rem", width: "100%" }}
+              >
+                {isEditMode ? "Back to dashboard" : "Continue"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1348,3 +1348,91 @@ tbody tr:nth-child(odd) {
     display: inline-flex;
   }
 }
+
+/* ─── Income source cards (onboarding & settings) ─── */
+
+.income-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.income-source-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.income-source-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.income-source-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.income-source-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.pill.primary-pill {
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Income breakdown (dashboard) ─── */
+
+.income-breakdown {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f0f4ff;
+  border-radius: 10px;
+}
+
+.income-breakdown h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.income-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.income-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+/* ─── Form row (side-by-side buttons) ─── */
+
+.form-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
