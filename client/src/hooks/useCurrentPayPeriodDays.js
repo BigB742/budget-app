@@ -5,6 +5,7 @@ import { stripTime } from "../utils/dateUtils";
 import { useCurrentPaycheckSummary } from "./useCurrentPaycheckSummary";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 const parseDateOnly = (dateStr) => {
   if (!dateStr) return null;
   const source = dateStr instanceof Date ? dateStr.toISOString() : String(dateStr);
@@ -16,6 +17,7 @@ const parseDateOnly = (dateStr) => {
   if (!year || month < 0 || !day) return null;
   return new Date(year, month, day);
 };
+
 const toDateKey = (input) => {
   if (!input) return null;
   const d = typeof input === "string" ? new Date(input) : input;
@@ -47,6 +49,15 @@ export const useCurrentPayPeriodDays = () => {
     : summary?.periodLabel?.end
     ? parseDateOnly(summary.periodLabel.end)
     : null;
+
+  // Collect all paydays from all income sources
+  const allPaydays = useMemo(() => {
+    const set = new Set();
+    (summary?.sources || []).forEach((source) => {
+      (source.paydays || []).forEach((d) => set.add(d));
+    });
+    return set;
+  }, [summary?.sources]);
 
   useEffect(() => {
     if (!periodStart || !periodEnd) {
@@ -108,15 +119,13 @@ export const useCurrentPayPeriodDays = () => {
         dateKey: key,
         weekdayLabel: d.toLocaleDateString(undefined, { weekday: "short" }),
         dayOfMonth: d.getDate(),
-        isPayday: summary?.periodLabel?.start === key,
+        isPayday: allPaydays.has(key),
         bills: [],
         billsTotal: 0,
         expenses: [],
         expensesTotal: 0,
       });
     }
-
-    const dayMap = new Map(result.map((day) => [day.dateKey, day]));
 
     for (const bill of bills || []) {
       const dueDay = bill.dueDayOfMonth ?? bill.dueDay;
@@ -131,7 +140,7 @@ export const useCurrentPayPeriodDays = () => {
 
     const expensesByDateKey = new Map();
     for (const exp of expenses || []) {
-      const rawDate = exp.dateString ?? exp.date ?? exp.expenseDate ?? exp.expense_date ?? exp.createdAt;
+      const rawDate = exp.dateString ?? exp.date ?? exp.createdAt;
       const key = toDateKey(rawDate);
       if (!key) continue;
       const bucket = expensesByDateKey.get(key) || { total: 0, items: [] };
@@ -149,7 +158,7 @@ export const useCurrentPayPeriodDays = () => {
     });
 
     return result;
-  }, [periodStart, periodEnd, bills, expenses, summary?.periodLabel?.start]);
+  }, [periodStart, periodEnd, bills, expenses, allPaydays]);
 
   return {
     summary,
