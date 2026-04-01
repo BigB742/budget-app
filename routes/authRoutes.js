@@ -39,6 +39,7 @@ const createTokenResponse = (user) => {
       locale: user.locale || "en",
       notificationPrefs: user.notificationPrefs || {},
       incomeSettings: user.incomeSettings || {},
+      loginHistory: (user.loginHistory || []).slice(0, 5),
     },
   };
 };
@@ -102,6 +103,17 @@ router.post("/login", async (req, res) => {
     if (!user.emailVerified) {
       return res.status(403).json({ error: "Please verify your email first.", needsVerification: true, email: user.email });
     }
+
+    // Record login history
+    user.loginHistory = user.loginHistory || [];
+    user.loginHistory.unshift({
+      timestamp: new Date(),
+      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
+      userAgent: req.headers["user-agent"] || "unknown",
+    });
+    // Keep only last 20 entries
+    if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(0, 20);
+    await user.save();
 
     res.json(createTokenResponse(user));
   } catch (error) {

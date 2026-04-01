@@ -631,6 +631,21 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .s-threshold-row input { width: 80px; padding: 0 0.5rem; height: 34px; border: 1px solid var(--card-border); border-radius: var(--radius); font-family: inherit; font-size: var(--font-base); }
 .s-danger-btn { padding: 0.5rem 1rem; border-radius: var(--radius); border: 1px solid var(--red); background: transparent; color: var(--red); font-weight: 600; font-size: var(--font-base); cursor: pointer; }
 .s-danger-btn:hover { background: var(--red); color: #fff; }
+.settings-two-col { display: flex; flex-direction: column; gap: 0.85rem; }
+.settings-col { display: flex; flex-direction: column; gap: 0.85rem; flex: 1; min-width: 0; }
+.s-threshold-edit { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.15rem; }
+.s-threshold-input { width: 65px; padding: 0.15rem 0.35rem; border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.78rem; font-family: inherit; background: var(--bg); color: var(--text); -moz-appearance: textfield; }
+.s-threshold-input::-webkit-outer-spin-button, .s-threshold-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.s-login-list { display: flex; flex-direction: column; gap: 0.15rem; }
+.s-login-entry { font-size: 0.78rem; color: var(--text-secondary); padding: 0.3rem 0; border-bottom: 1px solid var(--card-border); }
+.s-login-entry:last-child { border-bottom: none; }
+.coming-soon { font-size: 0.58rem; background: var(--card-border); color: var(--text-secondary); padding: 0.1rem 0.35rem; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 0.35rem; }
+.s-mobile-logout { display: block; margin: 0.75rem 0 0; background: none; border: none; color: var(--text-muted); font-size: 0.82rem; cursor: pointer; padding: 0; }
+.quick-add-label { margin: 0 0 0.25rem; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+
+/* Skeleton loading */
+.skeleton { background: linear-gradient(90deg, var(--card-border) 25%, var(--bg) 50%, var(--card-border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* ═══════════════════════════════════════
    Dual spending charts
@@ -759,5 +774,7 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
   .history-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
 
   /* ── Settings ── */
-  .settings-page { max-width: 600px; }
+  .settings-page { max-width: 800px; padding: 1.5rem 2rem 2rem; }
+  .settings-two-col { flex-direction: row; }
+  .s-mobile-logout { display: none; }
 }

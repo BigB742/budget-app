@@ -110,6 +110,7 @@ const Dashboard = () => {
 
       {/* Quick add */}
       <section className="quick-add">
+        <p className="quick-add-label">Quick add</p>
         <form className="quick-add-form" onSubmit={handleQuickExpense}>
           <input type="text" name="description" placeholder="Description" value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} className="quick-input quick-desc" />
           <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />

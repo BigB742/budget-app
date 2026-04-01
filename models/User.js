@@ -28,6 +28,11 @@ const UserSchema = new mongoose.Schema(
     emailVerified: { type: Boolean, default: false },
     verificationToken: { type: String },
     verificationTokenExpiry: { type: Date },
+    loginHistory: [{
+      timestamp: { type: Date, default: Date.now },
+      ip: { type: String },
+      userAgent: { type: String },
+    }],
   },
   { timestamps: true }
 );

@@ -18,6 +18,7 @@ const userResponse = (user) => ({
   locale: user.locale || "en",
   notificationPrefs: user.notificationPrefs || {},
   incomeSettings: user.incomeSettings || {},
+  loginHistory: (user.loginHistory || []).slice(0, 5),
 });
 
 router.get("/me", authRequired, async (req, res) => {
