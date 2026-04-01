@@ -5,9 +5,11 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 
 const User = require("../models/User");
+const IncomeSource = require("../models/IncomeSource");
+const Bill = require("../models/Bill");
 
 const sendVerificationEmail = async (user, token) => {
-  if (!process.env.SMTP_HOST) { console.log("[Auth] SMTP not configured, skip verification email. Token:", token); return; }
+  if (!process.env.SMTP_HOST) return;
   const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT) || 587, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
   const verifyUrl = `${process.env.APP_URL || "http://localhost:5173"}/verify-email?token=${token}`;
   await transporter.sendMail({
@@ -100,8 +102,17 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid credentials." });
     }
 
+    // Auto-verify legacy users who have existing data
     if (!user.emailVerified) {
-      return res.status(403).json({ error: "Please verify your email first.", needsVerification: true, email: user.email });
+      const [srcCount, billCount] = await Promise.all([
+        IncomeSource.countDocuments({ user: user._id }),
+        Bill.countDocuments({ user: user._id }),
+      ]);
+      if (srcCount > 0 || billCount > 0) {
+        user.emailVerified = true;
+      } else {
+        return res.status(403).json({ error: "Please verify your email first.", needsVerification: true, email: user.email });
+      }
     }
 
     // Record login history

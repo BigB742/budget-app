@@ -95,6 +95,19 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
     if (!nextPayDate) {
       nextPayDate = addDays(payDate, stepDays);
     }
+  } else if (frequency === "twicemonthly") {
+    // Twice a month: 1st and 15th. Periods: 1st-14th, 15th-end of month.
+    const tYear = target.getFullYear();
+    const tMonth = target.getMonth();
+    const tDay = target.getDate();
+    if (tDay < 15) {
+      payDate = new Date(tYear, tMonth, 1);
+      nextPayDate = new Date(tYear, tMonth, 15);
+    } else {
+      payDate = new Date(tYear, tMonth, 15);
+      // Next pay date is 1st of next month
+      nextPayDate = new Date(tYear, tMonth + 1, 1);
+    }
   } else if (frequency === "monthly") {
     let monthIndex = 0;
 
@@ -169,6 +182,20 @@ const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
         paydays.push(new Date(cursor));
       }
       cursor = addDays(cursor, stepDays);
+    }
+  } else if (frequency === "twicemonthly") {
+    // Generate 1st and 15th for each month in range
+    let y = start.getFullYear();
+    let m = start.getMonth();
+    const endY = end.getFullYear();
+    const endM = end.getMonth();
+    while (y < endY || (y === endY && m <= endM)) {
+      const d1 = new Date(y, m, 1);
+      const d15 = new Date(y, m, 15);
+      if (d1 >= start && d1 <= end) paydays.push(d1);
+      if (d15 >= start && d15 <= end) paydays.push(d15);
+      m++;
+      if (m > 11) { m = 0; y++; }
     }
   } else if (frequency === "monthly") {
     let idx = 0;

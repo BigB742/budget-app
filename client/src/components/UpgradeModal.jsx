@@ -26,7 +26,7 @@ const UpgradeModal = ({ onClose }) => {
           type="button"
           className="primary-button"
           style={{ width: "100%", marginBottom: "0.5rem" }}
-          onClick={() => { console.log("Stripe checkout coming soon"); onClose(); }}
+          onClick={() => { /* TODO: Stripe checkout */ onClose(); }}
         >
           Start Free Trial &mdash; 7 days free
         </button>

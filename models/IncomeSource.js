@@ -19,7 +19,7 @@ const incomeSourceSchema = new mongoose.Schema(
     },
     frequency: {
       type: String,
-      enum: ["weekly", "biweekly", "monthly"],
+      enum: ["weekly", "biweekly", "twicemonthly", "monthly"],
       required: true,
     },
     nextPayDate: {

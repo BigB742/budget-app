@@ -17,15 +17,17 @@ router.get("/", authRequired, async (req, res) => {
 
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { assetName, startingBalance } = req.body || {};
+    const { assetName, startingBalance, ticker, purchases } = req.body || {};
     if (!assetName) {
       return res.status(400).json({ message: "Asset name is required." });
     }
     const investment = await Investment.create({
       userId: req.userId,
       assetName,
+      ticker: ticker || undefined,
       startingBalance: Number(startingBalance) || 0,
       contributions: [],
+      purchases: Array.isArray(purchases) ? purchases : [],
     });
     res.status(201).json(investment);
   } catch (err) {
@@ -56,6 +58,36 @@ router.post("/:id/contribute", authRequired, async (req, res) => {
   } catch (err) {
     console.error("Error adding contribution:", err);
     res.status(500).json({ message: "Failed to add contribution." });
+  }
+});
+
+router.post("/:id/purchase", authRequired, async (req, res) => {
+  try {
+    const { amount, pricePerCoin, date, note } = req.body || {};
+    const purchaseAmount = Number(amount);
+    const purchasePrice = Number(pricePerCoin);
+    if (!purchaseAmount || purchaseAmount <= 0) {
+      return res.status(400).json({ message: "Purchase amount must be greater than zero." });
+    }
+    if (!purchasePrice || purchasePrice <= 0) {
+      return res.status(400).json({ message: "Price per coin must be greater than zero." });
+    }
+    const purchaseDate = date ? new Date(date) : new Date();
+    const investment = await Investment.findOne({ _id: req.params.id, userId: req.userId });
+    if (!investment) {
+      return res.status(404).json({ message: "Investment not found." });
+    }
+    investment.purchases.push({
+      amount: purchaseAmount,
+      pricePerCoin: purchasePrice,
+      date: purchaseDate,
+      note: note || undefined,
+    });
+    await investment.save();
+    res.json(investment);
+  } catch (err) {
+    console.error("Error adding purchase:", err);
+    res.status(500).json({ message: "Failed to add purchase." });
   }
 });
 

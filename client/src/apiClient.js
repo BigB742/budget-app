@@ -1,6 +1,8 @@
+import { API_URL } from "./config";
+
 export const authFetch = async (path, options = {}) => {
   const token = localStorage.getItem("token");
-  const baseUrl = path.startsWith("http") ? path : `http://localhost:5001${path}`;
+  const baseUrl = path.startsWith("http") ? path : `${API_URL}${path}`;
 
   const response = await fetch(baseUrl, {
     ...options,

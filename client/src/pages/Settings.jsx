@@ -5,9 +5,22 @@ import { authFetch } from "../apiClient";
 // TODO: Implement TOTP 2FA using speakeasy or otplib.
 // Send code via email or authenticator app. Require on login after password.
 
+const FONT_SCALES = [
+  { key: "xs", scale: 0.85, base: "0.75rem" },
+  { key: "sm", scale: 0.92, base: "0.8rem" },
+  { key: "md", scale: 1.0, base: "0.875rem" },
+  { key: "lg", scale: 1.1, base: "0.96rem" },
+  { key: "xl", scale: 1.25, base: "1.1rem" },
+];
+
 const Settings = () => {
   const navigate = useNavigate();
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "system");
+  const [fontScaleIdx, setFontScaleIdx] = useState(() => {
+    const saved = localStorage.getItem("fontScale");
+    const idx = FONT_SCALES.findIndex((s) => s.key === saved);
+    return idx >= 0 ? idx : 2; // default: md (middle)
+  });
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +49,14 @@ const Settings = () => {
     else r.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const fs = FONT_SCALES[fontScaleIdx];
+    const r = document.documentElement;
+    if (fs.key === "md") r.removeAttribute("data-font-scale");
+    else r.setAttribute("data-font-scale", fs.key);
+    localStorage.setItem("fontScale", fs.key);
+  }, [fontScaleIdx]);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -129,6 +150,32 @@ const Settings = () => {
                     {v === "light" ? "Light" : v === "dark" ? "Dark" : "System"}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Text size slider */}
+            <div style={{ marginTop: "0.75rem" }}>
+              <span className="s-label">Text size</span>
+              <div className="text-size-preview" style={{ fontSize: FONT_SCALES[fontScaleIdx].base }}>
+                This is how your text will look across the app.
+              </div>
+              <div className="text-size-slider">
+                <span className="size-a-sm">A</span>
+                <div className="slider-track" onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = (e.clientX - rect.left) / rect.width;
+                  const idx = Math.round(pct * (FONT_SCALES.length - 1));
+                  setFontScaleIdx(Math.max(0, Math.min(FONT_SCALES.length - 1, idx)));
+                }}>
+                  <div className="slider-rail">
+                    <div className="slider-fill" style={{ width: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
+                  </div>
+                  <div className="slider-ticks">
+                    {FONT_SCALES.map((_, i) => <span key={i} className={`slider-tick${i <= fontScaleIdx ? " active" : ""}`} />)}
+                  </div>
+                  <div className="slider-thumb" style={{ left: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
+                </div>
+                <span className="size-a-lg">A</span>
               </div>
             </div>
           </div>

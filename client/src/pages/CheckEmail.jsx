@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { API_URL } from "../config";
 
 const CheckEmail = () => {
   const [params] = useSearchParams();
@@ -11,7 +12,7 @@ const CheckEmail = () => {
     if (!email) return;
     setResending(true);
     try {
-      await fetch("http://localhost:5001/api/auth/resend-verification", {
+      await fetch(`${API_URL}/api/auth/resend-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

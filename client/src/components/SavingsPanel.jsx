@@ -1,181 +1,110 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { authFetch } from "../apiClient";
 
-import { useSavingsGoals } from "../hooks/useSavingsGoals";
-
-const CATEGORY_OPTIONS = ["Emergency", "Travel", "Debt", "Other"];
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const SavingsPanel = () => {
-  const { goals, loading, error, createGoal, deleteGoal, contribute } = useSavingsGoals();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    targetAmount: "",
-    perPaycheckAmount: "",
-    category: "Other",
-  });
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", amount: "", note: "" });
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState({});
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await authFetch("/api/savings-goals");
+      setGoals(Array.isArray(data) ? data : []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.amount) return;
     setSaving(true);
     try {
-      await createGoal({
-        name: form.name,
-        targetAmount: Number(form.targetAmount),
-        perPaycheckAmount: Number(form.perPaycheckAmount) || 0,
-        category: form.category,
+      await authFetch("/api/savings-goals", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name,
+          targetAmount: 999999,
+          savedAmount: Number(form.amount),
+          perPaycheckAmount: 0,
+          category: "Savings",
+        }),
       });
-      setForm({ name: "", targetAmount: "", perPaycheckAmount: "", category: "Other" });
-      setShowAddModal(false);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to create goal.");
-    } finally {
-      setSaving(false);
-    }
+      setForm({ name: "", amount: "", note: "" });
+      setShowAdd(false);
+      load();
+    } catch { /* ignore */ }
+    finally { setSaving(false); }
   };
 
   const handleContribute = async (goal) => {
-    const input = window.prompt(
-      `Add contribution to "${goal.name}"`,
-      String(goal.perPaycheckAmount || 0)
-    );
+    const input = window.prompt(`Add to "${goal.name}"`, "0");
     if (!input) return;
     const amount = Number(input);
     if (!amount || amount <= 0) return;
     try {
-      await contribute(goal._id, amount);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add contribution.");
-    }
+      await authFetch(`/api/savings-goals/${goal._id}/contribute`, {
+        method: "POST",
+        body: JSON.stringify({ amount }),
+      });
+      load();
+    } catch { /* ignore */ }
   };
 
-  const progressPercent = (goal) => {
-    if (!goal.targetAmount) return 0;
-    return Math.min(100, Math.round(((goal.savedAmount || 0) / goal.targetAmount) * 100));
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this savings entry?")) return;
+    try { await authFetch(`/api/savings-goals/${id}`, { method: "DELETE" }); load(); } catch { /* ignore */ }
   };
+
+  const totalSaved = goals.reduce((s, g) => s + (g.savedAmount || 0), 0);
 
   return (
-    <div className="recurring-section" style={{ marginTop: "1rem" }}>
+    <div className="recurring-section" style={{ borderBottom: "none" }}>
       <div className="recurring-section-header">
         <div>
-          <h4>Savings goals</h4>
+          <h4>Savings</h4>
+          {goals.length > 0 && <p className="muted">Total saved: {currency.format(totalSaved)}</p>}
         </div>
-        <button type="button" className="secondary-button" onClick={() => setShowAddModal(true)}>
-          Add goal
-        </button>
+        <button type="button" className="primary-button" onClick={() => setShowAdd(true)}>Add savings</button>
       </div>
-      {error && <p className="status status-error">{error}</p>}
-      {loading ? (
-        <p className="status">Loading goals...</p>
-      ) : goals.length === 0 ? (
-        <p className="empty-row">No goals yet. Add your first savings goal.</p>
+
+      {loading ? <p className="status">Loading...</p> : goals.length === 0 ? (
+        <p className="empty-row">No savings yet. Start saving today.</p>
       ) : (
         <div className="recurring-list">
-          {goals.map((goal) => (
-            <div key={goal._id} className="recurring-card">
-              <div>
-                <p className="entry-title">{goal.name}</p>
-                <p className="muted">
-                  {goal.category} · ${Number(goal.savedAmount || 0).toFixed(2)} of $
-                  {Number(goal.targetAmount || 0).toFixed(2)}
-                </p>
-                <div className="progress-bar" style={{ marginTop: "0.35rem" }}>
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${progressPercent(goal)}%` }}
-                  ></div>
+          {goals.map((g) => (
+            <div key={g._id} className="recurring-card" style={{ flexDirection: "column", alignItems: "stretch" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p className="entry-title">{g.name}</p>
+                  <p className="muted">Saved: {currency.format(g.savedAmount || 0)}</p>
                 </div>
-                <p className="muted" style={{ marginTop: "0.35rem" }}>
-                  ${Number(goal.perPaycheckAmount || 0).toFixed(2)} per paycheck
-                </p>
-              </div>
-              <div className="recurring-actions">
-                <button type="button" className="secondary-button" onClick={() => handleContribute(goal)}>
-                  + Add
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => {
-                    const confirmed = window.confirm(`Delete goal "${goal.name}"?`);
-                    if (confirmed) deleteGoal(goal._id).catch(() => alert("Failed to delete goal."));
-                  }}
-                >
-                  Delete
-                </button>
+                <div className="recurring-actions">
+                  <button type="button" className="secondary-button" onClick={() => handleContribute(g)}>+ Add</button>
+                  <button type="button" className="ghost-button" onClick={() => handleDelete(g._id)}>x</button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <h4>Add savings goal</h4>
-              <button type="button" className="ghost-button" onClick={() => setShowAddModal(false)}>
-                ✕
-              </button>
-            </div>
-            <form className="modal-form" onSubmit={handleSubmit}>
-              <label>
-                Goal name
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Emergency fund"
-                />
-              </label>
-              <label>
-                Target amount
-                <input
-                  type="number"
-                  step="0.01"
-                  name="targetAmount"
-                  value={form.targetAmount}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
-              <label>
-                Per-paycheck amount
-                <input
-                  type="number"
-                  step="0.01"
-                  name="perPaycheckAmount"
-                  value={form.perPaycheckAmount}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
-              <label>
-                Category
-                <select name="category" value={form.category} onChange={handleChange}>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="modal-actions">
-                <button type="button" className="ghost-button" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-button" disabled={saving}>
-                  {saving ? "Saving..." : "Save goal"}
-                </button>
-              </div>
+      {showAdd && (
+        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h4>Add savings</h4><button type="button" className="ghost-button" onClick={() => setShowAdd(false)}>&#x2715;</button></div>
+            <form className="modal-form" onSubmit={handleAdd}>
+              <label>Name<input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Vacation, Emergency fund" required /></label>
+              <label>Amount saved<input type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
+              <label>Note (optional)<input value={form.note} onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))} /></label>
+              <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowAdd(false)}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "..." : "Save"}</button></div>
             </form>
           </div>
         </div>

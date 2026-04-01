@@ -2,11 +2,13 @@ const express = require("express");
 
 const { authRequired } = require("../middleware/auth");
 const IncomeSource = require("../models/IncomeSource");
+const OneTimeIncome = require("../models/OneTimeIncome");
 const Bill = require("../models/Bill");
 const Expense = require("../models/Expense");
 const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
 const PaymentOverride = require("../models/PaymentOverride");
+const BillPayment = require("../models/BillPayment");
 const { getBudgetPeriod, getPeriodsForSources, toLocalDate, getPaydaysInRange } = require("../utils/paycheckUtils");
 
 const router = express.Router();
@@ -45,10 +47,18 @@ function getEffectiveBillAmount(bill, dateLocal, overrideMap) {
   return Number(bill.amount) || 0;
 }
 
-// Helper: sum bills that fall within a date range, respecting overrides and lastPayment rules
-function sumBillsInPeriod(bills, start, end, overrideMap = new Map()) {
+// Helper: sum bills that fall within a date range, respecting overrides, lastPayment rules, and bill payments
+function sumBillsInPeriod(bills, start, end, overrideMap = new Map(), billPayments = []) {
   const pStart = startOfDay(start);
   const pEnd = startOfDay(end);
+
+  // Build a lookup map for bill payments: "billId_YYYY-MM-DD" -> payment doc
+  const paymentMap = new Map();
+  billPayments.forEach((bp) => {
+    const dueLocal = startOfDay(toLocalDate(bp.dueDate));
+    const key = `${bp.bill}_${dueLocal.getFullYear()}-${String(dueLocal.getMonth() + 1).padStart(2, "0")}-${String(dueLocal.getDate()).padStart(2, "0")}`;
+    paymentMap.set(key, bp);
+  });
 
   let total = 0;
   bills.forEach((bill) => {
@@ -61,8 +71,22 @@ function sumBillsInPeriod(bills, start, end, overrideMap = new Map()) {
     uniqueTimes.forEach((time) => {
       const d = new Date(time);
       if (d >= pStart && d <= pEnd) {
-        const amt = getEffectiveBillAmount(bill, d, overrideMap);
-        if (amt != null) total += amt;
+        // Check if a bill payment exists for this bill + due date
+        const paymentKey = `${bill._id}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const payment = paymentMap.get(paymentKey);
+
+        if (payment) {
+          // Bill was paid — check if paidDate falls within this period
+          const paidDateLocal = startOfDay(toLocalDate(payment.paidDate));
+          if (paidDateLocal >= pStart && paidDateLocal <= pEnd) {
+            // Paid in this period — use the paid amount
+            total += Number(payment.paidAmount) || 0;
+          }
+          // If paidDate is outside this period, skip (it was counted in the paid-date period)
+        } else {
+          const amt = getEffectiveBillAmount(bill, d, overrideMap);
+          if (amt != null) total += amt;
+        }
       }
     });
   });
@@ -84,6 +108,21 @@ async function loadOverrideMap(userId, start, end) {
     map.set(key, Number(d.amount) || 0);
   });
   return map;
+}
+
+// Load bill payment records relevant to a period.
+// We fetch payments where the dueDate OR paidDate falls in the range,
+// so we can handle cross-period paid-date logic.
+async function loadBillPayments(userId, start, end) {
+  const from = startOfDay(start);
+  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+  return BillPayment.find({
+    user: userId,
+    $or: [
+      { dueDate: { $gte: from, $lte: to } },
+      { paidDate: { $gte: from, $lte: to } },
+    ],
+  });
 }
 
 // Helper: sum expenses within a date range
@@ -122,10 +161,19 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     const { start, end, nextPayDate, totalIncome, sources: sourceBreakdown } = budget;
 
-    // Bills due in this period (with override + lastPayment support)
+    // Add one-time income falling in this period
+    const oneTimeIncomes = await OneTimeIncome.find({
+      user: req.userId,
+      date: { $gte: startOfDay(start), $lte: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999) },
+    });
+    const oneTimeTotal = oneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const adjustedTotalIncome = totalIncome + oneTimeTotal;
+
+    // Bills due in this period (with override + lastPayment + bill payment support)
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
     const overrideMap = await loadOverrideMap(req.userId, start, end);
-    const totalBills = sumBillsInPeriod(bills, start, end, overrideMap);
+    const payments = await loadBillPayments(req.userId, start, end);
+    const totalBills = sumBillsInPeriod(bills, start, end, overrideMap, payments);
 
     // Expenses in this period
     const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
@@ -149,7 +197,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     });
 
     // Balance = income - bills - expenses (savings/investments shown separately)
-    const balance = totalIncome - totalBills - totalExpenses;
+    const balance = adjustedTotalIncome - totalBills - totalExpenses;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -177,15 +225,26 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
         const nextEnd = nextBudget.end;
         const nextTotalIncome = nextBudget.totalIncome;
         const nextOverrideMap = await loadOverrideMap(req.userId, nextStart, nextEnd);
-        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd, nextOverrideMap);
+        const nextPayments = await loadBillPayments(req.userId, nextStart, nextEnd);
+        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd, nextOverrideMap, nextPayments);
         const nextTotalExpenses = await sumExpensesInPeriod(req.userId, nextStart, nextEnd);
 
+        // Add one-time income falling in next period
+        const nextOneTimeIncomes = await OneTimeIncome.find({
+          user: req.userId,
+          date: { $gte: startOfDay(nextStart), $lte: new Date(nextEnd.getFullYear(), nextEnd.getMonth(), nextEnd.getDate(), 23, 59, 59, 999) },
+        });
+        const nextOneTimeTotal = nextOneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        const nextAdjustedTotalIncome = nextTotalIncome + nextOneTimeTotal;
+
         // Current balance rolls over + next period income - next period bills - next period expenses
-        nextPaycheckBalance = balance + nextTotalIncome - nextTotalBills - nextTotalExpenses;
+        nextPaycheckBalance = balance + nextAdjustedTotalIncome - nextTotalBills - nextTotalExpenses;
         nextPeriod = {
           start: nextStart.toISOString().slice(0, 10),
           end: nextEnd.toISOString().slice(0, 10),
-          totalIncome: nextTotalIncome,
+          recurringIncome: nextTotalIncome,
+          oneTimeIncome: nextOneTimeTotal,
+          totalIncome: nextAdjustedTotalIncome,
           totalBills: nextTotalBills,
           totalExpenses: nextTotalExpenses,
         };
@@ -194,7 +253,9 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     res.json({
       period: { start, end },
-      totalIncome,
+      recurringIncome: totalIncome,
+      oneTimeIncome: oneTimeTotal,
+      totalIncome: adjustedTotalIncome,
       totalBills,
       totalExpenses,
       savingsThisPeriod,
@@ -257,7 +318,8 @@ router.get("/period-history", authRequired, async (req, res) => {
       if (!prev) break;
 
       const overrides = await loadOverrideMap(req.userId, prev.start, prev.end);
-      const totalBills = sumBillsInPeriod(bills, prev.start, prev.end, overrides);
+      const prevPayments = await loadBillPayments(req.userId, prev.start, prev.end);
+      const totalBills = sumBillsInPeriod(bills, prev.start, prev.end, overrides, prevPayments);
       const totalExpenses = await sumExpensesInPeriod(req.userId, prev.start, prev.end);
       const balance = prev.totalIncome - totalBills - totalExpenses;
 
@@ -364,7 +426,8 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const { start, end, nextPayDate, totalIncome } = currentPeriod;
 
       const overrideMap = await loadOverrideMap(req.userId, start, end);
-      const totalBills = sumBillsInPeriod(bills, start, end, overrideMap);
+      const periodPayments = await loadBillPayments(req.userId, start, end);
+      const totalBills = sumBillsInPeriod(bills, start, end, overrideMap, periodPayments);
       const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
 
       const periodBalance = rollover + totalIncome - totalBills - totalExpenses;

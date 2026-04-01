@@ -52,7 +52,7 @@ cron.schedule("0 7 * * *", async () => {
       }
     }
 
-    console.log(`[Savings Autopilot] Completed for ${todayKey}`);
+    // autopilot complete
   } catch (error) {
     console.error("[Savings Autopilot] Error:", error);
   }

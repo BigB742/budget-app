@@ -47,9 +47,10 @@ const Calendar = () => {
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [overrides, setOverrides] = useState([]);
+  const [billPayments, setBillPayments] = useState([]);
+  const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
-  // Premium users can view all months; free users limited to current month
   const [snapshot, setSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
@@ -59,6 +60,11 @@ const Calendar = () => {
   const [editBill, setEditBill] = useState(null);
   const [overrideForm, setOverrideForm] = useState({ amount: "", note: "" });
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(null);
+  const [paidForm, setPaidForm] = useState({ paidDate: "", note: "" });
+  const [paidSaving, setPaidSaving] = useState(false);
+  const [incForm, setIncForm] = useState({ name: "", amount: "" });
+  const [incSaving, setIncSaving] = useState(false);
 
   const { sources } = useIncomeSources();
 
@@ -73,14 +79,18 @@ const Calendar = () => {
       const from = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-01`;
       const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
       const to = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-      const [b, e, o] = await Promise.all([
+      const [b, e, o, bp, oti] = await Promise.all([
         authFetch("/api/bills"),
         authFetch(`/api/expenses?from=${from}&to=${to}`),
         authFetch(`/api/payment-overrides?from=${from}&to=${to}`),
+        authFetch(`/api/bill-payments?from=${from}&to=${to}`).catch(() => []),
+        authFetch(`/api/one-time-income?from=${from}&to=${to}`).catch(() => []),
       ]);
       setBills(Array.isArray(b) ? b : []);
       setExpenses(Array.isArray(e) ? e : []);
       setOverrides(Array.isArray(o) ? o : []);
+      setBillPayments(Array.isArray(bp) ? bp : []);
+      setOneTimeIncomes(Array.isArray(oti) ? oti : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [viewYear, viewMonth]);
@@ -151,6 +161,32 @@ const Calendar = () => {
     return map;
   }, [overrides]);
 
+  // One-time income by day
+  const incomeByDay = useMemo(() => {
+    const map = {};
+    oneTimeIncomes.forEach((i) => {
+      const dt = new Date(i.date);
+      const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+      if (!map[key]) map[key] = [];
+      map[key].push(i);
+    });
+    return map;
+  }, [oneTimeIncomes]);
+
+  // Bill payments lookup: "billId_YYYY-MM-DD" => payment object
+  const paidMap = useMemo(() => {
+    const map = {};
+    billPayments.forEach((p) => {
+      const dt = new Date(p.dueDate);
+      const key = `${p.bill}_${toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())}`;
+      map[key] = p;
+    });
+    return map;
+  }, [billPayments]);
+
+  const isBillPaid = (billId, dateKey) => !!paidMap[`${billId}_${dateKey}`];
+  const getBillPayment = (billId, dateKey) => paidMap[`${billId}_${dateKey}`];
+
   const weeks = buildMonthGrid(viewYear, viewMonth);
 
   const getEffectiveAmount = (bill, dateKey) => {
@@ -213,8 +249,48 @@ const Calendar = () => {
     finally { setOverrideSaving(false); }
   };
 
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const handleMarkPaid = async (e) => {
+    e.preventDefault();
+    if (!markingPaid || !paidForm.paidDate) return;
+    setPaidSaving(true);
+    try {
+      await authFetch("/api/bill-payments", {
+        method: "POST",
+        body: JSON.stringify({
+          billId: markingPaid._id,
+          dueDate: selectedDay,
+          paidDate: paidForm.paidDate,
+          paidAmount: getEffectiveAmount(markingPaid, selectedDay),
+          note: paidForm.note,
+        }),
+      });
+      setMarkingPaid(null);
+      setPaidForm({ paidDate: "", note: "" });
+      loadData();
+    } catch (err) { console.error(err); }
+    finally { setPaidSaving(false); }
+  };
+
+  const handleAddIncome = async (e) => {
+    e.preventDefault();
+    if (!selectedDay || !incForm.amount || !incForm.name) return;
+    setIncSaving(true);
+    try {
+      await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: incForm.name, amount: Number(incForm.amount), date: selectedDay }) });
+      setIncForm({ name: "", amount: "" });
+      loadData();
+    } catch { /* ignore */ }
+    finally { setIncSaving(false); }
+  };
+
   const dayBills = selectedDay ? billsByDay[selectedDay] || [] : [];
   const dayExpenses = selectedDay ? expensesByDay[selectedDay] || [] : [];
+  const dayIncomes = selectedDay ? incomeByDay[selectedDay] || [] : [];
   const isSelectedPayday = selectedDay ? paydaySet.has(selectedDay) : false;
 
   return (
@@ -262,11 +338,17 @@ const Calendar = () => {
                       {day}
                       {isPayday && <span className="cal-payday-dot" />}
                     </span>
-                    {billTotal > 0 && (
-                      <span className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(billTotal)}</span>
-                    )}
+                    {db.map((b) => {
+                      const paid = isBillPaid(b._id, key);
+                      return paid
+                        ? <span key={b._id} className="cal-paid-tag">&#x2713; Paid</span>
+                        : <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(getEffectiveAmount(b, key))}</span>;
+                    })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
+                    )}
+                    {(incomeByDay[key] || []).length > 0 && (
+                      <span className="cal-income-tag"><span className="cal-income-dot" />+{currency.format((incomeByDay[key] || []).reduce((s, i) => s + Number(i.amount || 0), 0))}</span>
                     )}
                   </button>
                 );
@@ -314,21 +396,39 @@ const Calendar = () => {
                 <h5>Bills</h5>
                 {dayBills.map((b) => {
                   const amt = getEffectiveAmount(b, selectedDay);
+                  const payment = getBillPayment(b._id, selectedDay);
                   const hasOverride = !!overrideMap[`${b._id}_${selectedDay}`];
                   return (
                     <div key={b._id} className="cal-detail-row bill-row">
                       <div>
                         <strong>{b.name}</strong>
-                        <span className="cal-detail-amt bill-amt">{currency.format(amt)}</span>
+                        {payment ? (
+                          <span className="cal-paid-badge">&#x2713; Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        ) : (
+                          <span className="cal-detail-amt bill-amt">{currency.format(amt)}</span>
+                        )}
                         {hasOverride && <span className="pill">Edited</span>}
                       </div>
-                      <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>
-                        Edit this payment
-                      </button>
+                      {!payment && (
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit</button>
+                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--teal)" }} onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "" }); }}>Mark as paid</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
+            )}
+
+            {/* Mark as paid form */}
+            {markingPaid && (
+              <form className="cal-override-form" onSubmit={handleMarkPaid}>
+                <p className="cal-override-label">Mark <strong>{markingPaid.name}</strong> as paid</p>
+                <label>When did you pay it?<input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required /></label>
+                <label>Note (optional)<input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} /></label>
+                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setMarkingPaid(null)}>Cancel</button><button type="submit" className="primary-button" disabled={paidSaving}>{paidSaving ? "..." : "Save"}</button></div>
+              </form>
             )}
 
             {editBill && (
@@ -354,6 +454,29 @@ const Calendar = () => {
                 </div>
               ))}
             </div>
+
+            {/* One-time income */}
+            {dayIncomes.length > 0 && (
+              <div className="cal-detail-section">
+                <h5>Income</h5>
+                {dayIncomes.map((inc) => (
+                  <div key={inc._id} className="cal-detail-row">
+                    <span style={{ color: "var(--teal)", fontWeight: 600 }}>{inc.name}</span>
+                    <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>+{currency.format(inc.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add income form */}
+            <form className="cal-add-exp" onSubmit={handleAddIncome} style={{ borderTop: dayIncomes.length > 0 ? "none" : undefined }}>
+              <h5>+ Add income</h5>
+              <div className="cal-add-row">
+                <input type="text" placeholder="Source" value={incForm.name} onChange={(e) => setIncForm((p) => ({ ...p, name: e.target.value }))} required />
+                <input type="number" step="0.01" min="0.01" placeholder="$0.00" value={incForm.amount} onChange={(e) => setIncForm((p) => ({ ...p, amount: e.target.value }))} required />
+                <button type="submit" className="primary-button" disabled={incSaving}>{incSaving ? "..." : "Add"}</button>
+              </div>
+            </form>
 
             <form className="cal-add-exp" onSubmit={handleAddDayExpense}>
               <h5>+ Add expense</h5>

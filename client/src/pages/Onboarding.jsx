@@ -7,6 +7,7 @@ const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Every week" },
   { value: "biweekly", label: "Every 2 weeks" },
+  { value: "twicemonthly", label: "Twice a month (1st & 15th)" },
   { value: "monthly", label: "Once a month" },
 ];
 

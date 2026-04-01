@@ -83,7 +83,7 @@ const ProtectedRoute = ({ children }) => {
       <div style={{
         display: "flex", flexDirection: "column", justifyContent: "center",
         alignItems: "center", minHeight: "100vh", gap: "0.5rem",
-        color: "#8492A6", fontFamily: "inherit",
+        color: "var(--text-secondary, #8492A6)", fontFamily: "inherit",
       }}>
         <div style={{
           width: 28, height: 28, border: "3px solid currentColor",

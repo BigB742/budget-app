@@ -4,7 +4,7 @@ import { authFetch } from "../apiClient";
 import { useIncomeSources } from "../hooks/useIncomeSources";
 import DebtPanel from "../components/DebtPanel";
 import SavingsPanel from "../components/SavingsPanel";
-import InvestmentsPanel from "../components/InvestmentsPanel";
+import CryptoPanel from "../components/CryptoPanel";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -58,7 +58,7 @@ const BillsIncome = () => {
       <div className="bi-two-col">
       {/* Income */}
       <section className="bi-section">
-        <div className="bi-section-head"><h2>Income</h2><Link to="/settings/income" className="primary-button">Manage</Link></div>
+        <div className="bi-section-head"><h2>Income</h2><Link to="/app/income" className="primary-button">Manage</Link></div>
         {sources.length === 0 ? <p className="empty-row">No income sources yet.</p> : (
           <div className="recurring-list">
             {sources.map((s) => (
@@ -94,8 +94,8 @@ const BillsIncome = () => {
       {/* Savings */}
       <section className="bi-section"><SavingsPanel /></section>
 
-      {/* Investments */}
-      <section className="bi-section"><InvestmentsPanel /></section>
+      {/* Crypto */}
+      <section className="bi-section"><CryptoPanel /></section>
 
       {/* Add bill modal */}
       {showBillModal && (

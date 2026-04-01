@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { API_URL } from "../config";
 
 const VerifyEmail = () => {
   const [params] = useSearchParams();
@@ -11,7 +12,7 @@ const VerifyEmail = () => {
     if (!token) { setStatus("error"); setMessage("No verification token provided."); return; }
     (async () => {
       try {
-        const res = await fetch(`http://localhost:5001/api/auth/verify-email?token=${token}`);
+        const res = await fetch(`${API_URL}/api/auth/verify-email?token=${token}`);
         const data = await res.json();
         if (res.ok && data.success) { setStatus("success"); setMessage("Email verified!"); }
         else { setStatus("error"); setMessage(data.error || "Verification failed."); }

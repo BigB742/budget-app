@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-const API_BASE = "http://localhost:5001/api/auth/signup";
+import { API_URL } from "../config";
 
 const Signup = () => {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "", confirmPassword: "" });
@@ -9,7 +8,7 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); };
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,9 +16,9 @@ const Signup = () => {
     if (form.password !== form.confirmPassword) { setError("Passwords don't match."); return; }
     setLoading(true);
     try {
-      const response = await fetch(API_BASE, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to create account.");
+      const res = await fetch(`${API_URL}/api/auth/signup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Signup failed.");
       if (data.needsVerification) {
         navigate(`/check-email?email=${encodeURIComponent(data.email)}`);
       } else {
@@ -32,21 +31,35 @@ const Signup = () => {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1>PayPulse</h1>
-        <p className="auth-subtitle">Create your account and take control of your money.</p>
-        <form onSubmit={handleSubmit} className="auth-form">
-          <label>Full name<input type="text" name="firstName" value={form.firstName} onChange={handleChange} placeholder="First name" required /></label>
-          <label>&nbsp;<input type="text" name="lastName" value={form.lastName} onChange={handleChange} placeholder="Last name" required /></label>
-          <label>Email<input type="email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" required /></label>
-          <label>Phone (optional)<input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="(555) 123-4567" /></label>
-          <label>Password<input type="password" name="password" value={form.password} onChange={handleChange} placeholder="Create a strong password" required /></label>
-          <label>Confirm password<input type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} placeholder="Confirm password" required /></label>
-          <button type="submit" className="primary-button" disabled={loading}>{loading ? "Creating account..." : "Sign Up"}</button>
-          {error && <p className="status status-error">{error}</p>}
-        </form>
-        <p className="auth-footer">Already have an account? <Link to="/login">Sign in</Link></p>
+    <div className="auth-split">
+      <div className="auth-brand-panel">
+        <div className="auth-brand-content">
+          <div className="auth-brand-logo"><span className="lp-dot" />PayPulse</div>
+          <p className="auth-brand-tagline">You got paid. But do you actually know what's yours to spend?</p>
+          <ul className="auth-brand-list">
+            <li>See your real spendable balance</li>
+            <li>Never miss a bill again</li>
+            <li>Know exactly where your money goes</li>
+          </ul>
+        </div>
+      </div>
+      <div className="auth-form-panel">
+        <div className="auth-form-inner">
+          <h1>Create your account</h1>
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="auth-name-row">
+              <label>First name<input type="text" name="firstName" value={form.firstName} onChange={handleChange} required /></label>
+              <label>Last name<input type="text" name="lastName" value={form.lastName} onChange={handleChange} required /></label>
+            </div>
+            <label>Email<input type="email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" required /></label>
+            <label>Password<input type="password" name="password" value={form.password} onChange={handleChange} placeholder="Create a strong password" required /></label>
+            <label>Confirm password<input type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} required /></label>
+            <label>Phone number (optional)<input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="(555) 123-4567" /></label>
+            {error && <p className="auth-error">{error}</p>}
+            <button type="submit" className="primary-button" style={{ width: "100%" }} disabled={loading}>{loading ? "Creating account..." : "Create account"}</button>
+          </form>
+          <p className="auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+        </div>
       </div>
     </div>
   );

@@ -192,7 +192,7 @@ cron.schedule("0 8 * * *", async () => {
       }
     }
 
-    console.log("[billReminders] Daily reminder check completed.");
+    // reminder check complete
   } catch (error) {
     console.error("[billReminders] Cron job failed:", error);
   }

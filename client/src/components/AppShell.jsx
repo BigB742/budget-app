@@ -34,7 +34,9 @@ const AppShell = () => {
             ))}
           </ul>
           <div className="sidebar-bottom">
-            <button type="button" className="sidebar-logout" onClick={handleLogout}>Log out</button>
+            <button type="button" className="sidebar-logout" onClick={handleLogout}>
+              <span className="logout-icon">&#x2190;</span>Log out
+            </button>
           </div>
         </nav>
 
