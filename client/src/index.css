@@ -440,6 +440,9 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .cal-exp-tag { font-size: 0.58rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-paid-tag { font-size: 0.58rem; color: var(--teal); font-weight: 600; }
 .cal-paid-badge { font-size: 0.78rem; color: var(--teal); font-weight: 600; margin-left: 0.35rem; }
+.cal-month-chart { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: var(--card-pad); margin: 0.85rem 0; }
+.cal-month-chart .chart-label { margin-bottom: 0.5rem; }
+.cal-month-summary { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.82rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--card-border); }
 .cal-income-tag { font-size: 0.58rem; color: #8B5CF6; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-income-dot { display: inline-block; width: 5px; height: 5px; border-radius: 999px; background: #8B5CF6; margin-right: 2px; }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 import { useIncomeSources } from "../hooks/useIncomeSources";
 import AdSlot from "../components/AdSlot";
@@ -44,6 +45,8 @@ const Calendar = () => {
   const [selectedDay, setSelectedDay] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState(null);
+  const userCreatedAt = (() => { try { const u = JSON.parse(localStorage.getItem("user")); return u?.createdAt; } catch { return null; } })();
 
   // Day-detail state
   const [expForm, setExpForm] = useState({ description: "", amount: "", category: "Food" });
@@ -52,8 +55,9 @@ const Calendar = () => {
   const [overrideForm, setOverrideForm] = useState({ amount: "", note: "" });
   const [overrideSaving, setOverrideSaving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(null);
-  const [paidForm, setPaidForm] = useState({ paidDate: "", note: "" });
+  const [paidForm, setPaidForm] = useState({ paidDate: "", note: "", amount: "" });
   const [paidSaving, setPaidSaving] = useState(false);
+  const [payingEarly, setPayingEarly] = useState(null);
   const [incForm, setIncForm] = useState({ name: "", amount: "" });
   const [incSaving, setIncSaving] = useState(false);
 
@@ -82,6 +86,8 @@ const Calendar = () => {
       setOverrides(Array.isArray(o) ? o : []);
       setBillPayments(Array.isArray(bp) ? bp : []);
       setOneTimeIncomes(Array.isArray(oti) ? oti : []);
+      // Load monthly chart data
+      authFetch(`/api/summary/monthly-breakdown?year=${viewYear}&month=${viewMonth + 1}`).then(setMonthlyBreakdown).catch(() => setMonthlyBreakdown(null));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [viewYear, viewMonth]);
@@ -118,10 +124,18 @@ const Calendar = () => {
     bills.forEach((b) => {
       const day = b.dueDayOfMonth || b.dueDay;
       if (!day) return;
+      const cellDate = new Date(viewYear, viewMonth, day);
+      // Skip if before startDate
+      if (b.startDate) {
+        const sd = new Date(b.startDate);
+        const sdLocal = new Date(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
+        if (cellDate < sdLocal) return;
+      }
+      // Skip if after lastPaymentDate
       if (b.lastPaymentDate) {
         const lp = new Date(b.lastPaymentDate);
         const lpLocal = new Date(lp.getUTCFullYear(), lp.getUTCMonth(), lp.getUTCDate());
-        if (new Date(viewYear, viewMonth, day) > lpLocal) return;
+        if (cellDate > lpLocal) return;
       }
       const key = toKey(viewYear, viewMonth, day);
       if (!map[key]) map[key] = [];
@@ -176,6 +190,13 @@ const Calendar = () => {
   }, [billPayments]);
 
   const isBillPaid = (billId, dateKey) => !!paidMap[`${billId}_${dateKey}`];
+  const isBillBeforeTracking = (dateKey) => {
+    if (!userCreatedAt) return false;
+    const ca = new Date(userCreatedAt);
+    const caLocal = new Date(ca.getUTCFullYear(), ca.getUTCMonth(), ca.getUTCDate());
+    const [y, m, d] = dateKey.split("-").map(Number);
+    return new Date(y, m - 1, d) < caLocal;
+  };
   const getBillPayment = (billId, dateKey) => paidMap[`${billId}_${dateKey}`];
 
   const weeks = buildMonthGrid(viewYear, viewMonth);
@@ -331,9 +352,9 @@ const Calendar = () => {
                     </span>
                     {db.map((b) => {
                       const paid = isBillPaid(b._id, key);
-                      return paid
-                        ? <span key={b._id} className="cal-paid-tag">&#x2713; Paid</span>
-                        : <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(getEffectiveAmount(b, key))}</span>;
+                      const priorToTracking = isBillBeforeTracking(key);
+                      if (paid || priorToTracking) return <span key={b._id} className="cal-paid-tag">Paid</span>;
+                      return <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(getEffectiveAmount(b, key))}</span>;
                     })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
@@ -346,6 +367,35 @@ const Calendar = () => {
               })}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Monthly spending chart */}
+      {monthlyBreakdown && (
+        <div className="cal-month-chart">
+          <h3 className="chart-label">{monthLabel} Overview</h3>
+          {(() => {
+            const bars = [];
+            if (monthlyBreakdown.totalIncome > 0) bars.push({ name: "Income", value: monthlyBreakdown.totalIncome, fill: "var(--teal)" });
+            if (monthlyBreakdown.totalBills > 0) bars.push({ name: "Bills", value: monthlyBreakdown.totalBills, fill: "var(--red)" });
+            (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: "var(--cta)" }); });
+            return bars.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(120, bars.length * 32 + 40)}>
+                <BarChart data={bars} layout="vertical" margin={{ left: 80, right: 10, top: 5, bottom: 5 }}>
+                  <XAxis type="number" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
+                  <Tooltip formatter={(v) => currency.format(v)} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="empty-hint">No financial data for this month.</p>;
+          })()}
+          <div className="cal-month-summary">
+            <span>Income: <strong style={{ color: "var(--teal)" }}>{currency.format(monthlyBreakdown.totalIncome)}</strong></span>
+            <span>Bills: <strong style={{ color: "var(--red)" }}>{currency.format(monthlyBreakdown.totalBills)}</strong></span>
+            <span>Expenses: <strong>{currency.format(monthlyBreakdown.totalExpenses)}</strong></span>
+            <span>Net: <strong style={{ color: monthlyBreakdown.net >= 0 ? "var(--teal)" : "var(--red)" }}>{currency.format(monthlyBreakdown.net)}</strong></span>
+          </div>
         </div>
       )}
 
@@ -388,22 +438,27 @@ const Calendar = () => {
                 {dayBills.map((b) => {
                   const amt = getEffectiveAmount(b, selectedDay);
                   const payment = getBillPayment(b._id, selectedDay);
+                  const priorToTracking = isBillBeforeTracking(selectedDay);
                   const hasOverride = !!overrideMap[`${b._id}_${selectedDay}`];
+                  const isPaid = !!payment || priorToTracking;
                   return (
                     <div key={b._id} className="cal-detail-row bill-row">
                       <div>
                         <strong>{b.name}</strong>
                         {payment ? (
-                          <span className="cal-paid-badge">&#x2713; Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                          <span className="cal-paid-badge">Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        ) : priorToTracking ? (
+                          <span className="cal-paid-badge">Paid (before tracking started)</span>
                         ) : (
                           <span className="cal-detail-amt bill-amt">{currency.format(amt)}</span>
                         )}
                         {hasOverride && <span className="pill">Edited</span>}
                       </div>
-                      {!payment && (
+                      {!isPaid && (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit</button>
-                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--teal)" }} onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "" }); }}>Mark as paid</button>
+                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--teal)" }} onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Mark as paid</button>
+                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B5CF6" }} onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>
                         </div>
                       )}
                     </div>
@@ -419,6 +474,28 @@ const Calendar = () => {
                 <label>When did you pay it?<input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required /></label>
                 <label>Note (optional)<input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} /></label>
                 <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setMarkingPaid(null)}>Cancel</button><button type="submit" className="primary-button" disabled={paidSaving}>{paidSaving ? "..." : "Save"}</button></div>
+              </form>
+            )}
+
+            {/* Pay early form */}
+            {payingEarly && (
+              <form className="cal-override-form" onSubmit={async (e) => {
+                e.preventDefault();
+                setPaidSaving(true);
+                try {
+                  await authFetch("/api/bill-payments", { method: "POST", body: JSON.stringify({ billId: payingEarly._id, dueDate: selectedDay, paidDate: paidForm.paidDate, paidAmount: Number(paidForm.amount), note: paidForm.note || `Early payment — due ${selectedDay}` }) });
+                  setPayingEarly(null);
+                  setPaidForm({ paidDate: "", note: "", amount: "" });
+                  loadData();
+                } catch { /* ignore */ }
+                finally { setPaidSaving(false); }
+              }}>
+                <p className="cal-override-label">Pay <strong>{payingEarly.name}</strong> early</p>
+                <p className="muted">Due: {selectedDay}</p>
+                <label>Amount<input type="number" step="0.01" value={paidForm.amount} onChange={(e) => setPaidForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
+                <label>Date paid<input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required /></label>
+                <label>Note (optional)<input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} /></label>
+                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setPayingEarly(null)}>Cancel</button><button type="submit" className="primary-button" disabled={paidSaving}>{paidSaving ? "..." : "Confirm early payment"}</button></div>
               </form>
             )}
 

@@ -576,4 +576,100 @@ router.get("/year-to-date", authRequired, async (req, res) => {
   }
 });
 
+// GET /monthly-breakdown?year=2026&month=4 — full financial breakdown for a specific month
+router.get("/monthly-breakdown", authRequired, async (req, res) => {
+  try {
+    const year = Number(req.query.year);
+    const month = Number(req.query.month); // 1-12
+
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ error: "Valid year and month (1-12) query params required." });
+    }
+
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0); // last day of the month
+
+    // 1. Recurring income — paydays that fall in this month
+    const sources = await IncomeSource.find({ user: req.userId, isActive: true });
+    let recurringIncome = 0;
+    for (const source of sources) {
+      const paydays = getPaydaysInRange(source.nextPayDate, source.frequency, monthStart, monthEnd);
+      recurringIncome += paydays.length * Number(source.amount);
+    }
+
+    // 2. One-time income in this month
+    const monthFrom = startOfDay(monthStart);
+    const monthTo = new Date(year, month - 1, monthEnd.getDate(), 23, 59, 59, 999);
+
+    const oneTimeIncomes = await OneTimeIncome.find({
+      user: req.userId,
+      date: { $gte: monthFrom, $lte: monthTo },
+    });
+    const oneTimeIncome = oneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+    const totalIncome = recurringIncome + oneTimeIncome;
+
+    // 3. Bills due in this month
+    const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
+    const overrideMap = await loadOverrideMap(req.userId, monthStart, monthEnd);
+
+    let totalBills = 0;
+    const billBreakdown = [];
+
+    for (const bill of bills) {
+      const dueDate = new Date(year, month - 1, bill.dueDayOfMonth);
+      const dueDateLocal = startOfDay(dueDate);
+
+      const amt = getEffectiveBillAmount(bill, dueDateLocal, overrideMap);
+      if (amt != null) {
+        totalBills += amt;
+        billBreakdown.push({ name: bill.name, amount: amt });
+      }
+    }
+
+    // 4. Expenses for the month, grouped by category
+    const expenseDocs = await Expense.find({
+      $and: [
+        { $or: [{ user: req.userId }, { userId: req.userId }] },
+        {
+          $or: [
+            { date: { $gte: monthFrom, $lte: monthTo } },
+            { date: { $exists: false }, createdAt: { $gte: monthFrom, $lte: monthTo } },
+          ],
+        },
+      ],
+    });
+
+    const catMap = {};
+    let totalExpenses = 0;
+    expenseDocs.forEach((e) => {
+      const amt = Number(e.amount) || 0;
+      const cat = e.category || "Other";
+      catMap[cat] = (catMap[cat] || 0) + amt;
+      totalExpenses += amt;
+    });
+
+    const expensesByCategory = Object.entries(catMap).map(([category, total]) => ({ category, total }));
+
+    // 5. Net
+    const net = totalIncome - totalBills - totalExpenses;
+
+    res.json({
+      year,
+      month,
+      totalIncome,
+      recurringIncome,
+      oneTimeIncome,
+      totalBills,
+      totalExpenses,
+      net,
+      expensesByCategory,
+      billBreakdown,
+    });
+  } catch (error) {
+    console.error("Error computing monthly breakdown:", error);
+    res.status(500).json({ error: "Unable to compute monthly breakdown." });
+  }
+});
+
 module.exports = router;

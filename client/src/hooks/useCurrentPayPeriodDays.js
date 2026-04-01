@@ -123,10 +123,21 @@ export const useCurrentPayPeriodDays = () => {
       const dueDay = bill.dueDayOfMonth ?? bill.dueDay;
       if (!dueDay) continue;
       for (const day of result) {
-        if (day.dayOfMonth === dueDay) {
-          day.bills.push(bill);
-          day.billsTotal += Number(bill.amount) || 0;
+        if (day.dayOfMonth !== dueDay) continue;
+        // Skip if before startDate
+        if (bill.startDate) {
+          const sd = new Date(bill.startDate);
+          const sdLocal = new Date(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
+          if (day.date < sdLocal) continue;
         }
+        // Skip if after lastPaymentDate
+        if (bill.lastPaymentDate) {
+          const lp = new Date(bill.lastPaymentDate);
+          const lpLocal = new Date(lp.getUTCFullYear(), lp.getUTCMonth(), lp.getUTCDate());
+          if (day.date > lpLocal) continue;
+        }
+        day.bills.push(bill);
+        day.billsTotal += Number(bill.amount) || 0;
       }
     }
 
