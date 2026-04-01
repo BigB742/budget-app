@@ -80,8 +80,16 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 /* ═══════════════════════════════════════
    App Shell — Sidebar + Bottom Tabs
    ═══════════════════════════════════════ */
-.app-shell { display: flex; min-height: 100vh; width: 100%; background: var(--bg); }
+.app-shell { display: flex; min-height: 100vh; width: 100%; background: var(--bg); position: relative; }
 .sidebar { display: none; }
+.hamburger-btn {
+  position: fixed; top: 0.65rem; left: 0.65rem; z-index: 50;
+  width: 36px; height: 36px; border-radius: var(--radius); border: 1px solid var(--card-border);
+  background: var(--card); color: var(--text); font-size: 1.15rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: opacity 0.15s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.sidebar-overlay { display: none; }
 .sidebar-bottom { display: none; }
 .sidebar-logout { display: none; }
 .brand-dot { display: none; }
@@ -224,6 +232,26 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .amt-exp { font-size: 0.78rem; font-weight: 600; color: var(--text); }
 .activity-item.income-item { color: #8B5CF6; font-weight: 600; }
 .planner-hint { margin: 0.4rem 0 0; font-size: 0.68rem; color: var(--text-muted); }
+
+/* Upcoming redesigned rows */
+.up-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.35rem; border-bottom: 1px solid var(--card-border); cursor: pointer; transition: background 0.1s; list-style: none; }
+.up-row:last-child { border-bottom: none; }
+.up-row:hover { background: var(--bg); border-radius: var(--radius); }
+.up-accent { width: 3px; height: 32px; border-radius: 2px; flex-shrink: 0; }
+.up-accent-red { background: var(--red); }
+.up-accent-purple { background: #8B5CF6; }
+.up-accent-gold { background: var(--gold); }
+.up-accent-gray { background: var(--text-muted); }
+.up-body { flex: 1; min-width: 0; }
+.up-name { display: block; font-size: var(--font-base); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-date { display: block; font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; }
+.up-amt { flex-shrink: 0; font-weight: 700; font-size: var(--font-base); color: var(--text); }
+.up-amt-red { color: var(--red); }
+.up-amt-purple { color: #8B5CF6; }
+.up-amt-gold { color: var(--gold); }
+.up-income { background: rgba(139,92,246,0.04); }
+.up-payday { background: rgba(246,201,14,0.06); }
+.bi-sub-label { margin: 0 0 0.25rem; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .empty-hint { padding: 1rem 0; font-size: 0.82rem; color: var(--text-muted); text-align: center; }
 
 /* Panels */
@@ -675,6 +703,8 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .history-header h1 { margin: 0; font-size: 1.25rem; text-align: left; }
 .history-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.65rem; }
 .history-filters input, .history-filters select { padding: 0 0.6rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.78rem; font-family: inherit; background: var(--card); color: var(--text); flex: 1; min-width: 0; }
+.history-charts { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 0.85rem; }
+.history-chart-col { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: var(--card-pad); }
 .history-summary { display: flex; justify-content: space-between; padding: 0.45rem 0.65rem; background: var(--card); border-radius: var(--radius); margin-bottom: 0.65rem; font-size: 0.82rem; color: var(--text-secondary); border: 1px solid var(--card-border); }
 .history-list { list-style: none; padding: 0; margin: 0; }
 .history-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--card-border); font-size: var(--font-base); }
@@ -808,6 +838,11 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
   .lp-features { grid-template-columns: 1fr; }
   .lp-hero h1 { font-size: 1.35rem; }
   .auth-name-row { flex-direction: column; gap: 0.75rem; }
+  /* Mobile sidebar as overlay */
+  .sidebar { display: flex; position: fixed; top: 0; left: -230px; width: 230px; height: 100vh; z-index: 45; transition: left 0.25s ease; }
+  .sidebar.open { left: 0; }
+  .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 44; }
+  .sidebar-open .shell-main { margin-left: 0; }
 }
 
 @media (min-width: 641px) {
@@ -819,18 +854,24 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
   .spending-chart { flex: 0 0 200px; }
   .spending-legend { flex: 1; }
   .dual-charts { flex-direction: row; }
+  .history-charts { flex-direction: row; }
 }
 
 @media (min-width: 901px) {
   #root { padding: 0; }
 
-  /* ── Sidebar ── */
+  /* ── Sidebar (collapsible) ── */
   .sidebar {
     display: flex; flex-direction: column; width: 230px; background: var(--navy);
     color: #fff; padding: 1.5rem 0 1rem; flex-shrink: 0; height: 100vh;
-    position: fixed; top: 0; left: 0; z-index: 10; overflow-y: auto;
+    position: fixed; top: 0; left: -230px; z-index: 45; overflow-y: auto;
+    transition: left 0.25s ease;
   }
-  .shell-main { margin-left: 230px; }
+  .sidebar.open { left: 0; }
+  .sidebar-open .shell-main { margin-left: 230px; transition: margin-left 0.25s ease; }
+  .shell-main { margin-left: 0; transition: margin-left 0.25s ease; }
+  .hamburger-btn { left: 0.85rem; top: 0.85rem; }
+  .sidebar-open .hamburger-btn { left: calc(230px + 0.85rem); }
   .sidebar-brand {
     font-size: 1.25rem; font-weight: 800; padding: 0 1.25rem 1rem;
     border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 0.75rem;

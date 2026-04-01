@@ -31,7 +31,7 @@ router.post("/", authRequired, async (req, res) => {
     }
 
     const override = await PaymentOverride.findOneAndUpdate(
-      { user: req.userId, bill: billId, date: new Date(date) },
+      { user: req.userId, bill: billId, date: new Date(date + "T12:00:00") },
       { amount: Number(amount), note: note || "" },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );

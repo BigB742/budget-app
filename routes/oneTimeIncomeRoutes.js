@@ -36,7 +36,7 @@ router.post("/", authRequired, async (req, res) => {
       user: req.userId,
       name,
       amount: Number(amount),
-      date: new Date(date),
+      date: new Date(date + "T12:00:00"),
       note: note || "",
     });
 

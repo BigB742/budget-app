@@ -1,34 +1,36 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { authFetch } from "../apiClient";
+import { formatDate } from "../utils/dateUtils";
 import { useIncomeSources } from "../hooks/useIncomeSources";
-import DebtPanel from "../components/DebtPanel";
 import SavingsPanel from "../components/SavingsPanel";
-import CryptoPanel from "../components/CryptoPanel";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "monthly" ? "Monthly" : f;
-
+const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
 const BILL_CATS = ["Rent", "Utilities", "Subscriptions", "Car Payment", "Insurance", "Phone", "Internet", "Other"];
 
 const BillsIncome = () => {
-  const { sources, refresh: refreshSources } = useIncomeSources();
+  const { sources } = useIncomeSources();
   const [bills, setBills] = useState([]);
+  const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBillModal, setShowBillModal] = useState(false);
   const [billForm, setBillForm] = useState({ name: "", amount: "", dueDay: "", category: "Other", lastPaymentDate: "", lastPaymentAmount: "" });
 
-  const loadBills = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const b = await authFetch("/api/bills");
+      const [b, ot] = await Promise.all([
+        authFetch("/api/bills"),
+        authFetch("/api/one-time-income").catch(() => []),
+      ]);
       setBills([...(b || [])].sort((a, b2) => (a.dueDayOfMonth || 0) - (b2.dueDayOfMonth || 0)));
+      setOneTimeIncomes(Array.isArray(ot) ? ot : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadBills(); }, [loadBills]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleAddBill = async (e) => {
     e.preventDefault();
@@ -36,13 +38,12 @@ const BillsIncome = () => {
       await authFetch("/api/bills", { method: "POST", body: JSON.stringify({ name: billForm.name, amount: Number(billForm.amount), dueDayOfMonth: Number(billForm.dueDay), category: billForm.category, lastPaymentDate: billForm.lastPaymentDate || null, lastPaymentAmount: billForm.lastPaymentAmount ? Number(billForm.lastPaymentAmount) : null }) });
       setBillForm({ name: "", amount: "", dueDay: "", category: "Other", lastPaymentDate: "", lastPaymentAmount: "" });
       setShowBillModal(false);
-      loadBills();
+      loadData();
     } catch { /* ignore */ }
   };
 
-  const handleDeleteBill = async (id) => {
-    try { await authFetch(`/api/bills/${id}`, { method: "DELETE" }); loadBills(); } catch { /* ignore */ }
-  };
+  const handleDeleteBill = async (id) => { try { await authFetch(`/api/bills/${id}`, { method: "DELETE" }); loadData(); } catch {} };
+  const handleDeleteOneTime = async (id) => { try { await authFetch(`/api/one-time-income/${id}`, { method: "DELETE" }); loadData(); } catch {} };
 
   const monthlyObligations = bills.reduce((s, b) => s + Number(b.amount || 0), 0);
 
@@ -56,48 +57,69 @@ const BillsIncome = () => {
       </div>
 
       <div className="bi-two-col">
-      {/* Income */}
-      <section className="bi-section">
-        <div className="bi-section-head"><h2>Income</h2><Link to="/app/income" className="primary-button">Manage</Link></div>
-        {sources.length === 0 ? <p className="empty-row">No income sources yet.</p> : (
-          <div className="recurring-list">
-            {sources.map((s) => (
-              <div key={s._id} className="recurring-card">
-                <div><p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p><p className="muted">{formatFrequency(s.frequency)}</p></div>
-                <span className="entry-amount positive">{currency.format(s.amount)}</span>
+        {/* Income */}
+        <section className="bi-section">
+          <div className="bi-section-head"><h2>Income</h2><Link to="/app/income" className="primary-button">Manage</Link></div>
+
+          {sources.length > 0 && (
+            <>
+              <p className="bi-sub-label">Recurring</p>
+              <div className="recurring-list">
+                {sources.map((s) => (
+                  <div key={s._id} className="recurring-card">
+                    <div><p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p><p className="muted">{formatFrequency(s.frequency)} &middot; Next: {formatDate(s.nextPayDate)}</p></div>
+                    <span className="entry-amount positive">{currency.format(s.amount)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </>
+          )}
 
-      {/* Bills */}
-      <section className="bi-section">
-        <div className="bi-section-head"><h2>Bills</h2><button type="button" className="primary-button" onClick={() => setShowBillModal(true)}>Add bill</button></div>
-        {loading ? <p className="status">Loading...</p> : bills.length === 0 ? <p className="empty-row">No bills yet.</p> : (
-          <div className="recurring-list">
-            {bills.map((b) => (
-              <div key={b._id} className="recurring-card">
-                <div><p className="entry-title">{b.name}{b.lastPaymentDate && <span className="pill ends-pill">Ends {new Date(b.lastPaymentDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}</p><p className="muted">Day {b.dueDayOfMonth} &middot; {b.category}</p></div>
-                <div className="recurring-actions"><span className="entry-amount negative">{currency.format(b.amount)}</span><button type="button" className="ghost-button" onClick={() => handleDeleteBill(b._id)}>Remove</button></div>
+          {oneTimeIncomes.length > 0 && (
+            <>
+              <p className="bi-sub-label" style={{ marginTop: "0.65rem" }}>One-time income</p>
+              <div className="recurring-list">
+                {oneTimeIncomes.map((ot) => (
+                  <div key={ot._id} className="recurring-card">
+                    <div><p className="entry-title" style={{ color: "#8B5CF6" }}>{ot.name}</p><p className="muted">{formatDate(ot.date)}</p></div>
+                    <div className="recurring-actions">
+                      <span className="entry-amount" style={{ color: "#8B5CF6" }}>{currency.format(ot.amount)}</span>
+                      <button type="button" className="ghost-button" onClick={() => handleDeleteOneTime(ot._id)}>x</button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </>
+          )}
 
-      </div>{/* end bi-two-col */}
+          {sources.length === 0 && oneTimeIncomes.length === 0 && <p className="empty-row">No income sources yet.</p>}
+        </section>
 
-      {/* Debts */}
-      <section className="bi-section"><DebtPanel /></section>
+        {/* Bills */}
+        <section className="bi-section">
+          <div className="bi-section-head"><h2>Bills</h2><button type="button" className="primary-button" onClick={() => setShowBillModal(true)}>Add bill</button></div>
+          {loading ? <p className="status">Loading...</p> : bills.length === 0 ? <p className="empty-row">No bills yet.</p> : (
+            <div className="recurring-list">
+              {bills.map((b) => (
+                <div key={b._id} className="recurring-card">
+                  <div><p className="entry-title">{b.name}{b.lastPaymentDate && <span className="pill ends-pill">Ends {formatDate(b.lastPaymentDate)}</span>}</p><p className="muted">Day {b.dueDayOfMonth} &middot; {b.category}</p></div>
+                  <div className="recurring-actions"><span className="entry-amount negative">{currency.format(b.amount)}</span><button type="button" className="ghost-button" onClick={() => handleDeleteBill(b._id)}>Remove</button></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* COMING SOON — Debt payoff tracker. Full feature in next development phase. */}
+      {/* <section className="bi-section"><DebtPanel /></section> */}
 
       {/* Savings */}
       <section className="bi-section"><SavingsPanel /></section>
 
-      {/* Crypto */}
-      <section className="bi-section"><CryptoPanel /></section>
+      {/* COMING SOON — Crypto tracking. Full feature in next development phase. */}
+      {/* <section className="bi-section"><CryptoPanel /></section> */}
 
-      {/* Add bill modal */}
       {showBillModal && (
         <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>

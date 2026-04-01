@@ -35,8 +35,8 @@ router.post("/", authRequired, async (req, res) => {
     }
 
     const payment = await BillPayment.findOneAndUpdate(
-      { user: req.userId, bill: billId, dueDate: new Date(dueDate) },
-      { paidDate: new Date(paidDate), paidAmount: Number(paidAmount), note: note || "" },
+      { user: req.userId, bill: billId, dueDate: new Date(dueDate + "T12:00:00") },
+      { paidDate: new Date(paidDate + "T12:00:00"), paidAmount: Number(paidAmount), note: note || "" },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     // Ensure user field is set on upsert
@@ -48,8 +48,8 @@ router.post("/", authRequired, async (req, res) => {
     try {
       const sources = await IncomeSource.find({ user: req.userId, isActive: true });
       if (sources.length > 0) {
-        const dueDateObj = new Date(dueDate);
-        const paidDateObj = new Date(paidDate);
+        const dueDateObj = new Date(dueDate + "T12:00:00");
+        const paidDateObj = new Date(paidDate + "T12:00:00");
         const duePeriod = getBudgetPeriod(sources, dueDateObj);
         const paidPeriod = getBudgetPeriod(sources, paidDateObj);
 

@@ -4,7 +4,6 @@ import { authFetch } from "../apiClient";
 import DayExpensesModal from "../components/DayExpensesModal";
 import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
-import CryptoPanel from "../components/CryptoPanel";
 import { useCurrentPaycheckSummary } from "../hooks/useCurrentPaycheckSummary";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
@@ -140,25 +139,43 @@ const Dashboard = () => {
             <p className="empty-hint">No upcoming bills or expenses this period.</p>
           ) : (
             <ul className="activity-list">
-              {displayDays.map((day) => (
-                <li key={day.dateKey}>
-                  <button type="button" className="activity-row" onClick={() => setSelectedDay(day)}>
-                    <span className="activity-date">{day.weekdayLabel} {day.dayOfMonth}{day.isPayday && <span className="payday-dot" title="Payday" />}</span>
-                    <span className="activity-details">
-                      {(day.incomes || []).map((inc) => <span key={inc._id} className="activity-item income-item">&uarr; {inc.name} +{currency.format(inc.amount)}</span>)}
-                      {day.bills.map((b) => <span key={b._id} className="activity-item bill-item">{b.name} &minus;{currency.format(b.amount)}</span>)}
-                      {day.expenses.map((exp, i) => <span key={exp._id || i} className="activity-item expense-item">{exp.description || exp.category || "Expense"} {currency.format(exp.amount)}</span>)}
-                      {day.billsTotal === 0 && day.expensesTotal === 0 && (day.incomesTotal || 0) === 0 && !day.isPayday && <span className="activity-item empty-item">No activity</span>}
-                      {day.billsTotal === 0 && day.expensesTotal === 0 && (day.incomesTotal || 0) === 0 && day.isPayday && <span className="activity-item payday-label">Payday</span>}
-                    </span>
-                    <span className="activity-total">
-                      {(day.incomesTotal || 0) > 0 && <span className="amt-income">+{currency.format(day.incomesTotal)}</span>}
-                      {day.billsTotal > 0 && <span className="amt-bill">&minus;{currency.format(day.billsTotal)}</span>}
-                      {day.expensesTotal > 0 && <span className="amt-exp">{currency.format(day.expensesTotal)}</span>}
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {displayDays.flatMap((day) => {
+                const rows = [];
+                const dateLabel = `${day.weekdayLabel} ${day.dayOfMonth}`;
+                // Payday row
+                if (day.isPayday) rows.push(
+                  <li key={`${day.dateKey}-pay`} className="up-row up-payday" onClick={() => setSelectedDay(day)}>
+                    <span className="up-accent up-accent-gold" />
+                    <div className="up-body"><span className="up-name">Payday</span><span className="up-date">{dateLabel}</span></div>
+                    <span className="up-amt up-amt-gold">+{currency.format(summary?.totalIncome ? summary.totalIncome / (summary?.sources?.length || 1) : 0)}</span>
+                  </li>
+                );
+                // Income rows
+                (day.incomes || []).forEach((inc) => rows.push(
+                  <li key={inc._id} className="up-row up-income" onClick={() => setSelectedDay(day)}>
+                    <span className="up-accent up-accent-purple" />
+                    <div className="up-body"><span className="up-name">{inc.name}</span><span className="up-date">{dateLabel}</span></div>
+                    <span className="up-amt up-amt-purple">+{currency.format(inc.amount)}</span>
+                  </li>
+                ));
+                // Bill rows
+                day.bills.forEach((b) => rows.push(
+                  <li key={b._id + day.dateKey} className="up-row up-bill" onClick={() => setSelectedDay(day)}>
+                    <span className="up-accent up-accent-red" />
+                    <div className="up-body"><span className="up-name">{b.name}</span><span className="up-date">{dateLabel}</span></div>
+                    <span className="up-amt up-amt-red">&minus;{currency.format(b.amount)}</span>
+                  </li>
+                ));
+                // Expense rows
+                day.expenses.forEach((exp, i) => rows.push(
+                  <li key={(exp._id || i) + day.dateKey} className="up-row up-expense" onClick={() => setSelectedDay(day)}>
+                    <span className="up-accent up-accent-gray" />
+                    <div className="up-body"><span className="up-name">{exp.description || exp.category || "Expense"}</span><span className="up-date">{dateLabel}</span></div>
+                    <span className="up-amt">{currency.format(exp.amount)}</span>
+                  </li>
+                ));
+                return rows;
+              })}
             </ul>
           )}
           <p className="planner-hint">Tap a day to add or review expenses.</p>
@@ -167,9 +184,7 @@ const Dashboard = () => {
         {/* Spending breakdown */}
         <section className="dash-chart-col">
           <SpendingBreakdown expensesByCategory={spendingCats} summary={summary} />
-          <div style={{ marginTop: "1rem" }}>
-            <CryptoPanel showChart />
-          </div>
+          {/* COMING SOON — Crypto dashboard chart. Full feature in next phase. */}
         </section>
       </div>
 
