@@ -703,8 +703,15 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .history-header h1 { margin: 0; font-size: 1.25rem; text-align: left; }
 .history-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.65rem; }
 .history-filters input, .history-filters select { padding: 0 0.6rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.78rem; font-family: inherit; background: var(--card); color: var(--text); flex: 1; min-width: 0; }
-.history-charts { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 0.85rem; }
-.history-chart-col { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: var(--card-pad); }
+/* History filter bar */
+.hf-bar { margin-bottom: 0.85rem; }
+.hf-pills { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.hf-pill { padding: 0.3rem 0.7rem; border-radius: 999px; border: 1px solid var(--card-border); background: var(--card); font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
+.hf-pill.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.hf-controls { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.hf-input { padding: 0 0.5rem; height: 34px; border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.75rem; font-family: inherit; background: var(--card); color: var(--text); min-width: 0; flex: 1; }
+.hf-search { flex: 2; }
+.history-chart-single { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 0.85rem; text-align: center; }
 .history-summary { display: flex; justify-content: space-between; padding: 0.45rem 0.65rem; background: var(--card); border-radius: var(--radius); margin-bottom: 0.65rem; font-size: 0.82rem; color: var(--text-secondary); border: 1px solid var(--card-border); }
 .history-list { list-style: none; padding: 0; margin: 0; }
 .history-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--card-border); font-size: var(--font-base); }

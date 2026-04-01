@@ -61,6 +61,7 @@ const Dashboard = () => {
   const handleQuickExpense = async (e) => {
     e.preventDefault();
     if (!quickForm.amount || Number(quickForm.amount) <= 0) return;
+    if (quickForm.category === "Other" && !quickForm.description.trim()) { setQuickError("Description required for Other category."); return; }
     setQuickSaving(true);
     setQuickError("");
     try {
@@ -112,7 +113,7 @@ const Dashboard = () => {
       <section className="quick-add">
         <p className="quick-add-label">Quick add</p>
         <form className="quick-add-form" onSubmit={handleQuickExpense}>
-          <input type="text" name="description" placeholder="Description" value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} className="quick-input quick-desc" />
+          <input type="text" name="description" placeholder={quickForm.category === "Other" ? "What is this for? (required)" : "Description"} value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} required={quickForm.category === "Other"} className="quick-input quick-desc" />
           <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />
           <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
             {CATEGORY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
