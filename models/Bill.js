@@ -8,6 +8,7 @@ const billSchema = new mongoose.Schema(
     dueDayOfMonth: { type: Number, required: true },
     category: { type: String },
     isActive: { type: Boolean, default: true },
+    startDate: { type: Date, default: null },
     lastPaymentDate: { type: Date, default: null },
     lastPaymentAmount: { type: Number, default: null },
   },

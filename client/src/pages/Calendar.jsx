@@ -11,17 +11,8 @@ const isPremium = () => true;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CATEGORY_OPTIONS = [
-  { value: "Food", label: "\ud83c\udf54 Food" },
-  { value: "Dining Out", label: "\ud83c\udf7d\ufe0f Dining Out" },
-  { value: "Entertainment", label: "\ud83c\udfac Entertainment" },
-  { value: "Gas", label: "\u26fd Gas" },
-  { value: "Groceries", label: "\ud83d\uded2 Groceries" },
-  { value: "Home", label: "\ud83c\udfe0 Home" },
-  { value: "Health", label: "\ud83d\udc8a Health" },
-  { value: "Shopping", label: "\ud83d\udc57 Shopping" },
-  { value: "Travel", label: "\u2708\ufe0f Travel" },
-  { value: "Subscriptions", label: "\ud83d\udce6 Subscriptions" },
-  { value: "Other", label: "\ud83d\udcb8 Other" },
+  "Dining Out", "Entertainment", "Food", "Gas", "Groceries",
+  "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other",
 ];
 
 const toKey = (y, m, d) =>
@@ -484,7 +475,7 @@ const Calendar = () => {
                 <input type="text" placeholder="Description" value={expForm.description} onChange={(e) => setExpForm((p) => ({ ...p, description: e.target.value }))} />
                 <input type="number" step="0.01" min="0.01" placeholder="$0.00" value={expForm.amount} onChange={(e) => setExpForm((p) => ({ ...p, amount: e.target.value }))} required />
                 <select value={expForm.category} onChange={(e) => setExpForm((p) => ({ ...p, category: e.target.value }))}>
-                  {CATEGORY_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                  {CATEGORY_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
                 <button type="submit" className="primary-button" disabled={expSaving}>{expSaving ? "..." : "Add"}</button>
               </div>

@@ -10,17 +10,8 @@ import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const CATEGORY_OPTIONS = [
-  { value: "Food", label: "\ud83c\udf54 Food" },
-  { value: "Dining Out", label: "\ud83c\udf7d\ufe0f Dining Out" },
-  { value: "Entertainment", label: "\ud83c\udfac Entertainment" },
-  { value: "Gas", label: "\u26fd Gas" },
-  { value: "Groceries", label: "\ud83d\uded2 Groceries" },
-  { value: "Home", label: "\ud83c\udfe0 Home" },
-  { value: "Health", label: "\ud83d\udc8a Health" },
-  { value: "Shopping", label: "\ud83d\udc57 Shopping" },
-  { value: "Travel", label: "\u2708\ufe0f Travel" },
-  { value: "Subscriptions", label: "\ud83d\udce6 Subscriptions" },
-  { value: "Other", label: "\ud83d\udcb8 Other" },
+  "Dining Out", "Entertainment", "Food", "Gas", "Groceries",
+  "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other",
 ];
 
 const formatReadableDate = (iso) => {
@@ -116,7 +107,7 @@ const Dashboard = () => {
           <input type="text" name="description" placeholder={quickForm.category === "Other" ? "What is this for? (required)" : "Description"} value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} required={quickForm.category === "Other"} className="quick-input quick-desc" />
           <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />
           <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
-            {CATEGORY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <button type="submit" className="quick-add-btn" disabled={quickSaving}>{quickSaving ? "..." : "+ Add"}</button>
         </form>

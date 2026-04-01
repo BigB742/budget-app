@@ -4,11 +4,11 @@ import { DataCacheProvider } from "../context/DataCache";
 import SessionTimeout from "./SessionTimeout";
 
 const NAV_ITEMS = [
-  { to: "/app", label: "Dashboard", icon: "\u2302" },
-  { to: "/app/calendar", label: "Calendar", icon: "\ud83d\udcc5" },
-  { to: "/app/history", label: "History", icon: "\ud83d\udcca" },
-  { to: "/app/bills", label: "Bills & Income", icon: "\ud83d\udcb3" },
-  { to: "/app/settings", label: "Settings", icon: "\u2699" },
+  { to: "/app", label: "Dashboard" },
+  { to: "/app/calendar", label: "Calendar" },
+  { to: "/app/history", label: "History" },
+  { to: "/app/bills", label: "Bills & Income" },
+  { to: "/app/settings", label: "Settings" },
 ];
 
 const AppShell = () => {
@@ -44,7 +44,7 @@ const AppShell = () => {
             {NAV_ITEMS.map((item) => (
               <li key={item.to}>
                 <NavLink to={item.to} end={item.to === "/app"} className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`} onClick={closeSidebar}>
-                  <span className="sidebar-icon">{item.icon}</span>{item.label}
+                  {item.label}
                 </NavLink>
               </li>
             ))}
@@ -61,7 +61,7 @@ const AppShell = () => {
         <nav className="bottom-tabs">
           {NAV_ITEMS.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === "/app"} className={({ isActive }) => `tab-item${isActive ? " active" : ""}`}>
-              <span className="tab-icon">{item.icon}</span><span className="tab-label">{item.label}</span>
+              <span className="tab-label">{item.label}</span>
             </NavLink>
           ))}
         </nav>

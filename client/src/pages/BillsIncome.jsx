@@ -7,7 +7,7 @@ import SavingsPanel from "../components/SavingsPanel";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
-const BILL_CATS = ["Rent", "Utilities", "Subscriptions", "Car Payment", "Insurance", "Phone", "Internet", "Other"];
+const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
 const BillsIncome = () => {
   const { sources } = useIncomeSources();
@@ -15,7 +15,7 @@ const BillsIncome = () => {
   const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBillModal, setShowBillModal] = useState(false);
-  const [billForm, setBillForm] = useState({ name: "", amount: "", dueDay: "", category: "Other", lastPaymentDate: "", lastPaymentAmount: "" });
+  const [billForm, setBillForm] = useState({ name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -35,8 +35,8 @@ const BillsIncome = () => {
   const handleAddBill = async (e) => {
     e.preventDefault();
     try {
-      await authFetch("/api/bills", { method: "POST", body: JSON.stringify({ name: billForm.name, amount: Number(billForm.amount), dueDayOfMonth: Number(billForm.dueDay), category: billForm.category, lastPaymentDate: billForm.lastPaymentDate || null, lastPaymentAmount: billForm.lastPaymentAmount ? Number(billForm.lastPaymentAmount) : null }) });
-      setBillForm({ name: "", amount: "", dueDay: "", category: "Other", lastPaymentDate: "", lastPaymentAmount: "" });
+      await authFetch("/api/bills", { method: "POST", body: JSON.stringify({ name: billForm.name, amount: Number(billForm.amount), dueDayOfMonth: Number(billForm.dueDay), category: billForm.category, startDate: billForm.startDate || null, lastPaymentDate: billForm.lastPaymentDate || null, lastPaymentAmount: billForm.lastPaymentAmount ? Number(billForm.lastPaymentAmount) : null }) });
+      setBillForm({ name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" });
       setShowBillModal(false);
       loadData();
     } catch { /* ignore */ }
@@ -129,6 +129,7 @@ const BillsIncome = () => {
               <label>Amount<input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
               <label>Due day of month<input type="number" min="1" max="31" value={billForm.dueDay} onChange={(e) => setBillForm((p) => ({ ...p, dueDay: e.target.value }))} required /></label>
               <label>Category<select value={billForm.category} onChange={(e) => setBillForm((p) => ({ ...p, category: e.target.value }))}>{BILL_CATS.map((c) => <option key={c}>{c}</option>)}</select></label>
+              <label>First payment date (optional)<input type="date" value={billForm.startDate} onChange={(e) => setBillForm((p) => ({ ...p, startDate: e.target.value }))} /><span className="muted" style={{ fontSize: "0.68rem" }}>When did you start paying this? Leave blank if from the beginning of the year.</span></label>
               <label>Last payment date (optional)<input type="date" value={billForm.lastPaymentDate} onChange={(e) => setBillForm((p) => ({ ...p, lastPaymentDate: e.target.value }))} /></label>
               <label>Last payment amount (optional)<input type="number" step="0.01" value={billForm.lastPaymentAmount} onChange={(e) => setBillForm((p) => ({ ...p, lastPaymentAmount: e.target.value }))} /></label>
               <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowBillModal(false)}>Cancel</button><button type="submit" className="primary-button">Save bill</button></div>

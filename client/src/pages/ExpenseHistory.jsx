@@ -6,7 +6,7 @@ import AddExpenseModal from "../components/AddExpenseModal";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const COLORS = ["#00C896", "#FF6B35", "#0D1B2A", "#F6C90E", "#E53E3E", "#8B5CF6", "#3B82F6", "#F97316", "#8492A6", "#06B6D4", "#EC4899"];
-const CATEGORIES = ["All categories", "Food", "Dining Out", "Entertainment", "Gas", "Groceries", "Home", "Health", "Shopping", "Travel", "Subscriptions", "Other"];
+const CATEGORIES = ["All categories", "Dining Out", "Entertainment", "Food", "Gas", "Groceries", "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other"];
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },

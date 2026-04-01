@@ -24,6 +24,10 @@ function startOfDay(d) {
  * Returns null if the bill should be excluded (past its lastPaymentDate).
  */
 function getEffectiveBillAmount(bill, dateLocal, overrideMap) {
+  // If bill has a startDate and we're before it, skip
+  const billStart = bill.startDate ? startOfDay(toLocalDate(bill.startDate)) : null;
+  if (billStart && dateLocal < billStart) return null;
+
   const lastPay = bill.lastPaymentDate ? startOfDay(toLocalDate(bill.lastPaymentDate)) : null;
 
   // If we're past the lastPaymentDate, skip this bill entirely
@@ -502,12 +506,13 @@ router.get("/year-to-date", authRequired, async (req, res) => {
     const billBreakdown = [];
 
     for (const bill of bills) {
+      const billStart = bill.startDate ? startOfDay(toLocalDate(bill.startDate)) : null;
       const lastPay = bill.lastPaymentDate ? startOfDay(toLocalDate(bill.lastPaymentDate)) : null;
       let annualTotal = 0;
 
       for (let month = 0; month < 12; month++) {
         const dueDate = new Date(year, month, bill.dueDayOfMonth);
-        // Skip if past lastPaymentDate
+        if (billStart && dueDate < billStart) continue;
         if (lastPay && dueDate > lastPay) continue;
         annualTotal += Number(bill.amount) || 0;
       }

@@ -11,7 +11,7 @@ const FREQ_OPTIONS = [
   { value: "monthly", label: "Once a month" },
 ];
 
-const BILL_CATS = ["Rent", "Utilities", "Subscriptions", "Car Payment", "Insurance", "Phone", "Internet", "Other"];
+const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
 const Onboarding = () => {
   const navigate = useNavigate();
