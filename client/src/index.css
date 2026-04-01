@@ -219,8 +219,10 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .activity-item.empty-item { color: var(--text-muted); font-style: italic; }
 .activity-item.payday-label { color: var(--gold); font-weight: 700; }
 .activity-total { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.amt-income { font-size: 0.78rem; font-weight: 700; color: #8B5CF6; }
 .amt-bill { font-size: 0.78rem; font-weight: 700; color: var(--red); }
 .amt-exp { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+.activity-item.income-item { color: #8B5CF6; font-weight: 600; }
 .planner-hint { margin: 0.4rem 0 0; font-size: 0.68rem; color: var(--text-muted); }
 .empty-hint { padding: 1rem 0; font-size: 0.82rem; color: var(--text-muted); text-align: center; }
 
@@ -410,8 +412,8 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .cal-exp-tag { font-size: 0.58rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-paid-tag { font-size: 0.58rem; color: var(--teal); font-weight: 600; }
 .cal-paid-badge { font-size: 0.78rem; color: var(--teal); font-weight: 600; margin-left: 0.35rem; }
-.cal-income-tag { font-size: 0.58rem; color: var(--teal); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-income-dot { display: inline-block; width: 5px; height: 5px; border-radius: 999px; background: var(--teal); margin-right: 2px; }
+.cal-income-tag { font-size: 0.58rem; color: #8B5CF6; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-income-dot { display: inline-block; width: 5px; height: 5px; border-radius: 999px; background: #8B5CF6; margin-right: 2px; }
 
 /* Manage income page */
 .manage-income-page { padding: 1.25rem; max-width: 700px; margin: 0 auto; }

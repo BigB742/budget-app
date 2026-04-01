@@ -35,6 +35,7 @@ export const useCurrentPayPeriodDays = () => {
 
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [incomes, setIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -50,7 +51,6 @@ export const useCurrentPayPeriodDays = () => {
     ? parseDateOnly(summary.periodLabel.end)
     : null;
 
-  // Collect all paydays from all income sources
   const allPaydays = useMemo(() => {
     const set = new Set();
     (summary?.sources || []).forEach((source) => {
@@ -63,6 +63,7 @@ export const useCurrentPayPeriodDays = () => {
     if (!periodStart || !periodEnd) {
       setBills([]);
       setExpenses([]);
+      setIncomes([]);
       setLoading(false);
       return;
     }
@@ -73,34 +74,27 @@ export const useCurrentPayPeriodDays = () => {
         setLoading(true);
         setError(null);
 
-        const billsData = await authFetch("/api/bills");
-
-        const params = new URLSearchParams({
-          from: toDateKey(periodStart),
-          to: toDateKey(periodEnd),
-        });
-        const expensesData = await authFetch(`/api/expenses?${params.toString()}`);
+        const params = new URLSearchParams({ from: toDateKey(periodStart), to: toDateKey(periodEnd) });
+        const [billsData, expensesData, incomesData] = await Promise.all([
+          authFetch("/api/bills"),
+          authFetch(`/api/expenses?${params.toString()}`),
+          authFetch(`/api/one-time-income?${params.toString()}`).catch(() => []),
+        ]);
 
         if (!cancelled) {
           setBills(Array.isArray(billsData) ? billsData : billsData?.bills || []);
           setExpenses(Array.isArray(expensesData) ? expensesData : expensesData?.expenses || []);
+          setIncomes(Array.isArray(incomesData) ? incomesData : []);
         }
       } catch (err) {
-        console.error(err);
-        if (!cancelled) {
-          setError("Failed to load bills/expenses for this period.");
-        }
+        if (!cancelled) setError("Failed to load data for this period.");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [periodStart?.getTime(), periodEnd?.getTime(), reloadToken]);
 
   const days = useMemo(() => {
@@ -115,15 +109,13 @@ export const useCurrentPayPeriodDays = () => {
       const d = new Date(start.getTime() + i * MS_PER_DAY);
       const key = toDateKey(d);
       result.push({
-        date: d,
-        dateKey: key,
+        date: d, dateKey: key,
         weekdayLabel: d.toLocaleDateString(undefined, { weekday: "short" }),
         dayOfMonth: d.getDate(),
         isPayday: allPaydays.has(key),
-        bills: [],
-        billsTotal: 0,
-        expenses: [],
-        expensesTotal: 0,
+        bills: [], billsTotal: 0,
+        expenses: [], expensesTotal: 0,
+        incomes: [], incomesTotal: 0,
       });
     }
 
@@ -149,25 +141,30 @@ export const useCurrentPayPeriodDays = () => {
       expensesByDateKey.set(key, bucket);
     }
 
+    const incomesByDateKey = new Map();
+    for (const inc of incomes || []) {
+      const key = toDateKey(inc.date);
+      if (!key) continue;
+      const bucket = incomesByDateKey.get(key) || { total: 0, items: [] };
+      bucket.total += Number(inc.amount) || 0;
+      bucket.items.push(inc);
+      incomesByDateKey.set(key, bucket);
+    }
+
     result.forEach((day) => {
-      const bucket = expensesByDateKey.get(day.dateKey);
-      if (bucket) {
-        day.expensesTotal = bucket.total;
-        day.expenses = bucket.items;
-      }
+      const expBucket = expensesByDateKey.get(day.dateKey);
+      if (expBucket) { day.expensesTotal = expBucket.total; day.expenses = expBucket.items; }
+      const incBucket = incomesByDateKey.get(day.dateKey);
+      if (incBucket) { day.incomesTotal = incBucket.total; day.incomes = incBucket.items; }
     });
 
     return result;
-  }, [periodStart, periodEnd, bills, expenses, allPaydays]);
+  }, [periodStart, periodEnd, bills, expenses, incomes, allPaydays]);
 
   return {
-    summary,
-    days,
+    summary, days,
     loading: summaryLoading || loading,
     error: summaryError || error,
-    refresh: () => {
-      refreshSummary?.();
-      setReloadToken((t) => t + 1);
-    },
+    refresh: () => { refreshSummary?.(); setReloadToken((t) => t + 1); },
   };
 };

@@ -461,8 +461,8 @@ const Calendar = () => {
                 <h5>Income</h5>
                 {dayIncomes.map((inc) => (
                   <div key={inc._id} className="cal-detail-row">
-                    <span style={{ color: "var(--teal)", fontWeight: 600 }}>{inc.name}</span>
-                    <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>+{currency.format(inc.amount)}</span>
+                    <span style={{ color: "#8B5CF6", fontWeight: 600 }}>{inc.name}</span>
+                    <span className="cal-detail-amt" style={{ color: "#8B5CF6" }}>+{currency.format(inc.amount)}</span>
                   </div>
                 ))}
               </div>

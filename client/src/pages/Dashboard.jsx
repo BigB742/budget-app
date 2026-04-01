@@ -72,7 +72,7 @@ const Dashboard = () => {
     finally { setQuickSaving(false); }
   };
 
-  const activeDays = payPeriodDays.filter((d) => d.billsTotal > 0 || d.expensesTotal > 0 || d.isPayday);
+  const activeDays = payPeriodDays.filter((d) => d.billsTotal > 0 || d.expensesTotal > 0 || d.incomesTotal > 0 || d.isPayday);
   const displayDays = showAllDays ? payPeriodDays : activeDays;
 
   return (
@@ -145,12 +145,14 @@ const Dashboard = () => {
                   <button type="button" className="activity-row" onClick={() => setSelectedDay(day)}>
                     <span className="activity-date">{day.weekdayLabel} {day.dayOfMonth}{day.isPayday && <span className="payday-dot" title="Payday" />}</span>
                     <span className="activity-details">
+                      {(day.incomes || []).map((inc) => <span key={inc._id} className="activity-item income-item">&uarr; {inc.name} +{currency.format(inc.amount)}</span>)}
                       {day.bills.map((b) => <span key={b._id} className="activity-item bill-item">{b.name} &minus;{currency.format(b.amount)}</span>)}
                       {day.expenses.map((exp, i) => <span key={exp._id || i} className="activity-item expense-item">{exp.description || exp.category || "Expense"} {currency.format(exp.amount)}</span>)}
-                      {day.billsTotal === 0 && day.expensesTotal === 0 && !day.isPayday && <span className="activity-item empty-item">No activity</span>}
-                      {day.billsTotal === 0 && day.expensesTotal === 0 && day.isPayday && <span className="activity-item payday-label">Payday</span>}
+                      {day.billsTotal === 0 && day.expensesTotal === 0 && (day.incomesTotal || 0) === 0 && !day.isPayday && <span className="activity-item empty-item">No activity</span>}
+                      {day.billsTotal === 0 && day.expensesTotal === 0 && (day.incomesTotal || 0) === 0 && day.isPayday && <span className="activity-item payday-label">Payday</span>}
                     </span>
                     <span className="activity-total">
+                      {(day.incomesTotal || 0) > 0 && <span className="amt-income">+{currency.format(day.incomesTotal)}</span>}
                       {day.billsTotal > 0 && <span className="amt-bill">&minus;{currency.format(day.billsTotal)}</span>}
                       {day.expensesTotal > 0 && <span className="amt-exp">{currency.format(day.expensesTotal)}</span>}
                     </span>

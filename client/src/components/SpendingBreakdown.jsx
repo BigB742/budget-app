@@ -56,6 +56,7 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     (ytd.expenseBreakdown || []).forEach((e, i) => {
       if (e.total > 0) slices.push({ name: e.category, value: e.total, color: COLORS[(i + 2) % COLORS.length] });
     });
+    if (ytd.oneTimeIncome > 0) slices.push({ name: "Extra income", value: ytd.oneTimeIncome, color: "#8B5CF6" });
     if (ytd.remaining > 0) slices.push({ name: "Unspent", value: ytd.remaining, color: "#00C896" });
     return slices;
   }, [ytd]);

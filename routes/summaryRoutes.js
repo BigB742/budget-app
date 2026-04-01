@@ -543,12 +543,22 @@ router.get("/year-to-date", authRequired, async (req, res) => {
 
     const expenseBreakdown = Object.entries(catMap).map(([category, total]) => ({ category, total }));
 
-    // 4. Remaining
-    const remaining = projectedIncome - projectedBills - totalExpenses;
+    // 4. One-time income for the year
+    const oneTimeIncomes = await OneTimeIncome.find({
+      user: req.userId,
+      date: { $gte: yearFrom, $lte: yearTo },
+    });
+    const oneTimeIncomeTotal = oneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+    // 5. Remaining
+    const totalIncome = projectedIncome + oneTimeIncomeTotal;
+    const remaining = totalIncome - projectedBills - totalExpenses;
 
     res.json({
       year,
-      projectedIncome,
+      projectedIncome: totalIncome,
+      recurringIncome: projectedIncome,
+      oneTimeIncome: oneTimeIncomeTotal,
       projectedBills,
       totalExpenses,
       remaining,
