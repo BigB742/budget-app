@@ -19,8 +19,14 @@ const toLocalDate = (d) => {
   return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 };
 
+// Format a local Date to YYYY-MM-DD string using LOCAL date parts (not UTC).
+// Avoids the timezone shift bug where toISOString() converts to UTC first.
+const toDateString = (d) => {
+  const date = new Date(d);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
 // Truncate a local Date to midnight. Safe for dates already in local time
-// (e.g. new Date(), or outputs from toLocalDate/addDays on local dates).
 const startOfLocalDay = (d) => {
   const date = new Date(d);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -257,7 +263,7 @@ const getBudgetPeriod = (sources, targetDate = new Date()) => {
       frequency: source.frequency,
       paydaysInPeriod: paydays.length,
       totalForPeriod: sourceIncome,
-      paydays: paydays.map((d) => d.toISOString().slice(0, 10)),
+      paydays: paydays.map((d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`),
     });
   }
 
@@ -302,6 +308,7 @@ module.exports = {
   addDays,
   addMonths,
   toLocalDate,
+  toDateString,
   startOfLocalDay,
   getNextPayDate,
   getPaycheckIndexForDate,

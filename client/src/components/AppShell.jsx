@@ -53,6 +53,7 @@ const AppShell = () => {
             <button type="button" className="sidebar-logout" onClick={handleLogout}>
               <span className="logout-icon">&#x2190;</span>Log out
             </button>
+            <p className="sidebar-brand-sub">PayPulse by Productos La Loma</p>
           </div>
         </nav>
 

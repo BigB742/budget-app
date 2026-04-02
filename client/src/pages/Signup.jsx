@@ -41,6 +41,7 @@ const Signup = () => {
             <li>Never miss a bill again</li>
             <li>Know exactly where your money goes</li>
           </ul>
+          <p className="brand-sub">by Productos La Loma</p>
         </div>
       </div>
       <div className="auth-form-panel">

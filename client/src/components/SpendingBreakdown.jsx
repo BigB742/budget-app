@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 
-const COLORS = ["#00C896", "#FF6B35", "#0D1B2A", "#F6C90E", "#E53E3E", "#8B5CF6", "#3B82F6", "#F97316", "#8492A6", "#06B6D4", "#EC4899"];
-const BILL_COLORS = ["#E53E3E", "#DC2626", "#B91C1C", "#991B1B", "#7F1D1D", "#F87171", "#FCA5A5"];
+// Distinct per-category color palette — deterministic by name
+const CATEGORY_COLORS = {
+  "Food": "#F59E0B", "Dining Out": "#F59E0B", "Gas": "#EF4444", "Travel": "#F97316",
+  "Entertainment": "#EC4899", "Shopping": "#14B8A6", "Health": "#10B981", "Gym": "#8B5CF6",
+  "Home": "#84CC16", "Subscriptions": "#6366F1", "Other": "#8492A6",
+  "Extra income": "#8B5CF6", "Unspent": "#00C896",
+};
+// Named bills get colors by hash
+const BILL_PALETTE = ["#3B82F6", "#8B5CF6", "#6366F1", "#06B6D4", "#0EA5E9", "#14B8A6", "#F59E0B", "#F97316", "#EC4899", "#10B981", "#84CC16", "#EF4444"];
+const hashColor = (name) => { let h = 0; for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0; return BILL_PALETTE[Math.abs(h) % BILL_PALETTE.length]; };
+const getColor = (name) => CATEGORY_COLORS[name] || hashColor(name);
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -14,7 +23,7 @@ const DonutChart = ({ data, centerLabel, centerValue, height = 190 }) => {
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={52} outerRadius={72} paddingAngle={1} stroke="none">
-            {data.map((_, i) => <Cell key={i} fill={data[i].color || COLORS[i % COLORS.length]} />)}
+            {data.map((entry, i) => <Cell key={i} fill={entry.color || getColor(entry.name)} />)}
           </Pie>
           <Tooltip formatter={(v) => currency.format(v)} />
         </PieChart>
@@ -31,7 +40,7 @@ const Legend = ({ data }) => (
   <div className="spending-legend">
     {data.map((item, i) => (
       <div key={item.name} className="legend-row">
-        <span className="legend-dot-color" style={{ background: item.color || COLORS[i % COLORS.length] }} />
+        <span className="legend-dot-color" style={{ background: item.color || getColor(item.name) }} />
         <span className="legend-name">{item.name}</span>
         <span className="legend-amount">{currency.format(item.value)}</span>
       </div>
@@ -51,10 +60,10 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     if (!ytd) return [];
     const slices = [];
     (ytd.billBreakdown || []).forEach((b, i) => {
-      if (b.annualTotal > 0) slices.push({ name: b.name, value: b.annualTotal, color: BILL_COLORS[i % BILL_COLORS.length] });
+      if (b.annualTotal > 0) slices.push({ name: b.name, value: b.annualTotal, color: hashColor(b.name) });
     });
     (ytd.expenseBreakdown || []).forEach((e, i) => {
-      if (e.total > 0) slices.push({ name: e.category, value: e.total, color: COLORS[(i + 2) % COLORS.length] });
+      if (e.total > 0) slices.push({ name: e.category, value: e.total, color: getColor(e.category) });
     });
     if (ytd.oneTimeIncome > 0) slices.push({ name: "Extra income", value: ytd.oneTimeIncome, color: "#8B5CF6" });
     if (ytd.remaining > 0) slices.push({ name: "Unspent", value: ytd.remaining, color: "#00C896" });
@@ -68,7 +77,7 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     // We don't have per-bill breakdown in summary, so show total bills as one slice
     if (summary.totalBills > 0) slices.push({ name: "Bills", value: summary.totalBills, color: "#E53E3E" });
     (expensesByCategory || []).forEach((c, i) => {
-      if (c.total > 0) slices.push({ name: c.category, value: c.total, color: COLORS[(i + 2) % COLORS.length] });
+      if (c.total > 0) slices.push({ name: c.category, value: c.total, color: getColor(c.category) });
     });
     const balance = summary.balance || 0;
     if (balance > 0) slices.push({ name: "Available", value: balance, color: "#00C896" });

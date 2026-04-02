@@ -106,10 +106,11 @@ const Calendar = () => {
         let cursor = new Date(anchor);
         const monthStart = new Date(viewYear, viewMonth, 1);
         const monthEnd = new Date(viewYear, viewMonth + 1, 0);
-        while (cursor > monthStart) cursor = new Date(cursor.getTime() - step * 86400000);
+        // Use setDate arithmetic (handles DST) not millisecond math
+        while (cursor > monthStart) { const d = new Date(cursor); d.setDate(d.getDate() - step); cursor = d; }
         while (cursor <= monthEnd) {
           if (cursor >= monthStart) set.add(toKey(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()));
-          cursor = new Date(cursor.getTime() + step * 86400000);
+          const d = new Date(cursor); d.setDate(d.getDate() + step); cursor = d;
         }
       } else if (src.frequency === "monthly") {
         set.add(toKey(viewYear, viewMonth, anchor.getDate()));
@@ -375,10 +376,12 @@ const Calendar = () => {
         <div className="cal-month-chart">
           <h3 className="chart-label">{monthLabel} Overview</h3>
           {(() => {
+            const CAT_COLORS = { Food: "#F59E0B", "Dining Out": "#F59E0B", Gas: "#EF4444", Travel: "#F97316", Entertainment: "#EC4899", Shopping: "#14B8A6", Health: "#10B981", Gym: "#8B5CF6", Home: "#84CC16", Subscriptions: "#6366F1", Other: "#8492A6" };
             const bars = [];
-            if (monthlyBreakdown.totalIncome > 0) bars.push({ name: "Income", value: monthlyBreakdown.totalIncome, fill: "var(--teal)" });
-            if (monthlyBreakdown.totalBills > 0) bars.push({ name: "Bills", value: monthlyBreakdown.totalBills, fill: "var(--red)" });
-            (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: "var(--cta)" }); });
+            if (monthlyBreakdown.totalIncome > 0) bars.push({ name: "Income", value: monthlyBreakdown.totalIncome, fill: "#00C896" });
+            (monthlyBreakdown.billBreakdown || []).forEach((b) => { if (b.amount > 0) bars.push({ name: b.name, value: b.amount, fill: "#3B82F6" }); });
+            (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: CAT_COLORS[c.category] || "#8492A6" }); });
+            bars.push({ name: "Net", value: Math.abs(monthlyBreakdown.net), fill: monthlyBreakdown.net >= 0 ? "#00C896" : "#EF4444" });
             return bars.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(120, bars.length * 32 + 40)}>
                 <BarChart data={bars} layout="vertical" margin={{ left: 80, right: 10, top: 5, bottom: 5 }}>

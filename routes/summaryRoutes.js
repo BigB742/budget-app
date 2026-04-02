@@ -9,7 +9,7 @@ const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
 const PaymentOverride = require("../models/PaymentOverride");
 const BillPayment = require("../models/BillPayment");
-const { getBudgetPeriod, getPeriodsForSources, toLocalDate, getPaydaysInRange } = require("../utils/paycheckUtils");
+const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange } = require("../utils/paycheckUtils");
 
 const router = express.Router();
 
@@ -244,8 +244,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
         // Current balance rolls over + next period income - next period bills - next period expenses
         nextPaycheckBalance = balance + nextAdjustedTotalIncome - nextTotalBills - nextTotalExpenses;
         nextPeriod = {
-          start: nextStart.toISOString().slice(0, 10),
-          end: nextEnd.toISOString().slice(0, 10),
+          start: toDateString(nextStart),
+          end: toDateString(nextEnd),
           recurringIncome: nextTotalIncome,
           oneTimeIncome: nextOneTimeTotal,
           totalIncome: nextAdjustedTotalIncome,
@@ -272,10 +272,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       nextPeriod,
       sources: sourceBreakdown,
       periodLabel: {
-        start: start.toISOString().slice(0, 10),
-        end: end.toISOString().slice(0, 10),
+        start: toDateString(start),
+        end: toDateString(end),
       },
-      nextPayDateLabel: nextPayDate ? nextPayDate.toISOString().slice(0, 10) : null,
+      nextPayDateLabel: nextPayDate ? toDateString(nextPayDate) : null,
     });
   } catch (error) {
     console.error("Error computing paycheck summary:", error);
@@ -328,8 +328,8 @@ router.get("/period-history", authRequired, async (req, res) => {
       const balance = prev.totalIncome - totalBills - totalExpenses;
 
       results.push({
-        start: prev.start.toISOString().slice(0, 10),
-        end: prev.end.toISOString().slice(0, 10),
+        start: toDateString(prev.start),
+        end: toDateString(prev.end),
         totalIncome: prev.totalIncome,
         totalBills,
         totalExpenses,
@@ -437,8 +437,8 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const periodBalance = rollover + totalIncome - totalBills - totalExpenses;
 
       periods.push({
-        start: start.toISOString().slice(0, 10),
-        end: end.toISOString().slice(0, 10),
+        start: toDateString(start),
+        end: toDateString(end),
         totalIncome,
         totalBills,
         totalExpenses,
