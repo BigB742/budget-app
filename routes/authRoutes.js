@@ -78,6 +78,13 @@ router.post("/signup", async (req, res) => {
       trialEndDate: trialEnd,
     });
 
+    // Dev mode: auto-verify when SMTP isn't configured
+    if (!process.env.SMTP_HOST) {
+      user.emailVerified = true;
+      await user.save();
+      return res.status(201).json(createTokenResponse(user));
+    }
+
     const vToken = crypto.randomBytes(32).toString("hex");
     user.verificationToken = vToken;
     user.verificationTokenExpiry = new Date(Date.now() + 24*60*60*1000);

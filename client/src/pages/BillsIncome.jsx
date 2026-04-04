@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { authFetch } from "../apiClient";
 import { formatDate } from "../utils/dateUtils";
 import { useIncomeSources } from "../hooks/useIncomeSources";
+import { useSubscription } from "../hooks/useSubscription";
 import SavingsPanel from "../components/SavingsPanel";
+import FreeLimitModal from "../components/FreeLimitModal";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
@@ -11,10 +13,12 @@ const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent
 
 const BillsIncome = () => {
   const { sources } = useIncomeSources();
+  const { isFree } = useSubscription();
   const [bills, setBills] = useState([]);
   const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBillModal, setShowBillModal] = useState(false);
+  const [limitModal, setLimitModal] = useState(null); // "bills" | "income" | "oneTimeIncome" | null
   const [billForm, setBillForm] = useState({ name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" });
 
   const loadData = useCallback(async () => {
@@ -97,7 +101,7 @@ const BillsIncome = () => {
 
         {/* Bills */}
         <section className="bi-section">
-          <div className="bi-section-head"><h2>Bills</h2><button type="button" className="primary-button" onClick={() => setShowBillModal(true)}>Add bill</button></div>
+          <div className="bi-section-head"><h2>Bills</h2><button type="button" className="primary-button" onClick={() => { if (isFree && bills.length >= 5) { setLimitModal("bills"); return; } setShowBillModal(true); }}>Add bill</button></div>
           {loading ? <p className="status">Loading...</p> : bills.length === 0 ? <p className="empty-row">No bills yet.</p> : (
             <div className="recurring-list">
               {bills.map((b) => (
@@ -117,9 +121,6 @@ const BillsIncome = () => {
       {/* Savings */}
       <section className="bi-section"><SavingsPanel /></section>
 
-      {/* COMING SOON — Crypto tracking. Full feature in next development phase. */}
-      {/* <section className="bi-section"><CryptoPanel /></section> */}
-
       {showBillModal && (
         <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -137,6 +138,8 @@ const BillsIncome = () => {
           </div>
         </div>
       )}
+
+      {limitModal && <FreeLimitModal type={limitModal} onClose={() => setLimitModal(null)} />}
     </div>
   );
 };

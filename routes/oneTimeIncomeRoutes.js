@@ -47,6 +47,29 @@ router.post("/", authRequired, async (req, res) => {
   }
 });
 
+// PUT /:id — update a one-time income
+router.put("/:id", authRequired, async (req, res) => {
+  try {
+    const { name, amount, date, note } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (amount !== undefined) update.amount = Number(amount);
+    if (date !== undefined) update.date = new Date(date + "T12:00:00");
+    if (note !== undefined) update.note = note;
+
+    const item = await OneTimeIncome.findOneAndUpdate(
+      { _id: req.params.id, user: req.userId },
+      update,
+      { new: true }
+    );
+    if (!item) return res.status(404).json({ error: "Not found." });
+    res.json(item);
+  } catch (error) {
+    console.error("Error updating one-time income:", error);
+    res.status(500).json({ error: "Unable to update." });
+  }
+});
+
 // DELETE /:id — delete a one-time income (must belong to user)
 router.delete("/:id", authRequired, async (req, res) => {
   try {

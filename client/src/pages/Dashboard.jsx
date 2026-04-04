@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { authFetch } from "../apiClient";
+import { useDataCache } from "../context/DataCache";
 import DayExpensesModal from "../components/DayExpensesModal";
 import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
-import { useCurrentPaycheckSummary } from "../hooks/useCurrentPaycheckSummary";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -27,17 +27,20 @@ const todayISO = () => {
 };
 
 const Dashboard = () => {
+  const cache = useDataCache();
+  const summary = cache?.summary;
+
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
   const [spendingCats, setSpendingCats] = useState([]);
-
   const [quickForm, setQuickForm] = useState({ description: "", amount: "", category: "Food" });
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState("");
 
-  const { summary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = useCurrentPaycheckSummary();
+  // Use the cache-provided summary; also keep the hook for day-level data
   const { days: payPeriodDays, loading: payPeriodLoading, error: payPeriodError, refresh: refreshPayPeriod } = useCurrentPayPeriodDays();
 
+  // Fetch summary + spending categories via cache on mount
   const loadSpendingCategories = useCallback(async () => {
     try {
       const data = await authFetch("/api/summary/expense-categories");
@@ -45,9 +48,19 @@ const Dashboard = () => {
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { loadSpendingCategories(); }, [loadSpendingCategories]);
+  useEffect(() => {
+    cache?.fetchSummary();
+    loadSpendingCategories();
+  }, []);
 
-  const refreshAll = () => { refreshSummary(); refreshPayPeriod(); loadSpendingCategories(); };
+  const refreshAll = () => {
+    cache?.fetchSummary();
+    refreshPayPeriod();
+    loadSpendingCategories();
+  };
+
+  const summaryLoading = !summary && !cache;
+  const summaryError = null;
 
   const handleQuickExpense = async (e) => {
     e.preventDefault();
@@ -66,19 +79,29 @@ const Dashboard = () => {
   const activeDays = payPeriodDays.filter((d) => d.billsTotal > 0 || d.expensesTotal > 0 || d.incomesTotal > 0 || d.isPayday);
   const displayDays = showAllDays ? payPeriodDays : activeDays;
 
+  // Find per-source paycheck amount for payday rows
+  const getPaydayAmount = () => {
+    if (!summary?.sources?.length) return summary?.totalIncome || 0;
+    // Show primary source amount, or first source
+    const primary = summary.sources.find((s) => s.paydaysInPeriod > 0);
+    return primary ? primary.amount : (summary.totalIncome || 0);
+  };
+
   return (
     <div className="dashboard-page">
       {/* Hero */}
       <section className="hero">
         {summaryLoading && <p className="hero-loading">Loading...</p>}
-        {summaryError && <p className="hero-error">Unable to load balance: {summaryError}</p>}
-        {summary && !summaryLoading && !summaryError && (
+        {summaryError && <p className="hero-error">{summaryError}</p>}
+        {summary && (
           <>
             <p className="hero-label">You can spend</p>
             <p className={`hero-balance${(summary.balance || 0) >= 500 ? " healthy" : (summary.balance || 0) < 100 ? " warning" : ""}`}>
               {currency.format(summary.balance || 0)}
             </p>
-            <p className="hero-sub">After all bills through {formatReadableDate(summary.periodLabel?.end)}</p>
+            <p className="hero-sub">
+              {summary.empty ? "Set up your income to see your real balance" : `After all bills through ${formatReadableDate(summary.periodLabel?.end)}`}
+            </p>
             {summary.nextPaycheckBalance != null && summary.nextPayDateLabel && (
               <div className="hero-next-pill">
                 Next paycheck ({formatReadableDate(summary.nextPayDateLabel)}): <strong>{currency.format(summary.nextPaycheckBalance)}</strong>
@@ -89,7 +112,7 @@ const Dashboard = () => {
       </section>
 
       {/* Stat cards */}
-      {summary && !summaryLoading && !summaryError && (
+      {summary && (
         <div className="stat-grid">
           <div className="stat-card"><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></div>
           <div className="stat-card"><span className="stat-label">What I've spent</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></div>
@@ -116,7 +139,6 @@ const Dashboard = () => {
 
       {/* Two-column: planner + charts */}
       <div className="dash-columns">
-        {/* Planner */}
         <section className="planner-section">
           <div className="planner-header-row">
             <h2 className="section-title">Upcoming</h2>
@@ -134,15 +156,13 @@ const Dashboard = () => {
               {displayDays.flatMap((day) => {
                 const rows = [];
                 const dateLabel = `${day.weekdayLabel} ${day.dayOfMonth}`;
-                // Payday row
                 if (day.isPayday) rows.push(
                   <li key={`${day.dateKey}-pay`} className="up-row up-payday" onClick={() => setSelectedDay(day)}>
                     <span className="up-accent up-accent-gold" />
                     <div className="up-body"><span className="up-name">Payday</span><span className="up-date">{dateLabel}</span></div>
-                    <span className="up-amt up-amt-gold">+{currency.format(summary?.totalIncome ? summary.totalIncome / (summary?.sources?.length || 1) : 0)}</span>
+                    <span className="up-amt up-amt-gold">+{currency.format(getPaydayAmount())}</span>
                   </li>
                 );
-                // Income rows
                 (day.incomes || []).forEach((inc) => rows.push(
                   <li key={inc._id} className="up-row up-income" onClick={() => setSelectedDay(day)}>
                     <span className="up-accent up-accent-purple" />
@@ -150,7 +170,6 @@ const Dashboard = () => {
                     <span className="up-amt up-amt-purple">+{currency.format(inc.amount)}</span>
                   </li>
                 ));
-                // Bill rows
                 day.bills.forEach((b) => rows.push(
                   <li key={b._id + day.dateKey} className="up-row up-bill" onClick={() => setSelectedDay(day)}>
                     <span className="up-accent up-accent-red" />
@@ -158,7 +177,6 @@ const Dashboard = () => {
                     <span className="up-amt up-amt-red">&minus;{currency.format(b.amount)}</span>
                   </li>
                 ));
-                // Expense rows
                 day.expenses.forEach((exp, i) => rows.push(
                   <li key={(exp._id || i) + day.dateKey} className="up-row up-expense" onClick={() => setSelectedDay(day)}>
                     <span className="up-accent up-accent-gray" />
@@ -173,10 +191,8 @@ const Dashboard = () => {
           <p className="planner-hint">Tap a day to add or review expenses.</p>
         </section>
 
-        {/* Spending breakdown */}
         <section className="dash-chart-col">
           <SpendingBreakdown expensesByCategory={spendingCats} summary={summary} />
-          {/* COMING SOON — Crypto dashboard chart. Full feature in next phase. */}
         </section>
       </div>
 

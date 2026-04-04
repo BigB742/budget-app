@@ -32,6 +32,21 @@ const startOfLocalDay = (d) => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
+// If date falls on Saturday (6), move to Friday. If Sunday (0), move to preceding Friday.
+const adjustToFriday = (d) => {
+  const date = new Date(d);
+  const dow = date.getDay();
+  if (dow === 6) date.setDate(date.getDate() - 1); // Sat -> Fri
+  if (dow === 0) date.setDate(date.getDate() - 2); // Sun -> Fri
+  return date;
+};
+
+// Clamp a due-day-of-month to the actual last day of a given month
+const clampDueDay = (day, year, month) => {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return Math.min(day, lastDay);
+};
+
 const getNextPayDate = (lastPaycheckDate, frequency, n) => {
   const base = new Date(lastPaycheckDate);
   if (Number.isNaN(base.getTime())) return null;
@@ -102,11 +117,11 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
       nextPayDate = addDays(payDate, stepDays);
     }
   } else if (frequency === "twicemonthly") {
-    // Twice a month: 1st and 15th. Periods: 1st-14th, 15th-end of month.
+    // Twice a month: 1st and 15th. Periods: 1st-14th, 15th-last day of month.
     const tYear = target.getFullYear();
     const tMonth = target.getMonth();
     const tDay = target.getDate();
-    if (tDay < 15) {
+    if (tDay >= 1 && tDay <= 14) {
       payDate = new Date(tYear, tMonth, 1);
       nextPayDate = new Date(tYear, tMonth, 15);
     } else {
@@ -142,14 +157,18 @@ const getCurrentPayPeriod = ({ lastPaycheckDate, frequency, targetDate = new Dat
   }
 
   // Normalize outputs to local midnight (guards against DST hour drift from addDays)
-  const periodStart = startOfLocalDay(payDate);
-  const periodEnd = startOfLocalDay(addDays(nextPayDate, -1));
+  const needsFridayAdjust = frequency === "weekly" || frequency === "biweekly";
+  const adjust = (d) => (needsFridayAdjust ? adjustToFriday(d) : d);
+
+  const periodStart = adjust(startOfLocalDay(payDate));
+  const adjustedNext = adjust(startOfLocalDay(nextPayDate));
+  const periodEnd = startOfLocalDay(addDays(adjustedNext, -1));
 
   return {
     index: 0,
     start: periodStart,
     end: periodEnd,
-    nextPayDate: startOfLocalDay(nextPayDate),
+    nextPayDate: adjustedNext,
   };
 };
 
@@ -185,7 +204,7 @@ const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
     // Walk forward, collecting paydays in range
     while (cursor <= end) {
       if (cursor >= start) {
-        paydays.push(new Date(cursor));
+        paydays.push(adjustToFriday(new Date(cursor)));
       }
       cursor = addDays(cursor, stepDays);
     }
@@ -310,6 +329,8 @@ module.exports = {
   toLocalDate,
   toDateString,
   startOfLocalDay,
+  adjustToFriday,
+  clampDueDay,
   getNextPayDate,
   getPaycheckIndexForDate,
   getPayPeriodBounds,

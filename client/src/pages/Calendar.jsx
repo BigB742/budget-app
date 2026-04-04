@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
-import { useIncomeSources } from "../hooks/useIncomeSources";
 import AdSlot from "../components/AdSlot";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -41,6 +40,7 @@ const Calendar = () => {
   const [overrides, setOverrides] = useState([]);
   const [billPayments, setBillPayments] = useState([]);
   const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
+  const [paydayDates, setPaydayDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
@@ -61,7 +61,7 @@ const Calendar = () => {
   const [incForm, setIncForm] = useState({ name: "", amount: "" });
   const [incSaving, setIncSaving] = useState(false);
 
-  const { sources } = useIncomeSources();
+  // Paydays fetched from backend (single source of truth)
 
   const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
@@ -86,7 +86,8 @@ const Calendar = () => {
       setOverrides(Array.isArray(o) ? o : []);
       setBillPayments(Array.isArray(bp) ? bp : []);
       setOneTimeIncomes(Array.isArray(oti) ? oti : []);
-      // Load monthly chart data
+      // Load paydays from backend and monthly chart data
+      authFetch(`/api/summary/paydays?from=${from}&to=${to}`).then((d) => setPaydayDates(d?.paydays || [])).catch(() => setPaydayDates([]));
       authFetch(`/api/summary/monthly-breakdown?year=${viewYear}&month=${viewMonth + 1}`).then(setMonthlyBreakdown).catch(() => setMonthlyBreakdown(null));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -94,30 +95,10 @@ const Calendar = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Compute paydays
+  // Paydays from backend (single source of truth)
   const paydaySet = useMemo(() => {
-    const set = new Set();
-    (sources || []).forEach((src) => {
-      if (!src.nextPayDate || !src.frequency) return;
-      const raw = new Date(src.nextPayDate);
-      const anchor = new Date(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate());
-      const step = src.frequency === "weekly" ? 7 : src.frequency === "biweekly" ? 14 : 0;
-      if (step > 0) {
-        let cursor = new Date(anchor);
-        const monthStart = new Date(viewYear, viewMonth, 1);
-        const monthEnd = new Date(viewYear, viewMonth + 1, 0);
-        // Use setDate arithmetic (handles DST) not millisecond math
-        while (cursor > monthStart) { const d = new Date(cursor); d.setDate(d.getDate() - step); cursor = d; }
-        while (cursor <= monthEnd) {
-          if (cursor >= monthStart) set.add(toKey(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()));
-          const d = new Date(cursor); d.setDate(d.getDate() + step); cursor = d;
-        }
-      } else if (src.frequency === "monthly") {
-        set.add(toKey(viewYear, viewMonth, anchor.getDate()));
-      }
-    });
-    return set;
-  }, [sources, viewYear, viewMonth]);
+    return new Set(paydayDates);
+  }, [paydayDates]);
 
   // Lookup maps
   const billsByDay = useMemo(() => {

@@ -9,7 +9,7 @@ const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
 const PaymentOverride = require("../models/PaymentOverride");
 const BillPayment = require("../models/BillPayment");
-const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange } = require("../utils/paycheckUtils");
+const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange, clampDueDay } = require("../utils/paycheckUtils");
 
 const router = express.Router();
 
@@ -67,9 +67,11 @@ function sumBillsInPeriod(bills, start, end, overrideMap = new Map(), billPaymen
   let total = 0;
   bills.forEach((bill) => {
     const dueDates = [];
-    dueDates.push(new Date(pStart.getFullYear(), pStart.getMonth(), bill.dueDayOfMonth));
+    const clampedStart = clampDueDay(bill.dueDayOfMonth, pStart.getFullYear(), pStart.getMonth());
+    dueDates.push(new Date(pStart.getFullYear(), pStart.getMonth(), clampedStart));
     if (pStart.getMonth() !== pEnd.getMonth() || pStart.getFullYear() !== pEnd.getFullYear()) {
-      dueDates.push(new Date(pEnd.getFullYear(), pEnd.getMonth(), bill.dueDayOfMonth));
+      const clampedEnd = clampDueDay(bill.dueDayOfMonth, pEnd.getFullYear(), pEnd.getMonth());
+      dueDates.push(new Date(pEnd.getFullYear(), pEnd.getMonth(), clampedEnd));
     }
     const uniqueTimes = new Set(dueDates.map((d) => d.getTime()));
     uniqueTimes.forEach((time) => {
@@ -204,8 +206,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    // Balance = income - bills - expenses (savings/investments shown separately)
-    const balance = adjustedTotalIncome - totalBills - totalExpenses;
+    // Balance = income - bills - expenses - savings - investments
+    const balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -284,6 +286,29 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
   } catch (error) {
     console.error("Error computing paycheck summary:", error);
     res.status(500).json({ error: "Unable to compute paycheck summary." });
+  }
+});
+
+// GET /paydays?from=YYYY-MM-DD&to=YYYY-MM-DD — all payday dates in range
+router.get("/paydays", authRequired, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) return res.json({ paydays: [] });
+    const sources = await IncomeSource.find({ user: req.userId, isActive: true });
+    if (!sources.length) return res.json({ paydays: [] });
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    const rangeStart = new Date(fy, fm - 1, fd);
+    const rangeEnd = new Date(ty, tm - 1, td);
+    const allPaydays = new Set();
+    for (const source of sources) {
+      const paydays = getPaydaysInRange(source.nextPayDate, source.frequency, rangeStart, rangeEnd);
+      paydays.forEach((d) => allPaydays.add(toDateString(d)));
+    }
+    res.json({ paydays: [...allPaydays].sort() });
+  } catch (error) {
+    console.error("Error computing paydays:", error);
+    res.status(500).json({ error: "Unable to compute paydays." });
   }
 });
 
