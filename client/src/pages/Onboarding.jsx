@@ -74,16 +74,13 @@ const Onboarding = () => {
     setSaving(true);
     setError("");
     try {
-      // Mark onboarding complete FIRST
       await authFetch("/api/user/complete-onboarding", { method: "POST" });
-      // Fetch updated profile and save to localStorage
       const updated = await authFetch("/api/user/me");
       localStorage.setItem("user", JSON.stringify(updated));
-      // Navigate to dashboard
-      navigate("/app", { replace: true });
+      // Force full page reload to reset all ProtectedRoute state cleanly
+      window.location.href = "/app";
     } catch (err) {
       setError("Something went wrong. Please try again.");
-    } finally {
       setSaving(false);
     }
   };
@@ -152,23 +149,32 @@ const Onboarding = () => {
         <div className="ob-step">
           <h2>Add your regular bills</h2>
           <p className="ob-subtitle">Things you pay every month — rent, phone, subscriptions. You can always add more later.</p>
-          <div className="ob-bill-form">
-            <input placeholder="Bill name" value={billForm.name} onChange={(e) => setBillForm((p) => ({ ...p, name: e.target.value }))} />
-            <input type="number" step="0.01" placeholder="Amount" value={billForm.amount} onChange={(e) => setBillForm((p) => ({ ...p, amount: e.target.value }))} />
-            <input type="number" min="1" max="31" placeholder="Day" value={billForm.dueDay} onChange={(e) => setBillForm((p) => ({ ...p, dueDay: e.target.value }))} />
-            <select value={billForm.category} onChange={(e) => setBillForm((p) => ({ ...p, category: e.target.value }))}>
-              {BILL_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <button type="button" className="secondary-button" onClick={handleAddBill}>Add</button>
+          <div className="ob-bill-form-v2">
+            <div className="ob-bill-row">
+              <label className="ob-bill-field ob-bill-field-wide">Bill name<input placeholder="e.g. Rent, Verizon" value={billForm.name} onChange={(e) => setBillForm((p) => ({ ...p, name: e.target.value }))} /></label>
+              <label className="ob-bill-field">Amount<input type="number" step="0.01" placeholder="0.00" value={billForm.amount} onChange={(e) => setBillForm((p) => ({ ...p, amount: e.target.value }))} /></label>
+            </div>
+            <div className="ob-bill-row">
+              <label className="ob-bill-field">Due day<input type="number" min="1" max="31" placeholder="1-31" value={billForm.dueDay} onChange={(e) => setBillForm((p) => ({ ...p, dueDay: e.target.value }))} /></label>
+              <label className="ob-bill-field ob-bill-field-wide">Category<select value={billForm.category} onChange={(e) => setBillForm((p) => ({ ...p, category: e.target.value }))}>{BILL_CATS.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+            </div>
+            <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill}>+ Add bill</button>
           </div>
           {bills.length > 0 && (
-            <ul className="ob-bill-list">
+            <div className="ob-bill-list-v2">
               {bills.map((b, i) => (
-                <li key={i}><span>{b.name}</span><span>{currency.format(b.amount)}</span>
-                  <button type="button" className="ghost-button" onClick={() => setBills((prev) => prev.filter((_, j) => j !== i))}>x</button>
-                </li>
+                <div key={i} className="ob-bill-card">
+                  <div>
+                    <span className="ob-bill-card-name">{b.name}</span>
+                    <span className="ob-bill-card-meta">Day {b.dueDay} &middot; {b.category}</span>
+                  </div>
+                  <div className="ob-bill-card-right">
+                    <span className="ob-bill-card-amt">{currency.format(b.amount)}</span>
+                    <button type="button" className="bill-icon-btn bill-icon-del" onClick={() => setBills((prev) => prev.filter((_, j) => j !== i))}>x</button>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
           {error && <p className="ob-error">{error}</p>}
           <div className="ob-actions">

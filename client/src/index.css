@@ -800,6 +800,27 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 /* Landing page step numbers */
 .lp-step-num { width: 32px; height: 32px; border-radius: 999px; background: var(--navy); color: #fff; font-weight: 800; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.5rem; }
 
+/* Bill card actions */
+.bill-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; flex-shrink: 0; }
+.bill-card-actions { display: flex; gap: 0.25rem; }
+.bill-icon-btn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--card-border); background: var(--card); color: var(--text-muted); font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+.bill-icon-btn:hover { background: var(--bg); color: var(--text); }
+.bill-icon-del:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* Onboarding Step 3 polished bill form */
+.ob-bill-form-v2 { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
+.ob-bill-row { display: flex; gap: 0.5rem; }
+.ob-bill-field { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 0; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+.ob-bill-field-wide { flex: 2; }
+.ob-bill-field input, .ob-bill-field select { padding: 0 0.6rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: var(--font-base); font-family: inherit; background: var(--card); color: var(--text); }
+.ob-bill-field input:focus, .ob-bill-field select:focus { outline: none; border-color: var(--accent); }
+.ob-bill-list-v2 { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.75rem; }
+.ob-bill-card { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); }
+.ob-bill-card-name { font-weight: 600; font-size: var(--font-base); display: block; }
+.ob-bill-card-meta { font-size: 0.72rem; color: var(--text-muted); }
+.ob-bill-card-right { display: flex; align-items: center; gap: 0.5rem; }
+.ob-bill-card-amt { font-weight: 700; color: var(--red); font-size: var(--font-base); }
+
 /* Branding */
 .brand-sub { margin: 1.5rem 0 0; font-size: 0.72rem; color: rgba(255,255,255,0.35); }
 .sidebar-brand-sub { margin: 0.5rem 0 0; font-size: 0.65rem; color: rgba(255,255,255,0.25); }
