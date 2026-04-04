@@ -13,6 +13,13 @@ const UserSchema = new mongoose.Schema(
     isPremium: { type: Boolean, default: false },
     premiumSince: { type: Date },
     locale: { type: String, default: "en" },
+    subscriptionStatus: {
+      type: String,
+      enum: ["free", "trialing", "premium_monthly", "premium_annual", "expired"],
+      default: "free",
+    },
+    trialStartDate: { type: Date },
+    trialEndDate: { type: Date },
     notificationPrefs: {
       billReminders: { type: Boolean, default: true },
       paydayReminders: { type: Boolean, default: true },

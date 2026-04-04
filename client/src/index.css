@@ -537,6 +537,13 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .auth-info { color: var(--teal); font-size: 0.82rem; margin: 0 0 0.5rem; }
 .auth-switch { margin-top: 1rem; font-size: 0.82rem; color: var(--text-secondary); }
 .auth-switch a { color: var(--cta); font-weight: 600; }
+.auth-field-error { color: var(--red); font-size: 0.72rem; font-weight: 600; margin-top: 0.15rem; display: block; }
+.auth-phone-row { display: flex; gap: 0.35rem; }
+.auth-country-select { width: 120px; flex-shrink: 0; padding: 0 0.5rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.78rem; font-family: inherit; background: var(--bg); color: var(--text); }
+.auth-phone-input { flex: 1; }
+.auth-checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.78rem; color: var(--text-secondary); cursor: pointer; }
+.auth-checkbox-row input[type="checkbox"] { margin-top: 0.15rem; accent-color: var(--accent); }
+.auth-checkbox-row a { color: var(--cta); font-weight: 600; }
 
 /* Brand panel (visible on desktop) */
 .auth-brand-logo { font-size: 1.75rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; }
@@ -771,6 +778,28 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .s-login-entry:last-child { border-bottom: none; }
 .coming-soon { font-size: 0.58rem; background: var(--card-border); color: var(--text-secondary); padding: 0.1rem 0.35rem; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 0.35rem; }
 .s-mobile-logout { display: block; margin: 0.75rem 0 0; background: none; border: none; color: var(--text-muted); font-size: 0.82rem; cursor: pointer; padding: 0; }
+/* Terms page */
+.terms-page { min-height: 100vh; background: var(--bg); padding: 2rem 1.25rem; }
+.terms-inner { max-width: 680px; margin: 0 auto; background: var(--card); border-radius: var(--radius-lg); padding: 2rem; }
+.terms-inner h1 { text-align: left; font-size: 1.5rem; margin-bottom: 0.25rem; }
+.terms-updated { color: var(--text-muted); font-size: 0.78rem; margin-bottom: 1.5rem; }
+.terms-inner h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+.terms-inner p, .terms-inner li { font-size: 0.88rem; line-height: 1.6; color: var(--text-secondary); }
+.terms-highlight { background: rgba(229,62,62,0.06); border: 1px solid rgba(229,62,62,0.2); border-radius: var(--radius); padding: 1.25rem; margin: 1rem 0; }
+.terms-highlight h2 { margin-top: 0; color: var(--red); }
+.terms-back { margin-top: 2rem; }
+.terms-back a { color: var(--cta); font-weight: 600; }
+
+/* Testimonials on landing page */
+.lp-testimonials { text-align: center; }
+.lp-quotes { display: flex; gap: 1.25rem; flex-wrap: wrap; justify-content: center; }
+.lp-quote-card { flex: 1; min-width: 250px; max-width: 320px; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 1.5rem; text-align: left; }
+.lp-quote-card p { font-size: 0.88rem; line-height: 1.6; color: var(--text-secondary); font-style: italic; margin: 0 0 0.75rem; }
+.lp-quote-author { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+
+/* Landing page step numbers */
+.lp-step-num { width: 32px; height: 32px; border-radius: 999px; background: var(--navy); color: #fff; font-weight: 800; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.5rem; }
+
 /* Branding */
 .brand-sub { margin: 1.5rem 0 0; font-size: 0.72rem; color: rgba(255,255,255,0.35); }
 .sidebar-brand-sub { margin: 0.5rem 0 0; font-size: 0.65rem; color: rgba(255,255,255,0.25); }
@@ -927,33 +956,27 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
   .bottom-tabs { display: none; }
   .shell-main { padding-bottom: 0; }
 
-  /* ── Dashboard: full width, not narrow card ── */
-  .dashboard-page { max-width: 100%; margin: 0; border-radius: 0; box-shadow: none; min-height: auto; overflow: visible; }
+  /* ── Desktop content: max-width 1024px, centered ── */
+  .dashboard-page, .calendar-page, .bills-income-page, .history-page, .manage-income-page {
+    max-width: 1024px; margin: 0 auto; padding: 1.5rem 2rem 2rem;
+    border-radius: 0; box-shadow: none; min-height: auto; overflow: visible;
+  }
   .hero { border-radius: 0; padding: 1.5rem 2rem 2.25rem; }
-  .stat-grid { padding: 0 2rem; grid-template-columns: repeat(4, 1fr); }
+  .stat-grid { padding: 0; grid-template-columns: repeat(4, 1fr); }
   .stat-card { height: auto; }
-  .quick-add { padding: 0.75rem 2rem; }
+  .quick-add { padding: 0.75rem 0; }
   .planner-section { padding: 0; }
-  .dash-columns { display: flex; gap: 1.5rem; padding: 0 2rem 2rem; }
+  .dash-columns { display: flex; gap: 1.5rem; padding: 0 0 2rem; }
   .dash-columns .planner-section { flex: 3; min-width: 0; }
   .dash-chart-col { flex: 2; min-width: 0; }
 
-  /* ── Calendar: full width ── */
-  .calendar-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
   .cal-cell { min-height: 100px; }
   .cal-month-label { font-size: 1.35rem; }
   .cal-day-num { font-size: 0.85rem; }
 
-  /* ── Bills & Income: 2-column ── */
   .bi-two-col { display: flex; gap: 1.5rem; }
   .bi-two-col > .bi-section { flex: 1; min-width: 0; }
-  .bills-income-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
 
-  /* ── History ── */
-  .history-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
-  .manage-income-page { max-width: 100%; padding: 1.5rem 2rem 2rem; }
-
-  /* ── Settings ── */
   .settings-page { max-width: 800px; padding: 1.5rem 2rem 2rem; }
   .settings-two-col { flex-direction: row; }
   .s-mobile-logout { display: none; }

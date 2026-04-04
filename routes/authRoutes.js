@@ -38,6 +38,8 @@ const createTokenResponse = (user) => {
       onboardingComplete: !!user.onboardingComplete,
       isPremium: !!user.isPremium,
       emailVerified: !!user.emailVerified,
+      subscriptionStatus: user.subscriptionStatus || "free",
+      trialEndDate: user.trialEndDate || null,
       locale: user.locale || "en",
       notificationPrefs: user.notificationPrefs || {},
       incomeSettings: user.incomeSettings || {},
@@ -60,15 +62,20 @@ router.post("/signup", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const trialStart = new Date();
+    const trialEnd = new Date(trialStart.getTime() + 3 * 24 * 60 * 60 * 1000); // 3-day trial
     const user = await User.create({
       name: `${firstName || ""} ${lastName || ""}`.trim() || email.split("@")[0],
       firstName: firstName || "",
       lastName: lastName || "",
       phone: phone || "",
-      dateOfBirth,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth + "T12:00:00") : undefined,
       email: email.toLowerCase().trim(),
       passwordHash,
       onboardingComplete: false,
+      subscriptionStatus: "trialing",
+      trialStartDate: trialStart,
+      trialEndDate: trialEnd,
     });
 
     const vToken = crypto.randomBytes(32).toString("hex");

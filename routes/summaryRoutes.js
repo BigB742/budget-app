@@ -152,16 +152,20 @@ async function sumExpensesInPeriod(userId, start, end) {
 // GET /paycheck-current — current budget period summary using income sources
 router.get("/paycheck-current", authRequired, async (req, res) => {
   try {
+    const emptyResponse = {
+      period: null, totalIncome: 0, recurringIncome: 0, oneTimeIncome: 0,
+      totalBills: 0, totalExpenses: 0, savingsThisPeriod: 0, investmentsThisPeriod: 0,
+      balance: 0, leftToSpend: 0, nextPayDate: null, daysUntilNextPaycheck: null,
+      nextPaycheckBalance: null, nextPeriod: null, sources: [],
+      periodLabel: { start: null, end: null }, nextPayDateLabel: null, empty: true,
+    };
+
     const sources = await IncomeSource.find({ user: req.userId, isActive: true });
-    if (!sources.length) {
-      return res.status(400).json({ error: "No income sources configured." });
-    }
+    if (!sources.length) return res.json(emptyResponse);
 
     const today = new Date();
     const budget = getBudgetPeriod(sources, today);
-    if (!budget) {
-      return res.status(400).json({ error: "Unable to compute budget period." });
-    }
+    if (!budget) return res.json(emptyResponse);
 
     const { start, end, nextPayDate, totalIncome, sources: sourceBreakdown } = budget;
 

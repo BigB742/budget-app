@@ -15,6 +15,7 @@ import VerifyEmail from "./pages/VerifyEmail";
 import CheckEmail from "./pages/CheckEmail";
 import OnboardingIncome from "./pages/OnboardingIncome";
 import ManageIncome from "./pages/ManageIncome";
+import Terms from "./pages/Terms";
 
 const RootRedirect = () => {
   const token = localStorage.getItem("token");
@@ -31,6 +32,7 @@ function App() {
         <Route path="/register" element={<Signup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/check-email" element={<CheckEmail />} />
+        <Route path="/terms" element={<Terms />} />
 
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/onboarding/income" element={<Navigate to="/onboarding" replace />} />

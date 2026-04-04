@@ -15,10 +15,13 @@ const userResponse = (user) => ({
   dateOfBirth: user.dateOfBirth,
   onboardingComplete: !!user.onboardingComplete,
   isPremium: !!user.isPremium,
+  subscriptionStatus: user.subscriptionStatus || "free",
+  trialEndDate: user.trialEndDate || null,
   locale: user.locale || "en",
   notificationPrefs: user.notificationPrefs || {},
   incomeSettings: user.incomeSettings || {},
   loginHistory: (user.loginHistory || []).slice(0, 5),
+  createdAt: user.createdAt,
 });
 
 router.get("/me", authRequired, async (req, res) => {
