@@ -12,6 +12,8 @@ const UserSchema = new mongoose.Schema(
     onboardingComplete: { type: Boolean, default: false },
     isPremium: { type: Boolean, default: false },
     premiumSince: { type: Date },
+    stripeCustomerId: { type: String },
+    stripeSubscriptionId: { type: String },
     locale: { type: String, default: "en" },
     subscriptionStatus: {
       type: String,

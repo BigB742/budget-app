@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
+import { useSubscription } from "../hooks/useSubscription";
 import DayExpensesModal from "../components/DayExpensesModal";
 import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
@@ -29,6 +31,7 @@ const todayISO = () => {
 const Dashboard = () => {
   const cache = useDataCache();
   const summary = cache?.summary;
+  const { isFree, isTrialing, trialDaysLeft } = useSubscription();
 
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
@@ -121,7 +124,17 @@ const Dashboard = () => {
         </div>
       )}
 
-      <AdSlot placement="banner" />
+      {/* Upgrade banner for free/trialing users */}
+      {(isFree || isTrialing) && (
+        <div className="upgrade-banner">
+          <span className="upgrade-banner-text">
+            {isTrialing ? <><strong>Trial:</strong> {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</> : <><strong>Free plan</strong> — unlock unlimited bills and projections</>}
+          </span>
+          <Link to="/subscription" className="primary-button">Upgrade</Link>
+        </div>
+      )}
+
+      <AdSlot placement="banner" isPremium={!isFree && !isTrialing} />
 
       {/* Quick add */}
       <section className="quick-add">

@@ -16,6 +16,9 @@ import CheckEmail from "./pages/CheckEmail";
 import OnboardingIncome from "./pages/OnboardingIncome";
 import ManageIncome from "./pages/ManageIncome";
 import Terms from "./pages/Terms";
+import Subscription from "./pages/Subscription";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
+import SubscriptionCancel from "./pages/SubscriptionCancel";
 
 const RootRedirect = () => {
   const token = localStorage.getItem("token");
@@ -33,6 +36,10 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/check-email" element={<CheckEmail />} />
         <Route path="/terms" element={<Terms />} />
+
+        <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
+        <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />
+        <Route path="/subscription/cancel" element={<ProtectedRoute><SubscriptionCancel /></ProtectedRoute>} />
 
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/onboarding/income" element={<Navigate to="/onboarding" replace />} />

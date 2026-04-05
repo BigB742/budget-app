@@ -20,10 +20,14 @@ const exportRoutes = require("./routes/exportRoutes");
 const oneTimeIncomeRoutes = require("./routes/oneTimeIncomeRoutes");
 
 const { checkSubscriptionStatus } = require("./middleware/subscription");
+const stripeRoutes = require("./routes/stripe");
 
 const app = express();
 
 app.use(cors());
+
+// Stripe webhook needs raw body — MUST come before express.json()
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
 const mongoURI = process.env.MONGO_URI;
@@ -69,6 +73,7 @@ app.use("/api/bill-payments", billPaymentRoutes);
 app.use("/api/debts", debtRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/one-time-income", oneTimeIncomeRoutes);
+app.use("/api/stripe", stripeRoutes);
 
 // Cron jobs (bill reminders + savings autopilot)
 require("./jobs/billReminders");

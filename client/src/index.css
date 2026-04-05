@@ -821,6 +821,33 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .ob-bill-card-right { display: flex; align-items: center; gap: 0.5rem; }
 .ob-bill-card-amt { font-weight: 700; color: var(--red); font-size: var(--font-base); }
 
+/* Subscription page */
+.sub-page { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
+.sub-heading { font-size: 1.5rem; margin: 0 0 0.25rem; text-align: center; }
+.sub-subtitle { color: var(--text-secondary); margin: 0 0 1.5rem; text-align: center; }
+.sub-trial-banner { background: rgba(0,200,150,0.1); border: 1px solid var(--teal); color: var(--teal); border-radius: var(--radius); padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 600; margin-bottom: 1rem; text-align: center; }
+.sub-plans { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 640px; }
+.sub-plan-card { flex: 1; min-width: 260px; max-width: 300px; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 1.5rem; text-align: center; position: relative; }
+.sub-plan-card h3 { margin: 0 0 0.25rem; }
+.sub-price { font-size: 2rem; font-weight: 800; margin: 0 0 0.5rem; }
+.sub-price span { font-size: 0.82rem; font-weight: 400; color: var(--text-secondary); }
+.sub-savings { font-size: 0.78rem; color: var(--teal); font-weight: 600; margin: -0.25rem 0 0.75rem; }
+.sub-plan-card ul { list-style: none; padding: 0; margin: 0 0 1rem; text-align: left; }
+.sub-plan-card li { padding: 0.3rem 0; font-size: 0.85rem; color: var(--text-secondary); border-bottom: 1px solid var(--card-border); }
+.sub-plan-card li:last-child { border-bottom: none; }
+.sub-trial-note { font-size: 0.72rem; color: var(--text-muted); margin: -0.5rem 0 0.75rem; }
+.sub-plan-best { border-color: var(--cta); }
+.sub-best-badge { position: absolute; top: -10px; right: 16px; background: var(--cta); color: #fff; font-size: 0.62rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; text-transform: uppercase; }
+.sub-card-active { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 2rem; text-align: center; max-width: 420px; }
+.sub-card-active h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+.sub-back { margin-top: 1.25rem; color: var(--text-muted); font-size: 0.82rem; display: block; text-align: center; }
+
+/* Upgrade banner on dashboard */
+.upgrade-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.6rem 1rem; background: linear-gradient(135deg, var(--navy), var(--navy-2, #1B2A3B)); border-radius: var(--radius); margin: 0 1.25rem 0.5rem; }
+.upgrade-banner-text { color: rgba(255,255,255,0.8); font-size: 0.78rem; }
+.upgrade-banner-text strong { color: var(--teal); }
+.upgrade-banner .primary-button { font-size: 0.75rem; height: 32px; padding: 0 0.75rem; white-space: nowrap; }
+
 /* Branding */
 .brand-sub { margin: 1.5rem 0 0; font-size: 0.72rem; color: rgba(255,255,255,0.35); }
 .sidebar-brand-sub { margin: 0.5rem 0 0; font-size: 0.65rem; color: rgba(255,255,255,0.25); }
