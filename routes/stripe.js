@@ -10,21 +10,11 @@ const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.ap
 
 const PLANS = {
   monthly: {
-    priceData: {
-      currency: "usd",
-      product_data: { name: "PayPulse Premium Monthly" },
-      unit_amount: 499, // $4.99
-      recurring: { interval: "month" },
-    },
+    priceId: "price_1TIvB0G0K5DOC4SQm90gNzC5",
     trialDays: 3,
   },
   annual: {
-    priceData: {
-      currency: "usd",
-      product_data: { name: "PayPulse Premium Annual" },
-      unit_amount: 3999, // $39.99
-      recurring: { interval: "year" },
-    },
+    priceId: "price_1TIvBxG0K5DOC4SQXYBe0HVO",
     trialDays: 0,
   },
 };
@@ -43,9 +33,9 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     const sessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
-      line_items: [{ price_data: planConfig.priceData, quantity: 1 }],
-      success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONTEND_URL}/subscription/cancel`,
+      line_items: [{ price: planConfig.priceId, quantity: 1 }],
+      success_url: "https://paypulse-frontend.vercel.app/subscription/success?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://paypulse-frontend.vercel.app/subscription/cancel",
       client_reference_id: String(user._id),
       customer_email: user.email,
       metadata: { userId: String(user._id), plan },
