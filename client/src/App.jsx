@@ -22,6 +22,7 @@ import SubscriptionCancel from "./pages/SubscriptionCancel";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminPanel from "./pages/AdminPanel";
+import Verify2FA from "./pages/Verify2FA";
 
 const RootRedirect = () => {
   const token = localStorage.getItem("token");
@@ -41,6 +42,7 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-2fa" element={<Verify2FA />} />
 
         <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
         <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { DataCacheProvider } from "../context/DataCache";
+import { useSubscription } from "../hooks/useSubscription";
 import SessionTimeout from "./SessionTimeout";
 
 const NAV_ITEMS = [
@@ -23,6 +24,7 @@ const AppShell = () => {
     if (window.innerWidth >= 901) localStorage.setItem("sidebarOpen", String(sidebarOpen));
   }, [sidebarOpen]);
 
+  const { isFree, isTrialing, isPremium } = useSubscription();
   const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); };
   const toggleSidebar = () => setSidebarOpen((p) => !p);
   const closeSidebar = () => { if (window.innerWidth < 901) setSidebarOpen(false); };
@@ -39,7 +41,12 @@ const AppShell = () => {
         {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
         <nav className={`sidebar${sidebarOpen ? " open" : ""}`}>
-          <div className="sidebar-brand"><span className="brand-dot" />PayPulse</div>
+          <div className="sidebar-brand">
+            <span className="brand-dot" />PayPulse
+            {isPremium && <span className="plan-badge premium-plan">Premium</span>}
+            {isTrialing && <span className="plan-badge trial-plan">Trial</span>}
+            {isFree && <span className="plan-badge free-plan">Free</span>}
+          </div>
           <ul className="sidebar-nav">
             {NAV_ITEMS.map((item) => (
               <li key={item.to}>

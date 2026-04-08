@@ -126,6 +126,21 @@ router.post("/login", async (req, res) => {
       }
     }
 
+    if (user.twoFactorEnabled) {
+      // Don't issue JWT yet — require 2FA
+      // Generate and send OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.twoFactorOTP = await bcrypt.hash(otp, 10);
+      user.twoFactorOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+      // Send OTP email
+      const { sendEmail } = require("../utils/email");
+      await sendEmail(user.email, "Your PayPulse login code",
+        `<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:2rem;text-align:center"><h2>Your login code</h2><p style="font-size:2rem;font-weight:800;letter-spacing:0.2em;color:#00C896;margin:1rem 0">${otp}</p><p style="color:#888">This code expires in 10 minutes.</p><p style="color:#888;font-size:0.85rem">If you didn't request this, ignore this email.</p></div>`
+      ).catch(() => {});
+      return res.json({ requires2FA: true, email: user.email });
+    }
+
     // Record login history
     user.loginHistory = user.loginHistory || [];
     user.loginHistory.unshift({
@@ -262,6 +277,76 @@ router.post("/reset-password", async (req, res) => {
     res.json({ success: true, message: "Password updated." });
   } catch (error) {
     console.error("Reset password error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /send-2fa — generate and send a 2FA OTP to the user's email
+router.post("/send-2fa", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required." });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Return success to prevent email enumeration
+      return res.json({ success: true });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.twoFactorOTP = await bcrypt.hash(otp, 10);
+    user.twoFactorOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const { sendEmail } = require("../utils/email");
+    await sendEmail(user.email, "Your PayPulse login code",
+      `<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:2rem;text-align:center"><h2>Your login code</h2><p style="font-size:2rem;font-weight:800;letter-spacing:0.2em;color:#00C896;margin:1rem 0">${otp}</p><p style="color:#888">This code expires in 10 minutes.</p><p style="color:#888;font-size:0.85rem">If you didn't request this, ignore this email.</p></div>`
+    ).catch(() => {});
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Send 2FA error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /verify-2fa — verify the 2FA OTP and return JWT + user
+router.post("/verify-2fa", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: "Email and OTP are required." });
+
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+      twoFactorOTPExpiry: { $gt: Date.now() },
+    });
+
+    if (!user || !user.twoFactorOTP) {
+      return res.status(401).json({ error: "Invalid or expired code." });
+    }
+
+    const otpValid = await bcrypt.compare(otp, user.twoFactorOTP);
+    if (!otpValid) {
+      return res.status(401).json({ error: "Invalid or expired code." });
+    }
+
+    // Clear OTP fields
+    user.twoFactorOTP = undefined;
+    user.twoFactorOTPExpiry = undefined;
+
+    // Record login history
+    user.loginHistory = user.loginHistory || [];
+    user.loginHistory.unshift({
+      timestamp: new Date(),
+      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
+      userAgent: req.headers["user-agent"] || "unknown",
+    });
+    if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(0, 20);
+    await user.save();
+
+    res.json(createTokenResponse(user));
+  } catch (error) {
+    console.error("Verify 2FA error:", error);
     res.status(500).json({ error: "Server error" });
   }
 });

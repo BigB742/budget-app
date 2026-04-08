@@ -7,7 +7,7 @@ const sendEmail = async (to, subject, html) => {
     port: Number(process.env.SMTP_PORT) || 587,
     auth: { user: process.env.EMAIL_USER || process.env.SMTP_USER, pass: process.env.EMAIL_PASS || process.env.SMTP_PASS },
   });
-  await transporter.sendMail({ from: process.env.EMAIL_FROM || "noreply@paypulse.app", to, subject, html });
+  await transporter.sendMail({ from: '"PayPulse" <no-reply@productoslaloma.com>', to, subject, html });
 };
 
 module.exports = { sendEmail };

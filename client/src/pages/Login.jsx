@@ -26,6 +26,11 @@ const Login = () => {
         else throw new Error(data.error || "Login failed.");
         return;
       }
+      // Handle 2FA challenge
+      if (data.requires2FA) {
+        navigate(`/verify-2fa?email=${encodeURIComponent(data.email)}`);
+        return;
+      }
       localStorage.setItem("token", data.token);
       if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
       navigate("/app");

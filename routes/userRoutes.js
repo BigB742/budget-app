@@ -21,6 +21,7 @@ const userResponse = (user) => ({
   notificationPrefs: user.notificationPrefs || {},
   incomeSettings: user.incomeSettings || {},
   loginHistory: (user.loginHistory || []).slice(0, 5),
+  twoFactorEnabled: !!user.twoFactorEnabled,
   createdAt: user.createdAt,
 });
 

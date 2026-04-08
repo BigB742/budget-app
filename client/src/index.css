@@ -869,6 +869,12 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .admin-detail-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.85rem; border-bottom: 1px solid var(--card-border); }
 .admin-detail-row:last-child { border-bottom: none; }
 
+/* Plan badges */
+.plan-badge { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 0.35rem; }
+.premium-plan { background: var(--teal); color: #fff; }
+.trial-plan { background: rgba(0,200,150,0.2); color: var(--teal); }
+.free-plan { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
+
 /* Branding */
 .brand-sub { margin: 1.5rem 0 0; font-size: 0.72rem; color: rgba(255,255,255,0.35); }
 .sidebar-brand-sub { margin: 0.5rem 0 0; font-size: 0.65rem; color: rgba(255,255,255,0.25); }

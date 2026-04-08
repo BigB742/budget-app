@@ -364,15 +364,15 @@ const Calendar = () => {
             // One bar per expense category
             (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: CAT_COLORS[c.category] || "#8492A6" }); });
             return bars.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(120, bars.length * 32 + 40)}>
-                <BarChart data={bars} layout="vertical" margin={{ left: 80, right: 10, top: 5, bottom: 5 }}>
-                  <XAxis type="number" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={bars} margin={{ left: 5, right: 5, top: 10, bottom: 5 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={50} />
+                  <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} width={45} />
                   <Tooltip formatter={(v) => currency.format(v)} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : <p className="empty-hint">No financial data for this month.</p>;
+            ) : <p className="empty-hint">No spending data for this month.</p>;
           })()}
           <div className="cal-month-summary">
             <span>Income: <strong style={{ color: "var(--teal)" }}>{currency.format(monthlyBreakdown.totalIncome)}</strong></span>

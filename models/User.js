@@ -46,6 +46,12 @@ const UserSchema = new mongoose.Schema(
     currentBalance: { type: Number, default: 0 },
     passwordResetToken: { type: String },
     passwordResetExpiry: { type: Date },
+    twoFactorEnabled: { type: Boolean, default: false },
+    twoFactorOTP: { type: String },
+    twoFactorOTPExpiry: { type: Date },
+    billReminderEnabled: { type: Boolean, default: true },
+    lowBalanceAlertEnabled: { type: Boolean, default: true },
+    lowBalanceThreshold: { type: Number, default: 150 },
   },
   { timestamps: true }
 );

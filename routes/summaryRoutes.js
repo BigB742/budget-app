@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { authRequired } = require("../middleware/auth");
+const User = require("../models/User");
 const IncomeSource = require("../models/IncomeSource");
 const OneTimeIncome = require("../models/OneTimeIncome");
 const Bill = require("../models/Bill");
@@ -210,8 +211,23 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    // Balance = income - bills - expenses - savings - investments
-    const balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
+    // Balance calculation:
+    // - If user has a currentBalance set (from onboarding), use it as the starting point
+    //   for the FIRST period. Only add paycheck income AFTER the payday date has arrived.
+    // - currentBalance represents what the user actually has RIGHT NOW in their bank.
+    // - Formula: currentBalance + (income if payday has passed) - bills - expenses - savings - investments
+    const user = await User.findById(req.userId).select("currentBalance");
+    const userCurrentBalance = user?.currentBalance || 0;
+    const todayNorm = startOfDay(today);
+    const startNorm = startOfDay(start);
+
+    // Only count income if the payday (period start) has already occurred
+    const paydayArrived = todayNorm >= startNorm;
+    const effectiveIncome = paydayArrived ? adjustedTotalIncome : 0;
+
+    // If user has a currentBalance, use it as base instead of income for the current period
+    const baseAmount = userCurrentBalance > 0 ? userCurrentBalance : effectiveIncome;
+    const balance = baseAmount - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
