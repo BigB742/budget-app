@@ -45,6 +45,9 @@ const createTokenResponse = (user) => {
       notificationPrefs: user.notificationPrefs || {},
       incomeSettings: user.incomeSettings || {},
       loginHistory: (user.loginHistory || []).slice(0, 5),
+      isAdmin: !!user.isAdmin,
+      currentBalance: user.currentBalance || 0,
+      twoFactorEnabled: !!user.twoFactorEnabled,
     },
   };
 };
@@ -114,16 +117,21 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid credentials." });
     }
 
-    // Auto-verify legacy users who have existing data
+    // Auto-verify legacy users, admins, and users with existing data
     if (!user.emailVerified) {
-      const [srcCount, billCount] = await Promise.all([
-        IncomeSource.countDocuments({ user: user._id }),
-        Bill.countDocuments({ user: user._id }),
-      ]);
-      if (srcCount > 0 || billCount > 0) {
+      // Skip verification for admins and premium/trialing users
+      if (user.isAdmin || (user.subscriptionStatus && user.subscriptionStatus !== "free")) {
         user.emailVerified = true;
       } else {
-        return res.status(403).json({ error: "Please verify your email first.", needsVerification: true, email: user.email });
+        const [srcCount, billCount] = await Promise.all([
+          IncomeSource.countDocuments({ user: user._id }),
+          Bill.countDocuments({ user: user._id }),
+        ]);
+        if (srcCount > 0 || billCount > 0) {
+          user.emailVerified = true;
+        } else {
+          return res.status(403).json({ error: "Please verify your email first.", needsVerification: true, email: user.email });
+        }
       }
     }
 
