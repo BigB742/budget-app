@@ -24,7 +24,7 @@ const SavingsPanel = () => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.amount) return;
+    if (!form.name || form.name.length < 2 || !form.amount) return;
     setSaving(true);
     try {
       await authFetch("/api/savings-goals", {

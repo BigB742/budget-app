@@ -542,7 +542,7 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .auth-country-select { width: 120px; flex-shrink: 0; padding: 0 0.5rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.78rem; font-family: inherit; background: var(--bg); color: var(--text); }
 .auth-phone-input { flex: 1; }
 .auth-checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.78rem; color: var(--text-secondary); cursor: pointer; }
-.auth-checkbox-row input[type="checkbox"] { margin-top: 0.15rem; accent-color: var(--accent); }
+.auth-checkbox-row input[type="checkbox"] { width: 16px; height: 16px; margin-top: 0.15rem; accent-color: var(--teal); flex-shrink: 0; cursor: pointer; -webkit-appearance: checkbox; appearance: checkbox; }
 .auth-checkbox-row a { color: var(--cta); font-weight: 600; }
 
 /* Brand panel (visible on desktop) */
@@ -671,7 +671,7 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .ob-form input:focus { outline: none; border-color: var(--accent); }
 .ob-pills { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .ob-pill { padding: 0.45rem 0.85rem; border-radius: 999px; border: 1px solid var(--card-border); background: var(--card); font-size: 0.82rem; font-weight: 600; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
-.ob-pill.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.ob-pill.active { background: var(--teal); color: #fff; border-color: var(--teal); font-weight: 700; }
 .ob-bill-form { display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: stretch; margin-bottom: 0.65rem; }
 .ob-bill-form input, .ob-bill-form select { flex: 1; min-width: 0; padding: 0 0.6rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: 0.82rem; font-family: inherit; background: var(--card); color: var(--text); }
 .ob-bill-list { list-style: none; padding: 0; margin: 0 0 0.65rem; display: flex; flex-direction: column; gap: 0.25rem; }
@@ -847,6 +847,27 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .upgrade-banner-text { color: rgba(255,255,255,0.8); font-size: 0.78rem; }
 .upgrade-banner-text strong { color: var(--teal); }
 .upgrade-banner .primary-button { font-size: 0.75rem; height: 32px; padding: 0 0.75rem; white-space: nowrap; }
+
+/* Admin panel */
+.admin-page { padding: 1.5rem 2rem; max-width: 1024px; margin: 0 auto; }
+.admin-page h1 { text-align: left; font-size: 1.25rem; margin-bottom: 0.75rem; }
+.admin-search { width: 100%; max-width: 400px; padding: 0 0.75rem; height: var(--btn-h); border: 1px solid var(--card-border); border-radius: var(--radius); font-size: var(--font-base); font-family: inherit; background: var(--card); color: var(--text); margin-bottom: 0.75rem; }
+.admin-table-wrap { overflow-x: auto; border: 1px solid var(--card-border); border-radius: var(--radius); }
+.admin-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+.admin-table th { text-align: left; padding: 0.5rem 0.75rem; background: var(--bg); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--card-border); }
+.admin-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--card-border); font-size: var(--font-base); }
+.admin-table tr { cursor: pointer; transition: background 0.1s; }
+.admin-table tr:hover { background: var(--bg); }
+.admin-table tr.active { background: rgba(0,200,150,0.06); }
+.admin-badge { padding: 0.12rem 0.45rem; border-radius: 999px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+.admin-badge.free { background: var(--card-border); color: var(--text-muted); }
+.admin-badge.trialing { background: rgba(0,200,150,0.15); color: var(--teal); }
+.admin-badge.premium_monthly, .admin-badge.premium_annual { background: rgba(246,201,14,0.15); color: #D97706; }
+.admin-badge.expired { background: rgba(229,62,62,0.1); color: var(--red); }
+.admin-detail { display: flex; flex-direction: column; gap: 0.15rem; margin-top: 0.5rem; }
+.admin-detail h5 { margin: 0.75rem 0 0.25rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.admin-detail-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.85rem; border-bottom: 1px solid var(--card-border); }
+.admin-detail-row:last-child { border-bottom: none; }
 
 /* Branding */
 .brand-sub { margin: 1.5rem 0 0; font-size: 0.72rem; color: rgba(255,255,255,0.35); }

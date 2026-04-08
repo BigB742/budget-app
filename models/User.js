@@ -42,6 +42,10 @@ const UserSchema = new mongoose.Schema(
       ip: { type: String },
       userAgent: { type: String },
     }],
+    isAdmin: { type: Boolean, default: false },
+    currentBalance: { type: Number, default: 0 },
+    passwordResetToken: { type: String },
+    passwordResetExpiry: { type: Date },
   },
   { timestamps: true }
 );

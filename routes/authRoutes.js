@@ -62,8 +62,7 @@ router.post("/signup", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const trialStart = new Date();
-    const trialEnd = new Date(trialStart.getTime() + 3 * 24 * 60 * 60 * 1000); // 3-day trial
+    // No auto-trial — trial only starts when user completes Stripe checkout
     const user = await User.create({
       name: `${firstName || ""} ${lastName || ""}`.trim() || email.split("@")[0],
       firstName: firstName || "",
@@ -73,9 +72,7 @@ router.post("/signup", async (req, res) => {
       email: email.toLowerCase().trim(),
       passwordHash,
       onboardingComplete: false,
-      subscriptionStatus: "trialing",
-      trialStartDate: trialStart,
-      trialEndDate: trialEnd,
+      subscriptionStatus: "free",
     });
 
     // Dev mode: auto-verify when SMTP isn't configured
@@ -197,6 +194,74 @@ router.post("/resend-verification", async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error("Resend verification error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /forgot-password — request a password reset link
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required." });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Return success even if user not found to prevent email enumeration
+      return res.json({ success: true });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    // Send reset email if SMTP is configured
+    if (process.env.SMTP_HOST) {
+      const APP_URL = process.env.APP_URL || "http://localhost:5173";
+      const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 587,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || "noreply@paypulse.app",
+        to: user.email,
+        subject: "Reset your PayPulse password",
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`,
+      }).catch(err => console.error("Password reset email error:", err));
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /reset-password — set new password using reset token
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: "Token and password are required." });
+
+    const user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired reset token." });
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpiry = undefined;
+    await user.save();
+
+    res.json({ success: true, message: "Password updated." });
+  } catch (error) {
+    console.error("Reset password error:", error);
     res.status(500).json({ error: "Server error" });
   }
 });

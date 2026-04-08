@@ -66,6 +66,7 @@ const Login = () => {
             {needsVerification && <button type="button" className="secondary-button" style={{ width: "100%" }} onClick={handleResend}>Resend verification email</button>}
             <button type="submit" className="primary-button" style={{ width: "100%" }} disabled={loading}>{loading ? "Signing in..." : "Log in"}</button>
           </form>
+          <p className="auth-switch"><Link to="/forgot-password" style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Forgot password?</Link></p>
           <p className="auth-switch">Don't have an account? <Link to="/signup">Create one</Link></p>
         </div>
       </div>

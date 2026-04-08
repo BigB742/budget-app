@@ -18,6 +18,7 @@ const billPaymentRoutes = require("./routes/billPaymentRoutes");
 const debtRoutes = require("./routes/debtRoutes");
 const exportRoutes = require("./routes/exportRoutes");
 const oneTimeIncomeRoutes = require("./routes/oneTimeIncomeRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const { checkSubscriptionStatus } = require("./middleware/subscription");
 const stripeRoutes = require("./routes/stripe");
@@ -74,6 +75,7 @@ app.use("/api/debts", debtRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/one-time-income", oneTimeIncomeRoutes);
 app.use("/api/stripe", stripeRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Cron jobs (bill reminders + savings autopilot)
 require("./jobs/billReminders");

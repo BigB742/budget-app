@@ -19,6 +19,9 @@ import Terms from "./pages/Terms";
 import Subscription from "./pages/Subscription";
 import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 import SubscriptionCancel from "./pages/SubscriptionCancel";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import AdminPanel from "./pages/AdminPanel";
 
 const RootRedirect = () => {
   const token = localStorage.getItem("token");
@@ -36,6 +39,8 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/check-email" element={<CheckEmail />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
         <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />
@@ -46,6 +51,7 @@ function App() {
         <Route path="/onboarding/bills" element={<Navigate to="/onboarding" replace />} />
         <Route path="/settings/income" element={<ProtectedRoute><OnboardingIncome /></ProtectedRoute>} />
 
+        <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
 
         <Route path="/app" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />

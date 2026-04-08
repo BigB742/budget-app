@@ -120,7 +120,7 @@ const Dashboard = () => {
           <div className="stat-card"><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></div>
           <div className="stat-card"><span className="stat-label">What I've spent</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></div>
           <div className="stat-card"><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></div>
-          <div className="stat-card"><span className="stat-label">Saved</span><span className="stat-value teal">{currency.format(summary.savingsThisPeriod || 0)}</span></div>
+          <div className="stat-card"><span className="stat-label">Saved</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></div>
         </div>
       )}
 

@@ -355,14 +355,14 @@ const Calendar = () => {
       {/* Monthly spending chart */}
       {monthlyBreakdown && (
         <div className="cal-month-chart">
-          <h3 className="chart-label">{monthLabel} Overview</h3>
+          <h3 className="chart-label">{monthLabel} Spending Breakdown</h3>
           {(() => {
-            const CAT_COLORS = { Food: "#F59E0B", "Dining Out": "#F59E0B", Gas: "#EF4444", Travel: "#F97316", Entertainment: "#EC4899", Shopping: "#14B8A6", Health: "#10B981", Gym: "#8B5CF6", Home: "#84CC16", Subscriptions: "#6366F1", Other: "#8492A6" };
+            const CAT_COLORS = { Food: "#F59E0B", "Dining Out": "#F59E0B", Gas: "#EF4444", Travel: "#F97316", Entertainment: "#EC4899", Shopping: "#14B8A6", Health: "#10B981", Gym: "#8B5CF6", Home: "#84CC16", Subscriptions: "#6366F1", Savings: "#00C896", Other: "#8492A6" };
             const bars = [];
-            if (monthlyBreakdown.totalIncome > 0) bars.push({ name: "Income", value: monthlyBreakdown.totalIncome, fill: "#00C896" });
-            (monthlyBreakdown.billBreakdown || []).forEach((b) => { if (b.amount > 0) bars.push({ name: b.name, value: b.amount, fill: "#3B82F6" }); });
+            // Bills combined into one bar
+            if (monthlyBreakdown.totalBills > 0) bars.push({ name: "Bills", value: monthlyBreakdown.totalBills, fill: "#E53E3E" });
+            // One bar per expense category
             (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: CAT_COLORS[c.category] || "#8492A6" }); });
-            bars.push({ name: "Net", value: Math.abs(monthlyBreakdown.net), fill: monthlyBreakdown.net >= 0 ? "#00C896" : "#EF4444" });
             return bars.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(120, bars.length * 32 + 40)}>
                 <BarChart data={bars} layout="vertical" margin={{ left: 80, right: 10, top: 5, bottom: 5 }}>

@@ -194,6 +194,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       (sum, goal) => sum + (Number(goal.perPaycheckAmount) || 0),
       0
     );
+    const totalSaved = savingsGoals.reduce(
+      (sum, goal) => sum + (Number(goal.savedAmount) || 0),
+      0
+    );
 
     // Investments this period
     const investments = await Investment.find({ userId: req.userId });
@@ -269,6 +273,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       totalBills,
       totalExpenses,
       savingsThisPeriod,
+      totalSaved,
       investmentsThisPeriod,
       balance,
       leftToSpend: balance, // backward compat
