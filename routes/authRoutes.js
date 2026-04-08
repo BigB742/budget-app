@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const IncomeSource = require("../models/IncomeSource");
 const Bill = require("../models/Bill");
+const { sendEmail } = require("../utils/email");
 
 const sendVerificationEmail = async (user, token) => {
   if (!process.env.SMTP_HOST) return;
@@ -134,7 +135,7 @@ router.post("/login", async (req, res) => {
       user.twoFactorOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
       // Send OTP email
-      const { sendEmail } = require("../utils/email");
+      // sendEmail imported at top of file
       await sendEmail(user.email, "Your PayPulse login code",
         `<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:2rem;text-align:center"><h2>Your login code</h2><p style="font-size:2rem;font-weight:800;letter-spacing:0.2em;color:#00C896;margin:1rem 0">${otp}</p><p style="color:#888">This code expires in 10 minutes.</p><p style="color:#888;font-size:0.85rem">If you didn't request this, ignore this email.</p></div>`
       ).catch(() => {});
