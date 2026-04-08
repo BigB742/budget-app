@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
 import { authFetch } from "../apiClient";
 import AdSlot from "../components/AdSlot";
 
@@ -45,7 +44,6 @@ const Calendar = () => {
   const [selectedDay, setSelectedDay] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
-  const [monthlyBreakdown, setMonthlyBreakdown] = useState(null);
   const userCreatedAt = (() => { try { const u = JSON.parse(localStorage.getItem("user")); return u?.createdAt; } catch { return null; } })();
 
   // Day-detail state
@@ -86,9 +84,8 @@ const Calendar = () => {
       setOverrides(Array.isArray(o) ? o : []);
       setBillPayments(Array.isArray(bp) ? bp : []);
       setOneTimeIncomes(Array.isArray(oti) ? oti : []);
-      // Load paydays from backend and monthly chart data
+      // Load paydays from backend
       authFetch(`/api/summary/paydays?from=${from}&to=${to}`).then((d) => setPaydayDates(d?.paydays || [])).catch(() => setPaydayDates([]));
-      authFetch(`/api/summary/monthly-breakdown?year=${viewYear}&month=${viewMonth + 1}`).then(setMonthlyBreakdown).catch(() => setMonthlyBreakdown(null));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [viewYear, viewMonth]);
@@ -349,38 +346,6 @@ const Calendar = () => {
               })}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Monthly spending chart */}
-      {monthlyBreakdown && (
-        <div className="cal-month-chart">
-          <h3 className="chart-label">{monthLabel} Spending Breakdown</h3>
-          {(() => {
-            const CAT_COLORS = { Food: "#F59E0B", "Dining Out": "#F59E0B", Gas: "#EF4444", Travel: "#F97316", Entertainment: "#EC4899", Shopping: "#14B8A6", Health: "#10B981", Gym: "#8B5CF6", Home: "#84CC16", Subscriptions: "#6366F1", Savings: "#00C896", Other: "#8492A6" };
-            const bars = [];
-            // Bills combined into one bar
-            if (monthlyBreakdown.totalBills > 0) bars.push({ name: "Bills", value: monthlyBreakdown.totalBills, fill: "#E53E3E" });
-            // One bar per expense category
-            (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: CAT_COLORS[c.category] || "#8492A6" }); });
-            return bars.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={bars} margin={{ left: 5, right: 20, top: 10, bottom: 5 }} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={50} />
-                  <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} width={45} />
-                  <Tooltip formatter={(v) => currency.format(v)} />
-                  <Bar dataKey="value" barSize={40} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p className="empty-hint">No spending data for this month.</p>;
-          })()}
-          <div className="cal-month-summary">
-            <span>Income: <strong style={{ color: "var(--teal)" }}>{currency.format(monthlyBreakdown.totalIncome)}</strong></span>
-            <span>Bills: <strong style={{ color: "var(--red)" }}>{currency.format(monthlyBreakdown.totalBills)}</strong></span>
-            <span>Expenses: <strong>{currency.format(monthlyBreakdown.totalExpenses)}</strong></span>
-            <span>Net: <strong style={{ color: monthlyBreakdown.net >= 0 ? "var(--teal)" : "var(--red)" }}>{currency.format(monthlyBreakdown.net)}</strong></span>
-          </div>
         </div>
       )}
 

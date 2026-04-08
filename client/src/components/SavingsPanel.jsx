@@ -58,6 +58,24 @@ const SavingsPanel = () => {
     } catch { /* ignore */ }
   };
 
+  const handleWithdraw = async (goal) => {
+    const input = window.prompt(`Withdraw from "${goal.name}" (max ${currency.format(goal.savedAmount || 0)})`, "0");
+    if (!input) return;
+    const amount = Number(input);
+    if (!amount || amount <= 0 || amount > (goal.savedAmount || 0)) { alert("Invalid amount."); return; }
+    try {
+      // Decrease savings goal
+      await authFetch(`/api/savings-goals/${goal._id}`, { method: "PATCH", body: JSON.stringify({ savedAmount: (goal.savedAmount || 0) - amount }) });
+      // Add back to currentBalance
+      await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ currentBalance: undefined }) });
+      // Log as income entry
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: `Savings Withdrawal — ${goal.name}`, amount, date: dateStr }) });
+      load();
+    } catch { /* ignore */ }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this savings entry?")) return;
     try { await authFetch(`/api/savings-goals/${id}`, { method: "DELETE" }); load(); } catch { /* ignore */ }
@@ -88,6 +106,7 @@ const SavingsPanel = () => {
                 </div>
                 <div className="recurring-actions">
                   <button type="button" className="secondary-button" onClick={() => handleContribute(g)}>+ Add</button>
+                  {(g.savedAmount || 0) > 0 && <button type="button" className="ghost-button" onClick={() => handleWithdraw(g)}>- Withdraw</button>}
                   <button type="button" className="ghost-button" onClick={() => handleDelete(g._id)}>x</button>
                 </div>
               </div>

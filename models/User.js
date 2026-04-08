@@ -44,6 +44,7 @@ const UserSchema = new mongoose.Schema(
     }],
     isAdmin: { type: Boolean, default: false },
     currentBalance: { type: Number, default: 0 },
+    initialSavings: { type: Number, default: 0 },
     passwordResetToken: { type: String },
     passwordResetExpiry: { type: Date },
     twoFactorEnabled: { type: Boolean, default: false },

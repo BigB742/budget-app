@@ -11,7 +11,7 @@ const FREQ_OPTIONS = [
 ];
 
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
@@ -24,6 +24,7 @@ const Onboarding = () => {
   const [bills, setBills] = useState([]);
   const [billForm, setBillForm] = useState({ name: "", amount: "", dueDay: "", category: "Other" });
   const [bankBalance, setBankBalance] = useState("");
+  const [initialSavings, setInitialSavings] = useState("");
 
   const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); window.location.href = "/login"; };
 
@@ -59,6 +60,18 @@ const Onboarding = () => {
         await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ currentBalance: Number(bankBalance) }) });
       } catch { /* non-critical */ }
       setSaving(false);
+    }
+    if (step === 5) {
+      // Save initial savings — create a "General Savings" goal
+      const amt = Number(initialSavings) || 0;
+      if (amt > 0) {
+        setSaving(true);
+        try {
+          await authFetch("/api/savings-goals", { method: "POST", body: JSON.stringify({ name: "General Savings", targetAmount: 999999, savedAmount: amt, perPaycheckAmount: 0, category: "Savings" }) });
+          await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ initialSavings: amt }) });
+        } catch { /* non-critical */ }
+        setSaving(false);
+      }
     }
     setStep((s) => s + 1);
   };
@@ -191,8 +204,27 @@ const Onboarding = () => {
         </div>
       )}
 
-      {/* Step 5 — Subscription Choice */}
+      {/* Step 5 — Current Savings */}
       {step === 5 && (
+        <div className="ob-step">
+          <h2>Do you have any savings set aside?</h2>
+          <p className="ob-subtitle">This is money already saved — separate from your spending balance. It won't affect what you can spend.</p>
+          <div className="ob-form">
+            <label>Current savings
+              <input type="number" step="0.01" placeholder="0.00" value={initialSavings} onChange={(e) => setInitialSavings(e.target.value)} style={{ fontSize: "1.5rem", textAlign: "center", fontWeight: 700 }} />
+            </label>
+          </div>
+          {error && <p className="ob-error">{error}</p>}
+          <div className="ob-actions">
+            <button type="button" className="ghost-button" onClick={() => setStep(4)}>Back</button>
+            <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>Skip</button>
+            <button type="button" className="primary-button" onClick={handleNext} disabled={saving}>{saving ? "Saving..." : "Next"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 6 — Subscription Choice */}
+      {step === 6 && (
         <div className="ob-step">
           <h2>Unlock PayPulse Premium?</h2>
           <p className="ob-subtitle">Get unlimited bills, 12-month projections, and spending insights.</p>
@@ -213,14 +245,14 @@ const Onboarding = () => {
           </div>
           {error && <p className="ob-error">{error}</p>}
           <div className="ob-actions" style={{ justifyContent: "center" }}>
-            <button type="button" className="ghost-button" onClick={() => setStep(4)}>Back</button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>Skip — continue with Free plan</button>
+            <button type="button" className="ghost-button" onClick={() => setStep(5)}>Back</button>
+            <button type="button" className="link-button ob-skip" onClick={() => setStep(7)}>Skip — continue with Free plan</button>
           </div>
         </div>
       )}
 
       {/* Step 6 — All Set */}
-      {step === 6 && (
+      {step === 7 && (
         <div className="ob-step ob-done">
           <h2>All set!</h2>
           <div className="ob-snapshot">

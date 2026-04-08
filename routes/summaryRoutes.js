@@ -211,16 +211,34 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    // Base: user's current bank balance, not projected income.
-    // currentBalance is what the user actually has RIGHT NOW in their bank (set during onboarding).
-    // Formula: currentBalance - billsDueBeforeNextPayday - expenses - savings - investments
-    // Paycheck income is NOT added until the actual payday date arrives.
+    // ═══════════════════════════════════════════════════════════════
+    // BALANCE CALCULATION — "You Can Spend"
+    //
+    // BEFORE payday: spendableBalance = currentBalance - bills/expenses due from today through (nextPayday - 1)
+    //   Example: User has $500, bill of $39.99 due Apr 9, next payday Apr 10 → shows $460.01
+    //   Do NOT add paycheck income until today >= nextPayday.
+    //
+    // ON/AFTER payday: the period has started, income counts.
+    //   spendableBalance = currentBalance + paycheckIncome - bills/expenses in this period
+    //   This happens naturally because getBudgetPeriod returns the period containing today,
+    //   and totalIncome includes paydays that have already occurred.
+    //
+    // currentBalance is the user's ACTUAL bank balance (set during onboarding or updated).
+    // If not set (null), fall back to income-based calculation for backward compat.
+    // ═══════════════════════════════════════════════════════════════
     const userDoc = await User.findById(req.userId).select("currentBalance");
-    const currentBalance = userDoc?.currentBalance ?? null;
-    const hasCurrentBalance = currentBalance !== null;
-    const balance = hasCurrentBalance
-      ? currentBalance - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod
-      : adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
+    const currentBalance = userDoc?.currentBalance;
+    const hasCurrentBalance = currentBalance != null; // explicit check: 0 is valid
+
+    let balance;
+    if (hasCurrentBalance) {
+      // Use actual bank balance as the base — this is the core of PayPulse.
+      // Deduct only bills and expenses. Savings/investments are tracked separately.
+      balance = currentBalance - totalBills - totalExpenses;
+    } else {
+      // Fallback for users who haven't set currentBalance: use income-based calc
+      balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
+    }
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -285,7 +303,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       totalSaved,
       investmentsThisPeriod,
       balance,
-      leftToSpend: balance, // backward compat
+      currentBalance: currentBalance ?? 0,
       nextPayDate,
       daysUntilNextPaycheck,
       nextPaycheckBalance,

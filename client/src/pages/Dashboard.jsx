@@ -154,54 +154,62 @@ const Dashboard = () => {
       {/* Two-column: planner + charts */}
       <div className="dash-columns">
         <section className="planner-section">
-          <div className="planner-header-row">
-            <h2 className="section-title">Upcoming</h2>
-            <button type="button" className="link-button" onClick={() => setShowAllDays((p) => !p)}>
-              {showAllDays ? "Card view" : "Show all"}
-            </button>
-          </div>
-          {payPeriodError && <p className="status status-error">{payPeriodError}</p>}
-          {payPeriodLoading ? <p className="status">Loading...</p> : !payPeriodDays.length ? (
-            <div className="empty-state"><p>Set up your income to see your daily plan.</p></div>
-          ) : showAllDays ? (
-            /* Full list view */
-            <ul className="activity-list">
-              {displayDays.flatMap((day) => {
-                const rows = [];
-                const dateLabel = `${day.weekdayLabel} ${day.dayOfMonth}`;
-                if (day.isPayday) rows.push(<li key={`${day.dateKey}-pay`} className="up-row up-payday" onClick={() => setSelectedDay(day)}><span className="up-accent up-accent-gold" /><div className="up-body"><span className="up-name">Payday</span><span className="up-date">{dateLabel}</span></div><span className="up-amt up-amt-gold">+{currency.format(getPaydayAmount())}</span></li>);
-                day.bills.forEach((b) => rows.push(<li key={b._id + day.dateKey} className="up-row up-bill" onClick={() => setSelectedDay(day)}><span className="up-accent up-accent-red" /><div className="up-body"><span className="up-name">{b.name}</span><span className="up-date">{dateLabel}</span></div><span className="up-amt up-amt-red">&minus;{currency.format(b.amount)}</span></li>));
-                return rows;
-              })}
-            </ul>
-          ) : (() => {
-            /* Card view — single bill with arrows */
-            const allBills = [];
-            displayDays.forEach((day) => {
-              const dl = `${day.weekdayLabel} ${day.dayOfMonth}`;
-              if (day.isPayday) allBills.push({ type: "payday", name: "Payday", date: dl, amount: getPaydayAmount(), day });
-              day.bills.forEach((b) => allBills.push({ type: "bill", name: b.name, date: dl, amount: b.amount, day }));
-              (day.incomes || []).forEach((inc) => allBills.push({ type: "income", name: inc.name, date: dl, amount: inc.amount, day }));
+          {(() => {
+            // Bills only, current month, sorted by due date
+            const now = new Date();
+            const thisMonth = now.getMonth();
+            const thisYear = now.getFullYear();
+            const todayDate = now.getDate();
+            const monthName = now.toLocaleDateString("en-US", { month: "long" });
+            const monthBills = [];
+            payPeriodDays.forEach((day) => {
+              if (day.date.getMonth() === thisMonth && day.date.getFullYear() === thisYear) {
+                day.bills.forEach((b) => monthBills.push({ name: b.name, amount: b.amount, dayOfMonth: day.dayOfMonth, dateLabel: `${day.weekdayLabel} ${day.dayOfMonth}`, day }));
+              }
             });
-            if (!allBills.length) return <p className="empty-hint">No upcoming bills this period.</p>;
-            const idx = Math.min(billIdx, allBills.length - 1);
-            const item = allBills[idx];
-            const colorClass = item.type === "payday" ? "up-accent-gold" : item.type === "income" ? "up-accent-purple" : "up-accent-red";
-            const amtClass = item.type === "payday" ? "up-amt-gold" : item.type === "income" ? "up-amt-purple" : "up-amt-red";
-            const prefix = item.type === "bill" ? "\u2212" : "+";
+            monthBills.sort((a, b) => a.dayOfMonth - b.dayOfMonth);
+            const allPassed = monthBills.length > 0 && monthBills.every((b) => b.dayOfMonth < todayDate);
+            const idx = Math.max(0, Math.min(billIdx, monthBills.length - 1));
+
             return (
-              <div className="upcoming-card">
-                <button type="button" className="up-arrow" disabled={idx <= 0} onClick={() => setBillIdx(idx - 1)}>&larr;</button>
-                <div className="up-card-body" onClick={() => setSelectedDay(item.day)}>
-                  <span className={`up-accent ${colorClass}`} />
-                  <div className="up-body"><span className="up-name">{item.name}</span><span className="up-date">{item.date}</span></div>
-                  <span className={`up-amt ${amtClass}`}>{prefix}{currency.format(item.amount)}</span>
+              <>
+                <div className="planner-header-row">
+                  <h2 className="section-title">Upcoming</h2>
+                  <button type="button" className="link-button" onClick={() => setShowAllDays((p) => !p)}>
+                    {showAllDays ? "Card view" : "Show all"}
+                  </button>
                 </div>
-                <button type="button" className="up-arrow" disabled={idx >= allBills.length - 1} onClick={() => setBillIdx(idx + 1)}>&rarr;</button>
-              </div>
+                {payPeriodLoading ? <p className="status">Loading...</p> : !monthBills.length ? (
+                  <div className="empty-state"><p>No bills this month. Add some on the Bills page.</p></div>
+                ) : allPassed ? (
+                  <div className="empty-state"><p>You're all caught up for {monthName}!</p></div>
+                ) : showAllDays ? (
+                  <ul className="activity-list">
+                    {monthBills.map((b, i) => (
+                      <li key={i} className="up-row up-bill" onClick={() => setSelectedDay(b.day)}>
+                        <span className="up-accent up-accent-red" />
+                        <div className="up-body"><span className="up-name">{b.name}</span><span className="up-date">{b.dateLabel}</span></div>
+                        <span className="up-amt up-amt-red">&minus;{currency.format(b.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="upcoming-card">
+                    <button type="button" className="up-arrow" disabled={idx <= 0} onClick={() => setBillIdx(idx - 1)}>&larr;</button>
+                    <div className="up-card-body" onClick={() => setSelectedDay(monthBills[idx]?.day)}>
+                      <span className="up-accent up-accent-red" />
+                      <div className="up-body"><span className="up-name">{monthBills[idx]?.name}</span><span className="up-date">{monthBills[idx]?.dateLabel}</span></div>
+                      <span className="up-amt up-amt-red">&minus;{currency.format(monthBills[idx]?.amount || 0)}</span>
+                    </div>
+                    <button type="button" className="up-arrow" disabled={idx >= monthBills.length - 1} onClick={() => setBillIdx(idx + 1)}>&rarr;</button>
+                  </div>
+                )}
+                {!showAllDays && monthBills.length > 0 && !allPassed && (
+                  <p className="planner-hint">{idx + 1} of {monthBills.length} this month</p>
+                )}
+              </>
             );
           })()}
-          <p className="planner-hint">{showAllDays ? "Tap a row for details." : `${billIdx + 1} of ${displayDays.reduce((s, d) => s + d.bills.length + (d.isPayday ? 1 : 0) + (d.incomes?.length || 0), 0)} items`}</p>
         </section>
 
         <section className="dash-chart-col">
