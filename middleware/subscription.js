@@ -14,7 +14,7 @@ const checkSubscriptionStatus = async (req, res, next) => {
     }
 
     // Sync isPremium flag
-    const premium = ["premium_monthly", "premium_annual", "trialing"].includes(user.subscriptionStatus);
+    const premium = ["premium", "premium_monthly", "premium_annual", "trialing"].includes(user.subscriptionStatus);
     if (user.isPremium !== premium) {
       user.isPremium = premium;
       await user.save();

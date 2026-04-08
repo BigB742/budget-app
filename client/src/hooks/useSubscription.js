@@ -6,7 +6,7 @@ export const useSubscription = () => {
   }, []);
 
   const status = user?.subscriptionStatus || "free";
-  const isPremium = status === "premium_monthly" || status === "premium_annual";
+  const isPremium = status === "premium" || status === "premium_monthly" || status === "premium_annual";
   const isTrialing = status === "trialing" && user?.trialEndDate && new Date(user.trialEndDate) > new Date();
   const isFree = !isPremium && !isTrialing;
 

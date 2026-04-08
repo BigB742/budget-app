@@ -17,7 +17,7 @@ const UserSchema = new mongoose.Schema(
     locale: { type: String, default: "en" },
     subscriptionStatus: {
       type: String,
-      enum: ["free", "trialing", "premium_monthly", "premium_annual", "expired"],
+      enum: ["free", "trialing", "premium", "premium_monthly", "premium_annual", "expired"],
       default: "free",
     },
     trialStartDate: { type: Date },
