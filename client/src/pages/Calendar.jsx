@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
 import { authFetch } from "../apiClient";
 import AdSlot from "../components/AdSlot";
 
@@ -364,12 +364,13 @@ const Calendar = () => {
             // One bar per expense category
             (monthlyBreakdown.expensesByCategory || []).forEach((c) => { if (c.total > 0) bars.push({ name: c.category, value: c.total, fill: CAT_COLORS[c.category] || "#8492A6" }); });
             return bars.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={bars} margin={{ left: 5, right: 5, top: 10, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={bars} margin={{ left: 5, right: 20, top: 10, bottom: 5 }} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={50} />
                   <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} width={45} />
                   <Tooltip formatter={(v) => currency.format(v)} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" barSize={40} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="empty-hint">No spending data for this month.</p>;

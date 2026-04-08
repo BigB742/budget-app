@@ -1,13 +1,20 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, html) => {
-  if (!process.env.SMTP_HOST && !process.env.EMAIL_USER) return;
+  const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+  const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+  if (!emailUser || !emailPass) return;
+
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT) || 587,
-    auth: { user: process.env.EMAIL_USER || process.env.SMTP_USER, pass: process.env.EMAIL_PASS || process.env.SMTP_PASS },
+    service: "gmail",
+    auth: { user: emailUser, pass: emailPass },
   });
-  await transporter.sendMail({ from: '"PayPulse" <no-reply@productoslaloma.com>', to, subject, html });
+
+  // Gmail requires 'from' to match the authenticated account
+  await transporter.sendMail({
+    from: `"PayPulse" <${emailUser}>`,
+    to, subject, html,
+  });
 };
 
 module.exports = { sendEmail };

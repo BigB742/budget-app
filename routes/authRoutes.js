@@ -239,22 +239,12 @@ router.post("/forgot-password", async (req, res) => {
     user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save();
 
-    // Send reset email if SMTP is configured
-    if (process.env.SMTP_HOST) {
-      const APP_URL = process.env.APP_URL || "http://localhost:5173";
-      const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || "noreply@paypulse.app",
-        to: user.email,
-        subject: "Reset your PayPulse password",
-        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`,
-      }).catch(err => console.error("Password reset email error:", err));
-    }
+    // Send reset email using the shared sendEmail utility (uses Gmail SMTP)
+    const APP_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
+    const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+    await sendEmail(user.email, "Reset your PayPulse password",
+      `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`
+    ).catch(err => console.error("Password reset email error:", err));
 
     res.json({ success: true });
   } catch (error) {

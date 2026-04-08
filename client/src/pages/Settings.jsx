@@ -192,7 +192,12 @@ const Settings = () => {
                   <div className="s-field"><span className="s-field-label">Date of birth</span><input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} /></div>
                   <div className="s-field"><span className="s-field-label">Email</span><input value={form.email} onChange={(e) => handleField("email", e.target.value)} /></div>
                   <div className="s-field"><span className="s-field-label">Password</span><div className="s-pw-row"><span className="s-pw-dots">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span><button type="button" className="link-button s-change-pw" onClick={() => setShowPwModal(true)}>Change</button></div></div>
-                  <div className="s-field"><span className="s-field-label">Two-factor auth</span><div className="s-pw-row"><span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Not enabled</span><span className="coming-soon">Coming soon</span></div></div>
+                  <div className="s-field"><span className="s-field-label">Two-factor auth</span><div className="s-pw-row">
+                    {user.twoFactorEnabled
+                      ? <><span style={{ color: "var(--teal)", fontSize: "0.82rem", fontWeight: 600 }}>Enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--red)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: false }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); localStorage.setItem("user", JSON.stringify(u2)); } catch {} }}>Disable</button></>
+                      : <><span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Not enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--teal)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: true }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); localStorage.setItem("user", JSON.stringify(u2)); } catch {} }}>Enable</button></>
+                    }
+                  </div></div>
                 </div>
                 {dirty && <div className="s-save-bar"><button type="button" className="primary-button" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>{saveMsg && <span className="s-save-msg">{saveMsg}</span>}</div>}
               </>

@@ -43,7 +43,7 @@ router.put("/me", authRequired, async (req, res) => {
     const {
       firstName, lastName, email, dateOfBirth, phone,
       incomeSettings, passwordChange, notificationPrefs,
-      locale, onboardingComplete, isPremium,
+      locale, onboardingComplete, isPremium, twoFactorEnabled, currentBalance,
     } = req.body || {};
 
     const user = await User.findById(userId);
@@ -59,6 +59,8 @@ router.put("/me", authRequired, async (req, res) => {
     if (locale !== undefined) user.locale = locale;
     if (onboardingComplete !== undefined) user.onboardingComplete = onboardingComplete;
     if (isPremium !== undefined) { user.isPremium = isPremium; if (isPremium && !user.premiumSince) user.premiumSince = new Date(); }
+    if (twoFactorEnabled !== undefined) user.twoFactorEnabled = twoFactorEnabled;
+    if (currentBalance !== undefined) user.currentBalance = Number(currentBalance);
 
     if (notificationPrefs) {
       const p = user.notificationPrefs || {};
