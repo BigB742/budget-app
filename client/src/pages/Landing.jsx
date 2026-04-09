@@ -171,13 +171,6 @@ const Landing = () => (
           <p className="lp-trial-note">
             Card required. Cancel before day 3 and you will not be charged.
           </p>
-          <Link
-            to="/signup"
-            className="ghost-button"
-            style={{ width: "100%", marginTop: "0.5rem", textAlign: "center", display: "block" }}
-          >
-            Get annual -- best value
-          </Link>
         </div>
       </div>
     </section>
