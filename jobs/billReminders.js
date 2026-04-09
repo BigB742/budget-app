@@ -9,23 +9,19 @@ const DASHBOARD_URL = process.env.DASHBOARD_URL || "https://app.paypulse.com";
 
 let transporter = null;
 
-if (process.env.SMTP_HOST) {
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: Number(process.env.SMTP_PORT) === 465,
+    service: "gmail",
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
   });
 } else {
-  console.warn(
-    "[billReminders] SMTP_HOST not configured — email reminders will be skipped."
-  );
+  console.log("[billReminders] EMAIL_USER not configured — email reminders will be skipped.");
 }
 
-const emailFrom = process.env.EMAIL_FROM || "noreply@paypulse.app";
+const emailFrom = process.env.EMAIL_USER ? `"PayPulse" <${process.env.EMAIL_USER}>` : "noreply@paypulse.app";
 
 /**
  * Send an HTML email. Silently logs and continues on failure.

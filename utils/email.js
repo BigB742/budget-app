@@ -1,12 +1,11 @@
 const nodemailer = require("nodemailer");
 
-// Log email config on module load (without exposing password)
-const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
-console.log("[Email] EMAIL_USER configured:", !!emailUser);
+// Log email config on module load
+console.log("[Email] EMAIL_USER configured:", !!process.env.EMAIL_USER);
 
 const sendEmail = async (to, subject, html) => {
-  const user = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
   if (!user || !pass) {
     console.log("[Email] No credentials configured, skipping send to:", to);
     return;
