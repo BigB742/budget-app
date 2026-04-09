@@ -212,31 +212,41 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     });
 
     // ═══════════════════════════════════════════════════════════════
-    // BALANCE CALCULATION — "You Can Spend"
+    // DEFINITIVE BALANCE CALCULATION — "You Can Spend"
     //
-    // BEFORE payday: spendableBalance = currentBalance - bills/expenses due from today through (nextPayday - 1)
-    //   Example: User has $500, bill of $39.99 due Apr 9, next payday Apr 10 → shows $460.01
-    //   Do NOT add paycheck income until today >= nextPayday.
+    // currentBalance = user's ACTUAL bank balance right now (set during onboarding).
+    // It already reflects bills/expenses that have ALREADY been paid.
     //
-    // ON/AFTER payday: the period has started, income counts.
-    //   spendableBalance = currentBalance + paycheckIncome - bills/expenses in this period
-    //   This happens naturally because getBudgetPeriod returns the period containing today,
-    //   and totalIncome includes paydays that have already occurred.
+    // We only deduct bills that are STILL UPCOMING (due date >= today AND <= periodEnd).
+    // Bills whose due date already passed are NOT deducted — they're already out of the bank.
     //
-    // currentBalance is the user's ACTUAL bank balance (set during onboarding or updated).
-    // If not set (null), fall back to income-based calculation for backward compat.
+    // Formula: spendableBalance = currentBalance - upcomingBillsInPeriod - upcomingExpenses
+    //
+    // EXAMPLE: Apr 8, currentBalance=$10, nextPayday=Apr 10, bills: LA Fitness 9th ($39.99)
+    //   Window: Apr 8 → Apr 9 (day before next payday)
+    //   LA Fitness on 9th falls in window → deduct $39.99
+    //   spendableBalance = $10 - $39.99 = -$29.99 ✓
+    //
+    // ON PAYDAY (Apr 10): previous balance carries over + paycheck added
+    //   New window: Apr 10 → Apr 23
+    //   Only bills with dayOfMonth in 10-23 range are counted
     // ═══════════════════════════════════════════════════════════════
     const userDoc = await User.findById(req.userId).select("currentBalance");
     const currentBalance = userDoc?.currentBalance;
-    const hasCurrentBalance = currentBalance != null; // explicit check: 0 is valid
+    const hasCurrentBalance = currentBalance != null;
+
+    // Calculate bills due from TODAY through periodEnd (not from periodStart)
+    // This avoids double-counting bills that already came out of the bank
+    const todayNorm = startOfDay(today);
+    const upcomingBills = sumBillsInPeriod(bills, todayNorm, end, overrideMap, payments);
+    const upcomingExpenses = await sumExpensesInPeriod(req.userId, todayNorm, end);
 
     let balance;
     if (hasCurrentBalance) {
-      // Use actual bank balance as the base — this is the core of PayPulse.
-      // Deduct only bills and expenses. Savings/investments are tracked separately.
-      balance = currentBalance - totalBills - totalExpenses;
+      // Core PayPulse logic: real bank balance minus what's still coming
+      balance = currentBalance - upcomingBills - upcomingExpenses;
     } else {
-      // Fallback for users who haven't set currentBalance: use income-based calc
+      // Fallback for users without currentBalance set
       balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
     }
 

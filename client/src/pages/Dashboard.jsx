@@ -174,7 +174,7 @@ const Dashboard = () => {
             return (
               <>
                 <div className="planner-header-row">
-                  <h2 className="section-title">Upcoming</h2>
+                  <h2 className="section-title">Bills This Pay Period</h2>
                   <button type="button" className="link-button" onClick={() => setShowAllDays((p) => !p)}>
                     {showAllDays ? "Card view" : "Show all"}
                   </button>

@@ -50,10 +50,12 @@ const SavingsPanel = () => {
     const amount = Number(input);
     if (!amount || amount <= 0) return;
     try {
-      await authFetch(`/api/savings-goals/${goal._id}/contribute`, {
-        method: "POST",
-        body: JSON.stringify({ amount }),
-      });
+      // 1. Add to savings goal
+      await authFetch(`/api/savings-goals/${goal._id}/contribute`, { method: "POST", body: JSON.stringify({ amount }) });
+      // 2. Log as expense (deducts from spendable balance)
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: dateStr, amount, category: "Savings", description: `Savings — ${goal.name}` }) });
       load();
     } catch { /* ignore */ }
   };

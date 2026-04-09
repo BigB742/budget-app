@@ -242,9 +242,16 @@ router.post("/forgot-password", async (req, res) => {
     // Send reset email using the shared sendEmail utility (uses Gmail SMTP)
     const APP_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
     const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
-    await sendEmail(user.email, "Reset your PayPulse password",
-      `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`
-    ).catch(err => console.error("Password reset email error:", err));
+    console.log("[ForgotPassword] Attempting to send reset email to:", user.email);
+    try {
+      await sendEmail(user.email, "Reset your PayPulse password",
+        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`
+      );
+      console.log("[ForgotPassword] Email sent successfully");
+    } catch (emailErr) {
+      console.error("[ForgotPassword] Email send failed:", emailErr.message, emailErr.code, emailErr.response);
+      // Still return success to prevent email enumeration — token is saved even if email fails
+    }
 
     res.json({ success: true });
   } catch (error) {
