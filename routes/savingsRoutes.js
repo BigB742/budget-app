@@ -1,6 +1,7 @@
 const express = require("express");
 
 const SavingsGoal = require("../models/SavingsGoal");
+const User = require("../models/User");
 const { authRequired } = require("../middleware/auth");
 
 const router = express.Router();
@@ -21,6 +22,14 @@ router.post("/", authRequired, async (req, res) => {
     if (!name || targetAmount == null) {
       return res.status(400).json({ message: "Name and target amount are required." });
     }
+
+    if (req.subscriptionStatus === "free") {
+      const goalCount = await SavingsGoal.countDocuments({ userId: req.userId });
+      if (goalCount >= 3) {
+        return res.status(403).json({ message: "Free accounts are limited to 3 savings goals. Upgrade to Premium for unlimited savings goals." });
+      }
+    }
+
     const goal = await SavingsGoal.create({
       userId: req.userId,
       name,
@@ -69,12 +78,38 @@ router.post("/:id/contribute", authRequired, async (req, res) => {
     if (!goal) return res.status(404).json({ message: "Goal not found." });
 
     const newSaved = Math.min(goal.savedAmount + contribution, goal.targetAmount);
+    const actualContribution = newSaved - goal.savedAmount;
     goal.savedAmount = newSaved;
     await goal.save();
+    // Deduct from user's spendable balance
+    await User.findByIdAndUpdate(req.userId, { $inc: { currentBalance: -actualContribution } });
     res.json(goal);
   } catch (err) {
     console.error("Error contributing to savings goal:", err);
     res.status(500).json({ message: "Failed to add contribution." });
+  }
+});
+
+router.post("/:id/withdraw", authRequired, async (req, res) => {
+  try {
+    const { amount } = req.body || {};
+    const withdrawal = Number(amount);
+    if (!withdrawal || withdrawal <= 0) {
+      return res.status(400).json({ message: "Withdrawal amount must be greater than zero." });
+    }
+    const goal = await SavingsGoal.findOne({ _id: req.params.id, userId: req.userId });
+    if (!goal) return res.status(404).json({ message: "Goal not found." });
+    if (withdrawal > goal.savedAmount) {
+      return res.status(400).json({ message: "Cannot withdraw more than current savings balance." });
+    }
+    goal.savedAmount -= withdrawal;
+    await goal.save();
+    // Return to user's spendable balance
+    await User.findByIdAndUpdate(req.userId, { $inc: { currentBalance: withdrawal } });
+    res.json(goal);
+  } catch (err) {
+    console.error("Error withdrawing from savings goal:", err);
+    res.status(500).json({ message: "Failed to withdraw." });
   }
 });
 

@@ -122,6 +122,9 @@ const VerifyEmail = () => {
             Code resent! Check your inbox.
           </p>
         )}
+        <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.75rem" }}>
+          Don't see the email? Check your spam or junk folder.
+        </p>
       </div>
     </div>
   );

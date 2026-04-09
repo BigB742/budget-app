@@ -40,6 +40,7 @@ const createTokenResponse = (user) => {
       isAdmin: !!user.isAdmin,
       currentBalance: user.currentBalance || 0,
       twoFactorEnabled: !!user.twoFactorEnabled,
+      incomeType: user.incomeType || "fixed",
     },
   };
 };

@@ -8,7 +8,7 @@ const FREQ_OPTIONS = [
   { value: "monthly", label: "Monthly" },
 ];
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 9;
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
@@ -16,16 +16,27 @@ const Onboarding = () => {
 
   const user = (() => { try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; } })();
 
-  // Step 2 state
+  // Step 2 — Income Type
+  const [incomeType, setIncomeType] = useState("");
+
+  // Step 3 — Pay Frequency
   const [frequency, setFrequency] = useState("");
 
-  // Step 3 state
+  // Step 4 — Income Amount
   const [incomeAmount, setIncomeAmount] = useState("");
   const [nextPayDate, setNextPayDate] = useState("");
   const [incomeError, setIncomeError] = useState("");
   const [incomeSaved, setIncomeSaved] = useState(false);
 
-  // Step 4 & 5 state
+  // Step 5 — Bank Balance
+  const [bankBalance, setBankBalance] = useState("");
+  const [balanceSaved, setBalanceSaved] = useState(false);
+
+  // Step 6 — Savings
+  const [savings, setSavings] = useState("");
+  const [savingsSaved, setSavingsSaved] = useState(false);
+
+  // Steps 7 & 8 — Bills
   const [bill1, setBill1] = useState({ name: "", amount: "", dueDay: "" });
   const [bill1Error, setBill1Error] = useState("");
   const [bill1Saved, setBill1Saved] = useState(false);
@@ -36,6 +47,7 @@ const Onboarding = () => {
   const anythingSkipped = !incomeSaved || (!bill1Saved && !bill2Saved);
 
   const finishOnboarding = async () => {
+    setSaving(true);
     try {
       const updated = await authFetch("/api/user/complete-onboarding", { method: "POST" });
       localStorage.setItem("user", JSON.stringify(updated));
@@ -43,7 +55,7 @@ const Onboarding = () => {
     window.location.href = "/app";
   };
 
-  // ── Step 1 ──────────────────────────────────────────────────────────────────
+  // ── Step 1 — Welcome ─────────────────────────────────────────────────────────
   if (step === 1) {
     return (
       <div className="onboarding-page">
@@ -59,8 +71,51 @@ const Onboarding = () => {
     );
   }
 
-  // ── Step 2 — Pay Frequency ───────────────────────────────────────────────────
+  // ── Step 2 — Income Type ─────────────────────────────────────────────────────
   if (step === 2) {
+    const handleSelect = async (type) => {
+      setIncomeType(type);
+      try {
+        await authFetch("/api/user/me", {
+          method: "PUT",
+          body: JSON.stringify({ incomeType: type }),
+        });
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...stored, incomeType: type }));
+      } catch { /* non-critical */ }
+      setStep(3);
+    };
+
+    return (
+      <div className="onboarding-page">
+        <ProgressBar step={step} />
+        <div className="ob-step">
+          <h2>How do you get paid?</h2>
+          <div className="ob-income-type-grid">
+            <button type="button" className="ob-income-type-card" onClick={() => handleSelect("fixed")}>
+              <span className="ob-income-type-icon">💼</span>
+              <span className="ob-income-type-title">Fixed Salary / Regular Job</span>
+              <span className="ob-income-type-desc">I get the same amount every paycheck. My employer deposits it automatically.</span>
+            </button>
+            <button type="button" className="ob-income-type-card" onClick={() => handleSelect("variable")}>
+              <span className="ob-income-type-icon">📊</span>
+              <span className="ob-income-type-title">Variable / Part-Time</span>
+              <span className="ob-income-type-desc">My pay changes week to week based on hours or tips. I'll enter what I made each period.</span>
+            </button>
+          </div>
+          <p className="ob-tip">
+            Not sure which to pick? Choose <strong>Fixed</strong> if you always get roughly the same paycheck. Choose <strong>Variable</strong> if your income changes.
+          </p>
+          <button type="button" className="link-button ob-skip" onClick={() => setStep(3)}>
+            Skip for now →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 3 — Pay Frequency ───────────────────────────────────────────────────
+  if (step === 3) {
     return (
       <div className="onboarding-page">
         <ProgressBar step={step} />
@@ -72,13 +127,13 @@ const Onboarding = () => {
                 key={f.value}
                 type="button"
                 className={`ob-freq-card${frequency === f.value ? " selected" : ""}`}
-                onClick={() => { setFrequency(f.value); setStep(3); }}
+                onClick={() => { setFrequency(f.value); setStep(4); }}
               >
                 {f.label}
               </button>
             ))}
           </div>
-          <button type="button" className="link-button ob-skip" onClick={() => setStep(3)}>
+          <button type="button" className="link-button ob-skip" onClick={() => setStep(4)}>
             Skip for now →
           </button>
         </div>
@@ -86,8 +141,8 @@ const Onboarding = () => {
     );
   }
 
-  // ── Step 3 — Income ──────────────────────────────────────────────────────────
-  if (step === 3) {
+  // ── Step 4 — Income Amount ───────────────────────────────────────────────────
+  if (step === 4) {
     const canContinue = incomeAmount && nextPayDate;
 
     const handleContinue = async () => {
@@ -106,12 +161,14 @@ const Onboarding = () => {
         });
         setIncomeSaved(true);
       } catch (err) {
-        if (!err.message?.includes("duplicate")) {
-          setIncomeError("Failed to save income. You can add it later from your dashboard.");
+        if (!err.message?.includes("already have")) {
+          setIncomeError("Couldn't save income. You can add it from your dashboard.");
+        } else {
+          setIncomeSaved(true);
         }
       } finally {
         setSaving(false);
-        setStep(4);
+        setStep(5);
       }
     };
 
@@ -158,92 +215,6 @@ const Onboarding = () => {
             >
               {saving ? "Saving..." : "Continue →"}
             </button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(4)}>
-              Skip for now →
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 4 — First Bill ──────────────────────────────────────────────────────
-  if (step === 4) {
-    const canAdd = bill1.name && bill1.amount && bill1.dueDay;
-
-    const handleAddBill = async () => {
-      setBill1Error("");
-      const day = Number(bill1.dueDay);
-      if (day < 1 || day > 31) { setBill1Error("Due day must be between 1 and 31."); return; }
-      setSaving(true);
-      try {
-        await authFetch("/api/bills", {
-          method: "POST",
-          body: JSON.stringify({
-            name: bill1.name,
-            amount: Number(bill1.amount),
-            dueDayOfMonth: day,
-          }),
-        });
-        setBill1Saved(true);
-      } catch (err) {
-        setBill1Error(err.message || "Failed to save bill. You can add it later.");
-      } finally {
-        setSaving(false);
-        setStep(5);
-      }
-    };
-
-    return (
-      <div className="onboarding-page">
-        <ProgressBar step={step} />
-        <div className="ob-step">
-          <h2>Add your first bill.</h2>
-          <p className="ob-subtitle">What's something you pay every month?</p>
-          <div className="ob-form">
-            <label>
-              Bill name
-              <input
-                type="text"
-                placeholder="e.g. Rent, Phone, Netflix"
-                value={bill1.name}
-                onChange={(e) => setBill1((p) => ({ ...p, name: e.target.value }))}
-              />
-            </label>
-            <label>
-              Amount
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={bill1.amount}
-                onChange={(e) => setBill1((p) => ({ ...p, amount: e.target.value }))}
-              />
-            </label>
-            <label>
-              Due date (day of month)
-              <input
-                type="number"
-                min="1"
-                max="31"
-                placeholder="1 – 31"
-                value={bill1.dueDay}
-                onChange={(e) => setBill1((p) => ({ ...p, dueDay: e.target.value }))}
-              />
-            </label>
-          </div>
-          {bill1Error && <p className="ob-error">{bill1Error}</p>}
-          <div className="ob-actions-col">
-            <button
-              type="button"
-              className="primary-button"
-              style={{ width: "100%" }}
-              onClick={handleAddBill}
-              disabled={!canAdd || saving}
-            >
-              {saving ? "Saving..." : "Add Bill →"}
-            </button>
             <button type="button" className="link-button ob-skip" onClick={() => setStep(5)}>
               Skip for now →
             </button>
@@ -253,28 +224,19 @@ const Onboarding = () => {
     );
   }
 
-  // ── Step 5 — Second Bill ─────────────────────────────────────────────────────
+  // ── Step 5 — Current Bank Balance ────────────────────────────────────────────
   if (step === 5) {
-    const canAdd = bill2.name && bill2.amount && bill2.dueDay;
-
-    const handleAddBill = async () => {
-      setBill2Error("");
-      const day = Number(bill2.dueDay);
-      if (day < 1 || day > 31) { setBill2Error("Due day must be between 1 and 31."); return; }
+    const handleContinue = async () => {
       setSaving(true);
       try {
-        await authFetch("/api/bills", {
-          method: "POST",
-          body: JSON.stringify({
-            name: bill2.name,
-            amount: Number(bill2.amount),
-            dueDayOfMonth: day,
-          }),
+        const balance = bankBalance !== "" ? Number(bankBalance) : 0;
+        await authFetch("/api/user/me", {
+          method: "PUT",
+          body: JSON.stringify({ currentBalance: balance }),
         });
-        setBill2Saved(true);
-      } catch (err) {
-        setBill2Error(err.message || "Failed to save bill. You can add it later.");
-      } finally {
+        setBalanceSaved(true);
+      } catch { /* non-critical */ }
+      finally {
         setSaving(false);
         setStep(6);
       }
@@ -284,50 +246,31 @@ const Onboarding = () => {
       <div className="onboarding-page">
         <ProgressBar step={step} />
         <div className="ob-step">
-          <h2>Great! Add one more bill.</h2>
+          <h2>What is your current bank balance?</h2>
+          <p className="ob-subtitle">Enter exactly what you see in your checking account right now. This is your starting point.</p>
           <div className="ob-form">
             <label>
-              Bill name
-              <input
-                type="text"
-                placeholder="e.g. Car payment, Internet"
-                value={bill2.name}
-                onChange={(e) => setBill2((p) => ({ ...p, name: e.target.value }))}
-              />
-            </label>
-            <label>
-              Amount
+              Current balance
               <input
                 type="number"
-                min="0"
                 step="0.01"
                 placeholder="0.00"
-                value={bill2.amount}
-                onChange={(e) => setBill2((p) => ({ ...p, amount: e.target.value }))}
-              />
-            </label>
-            <label>
-              Due date (day of month)
-              <input
-                type="number"
-                min="1"
-                max="31"
-                placeholder="1 – 31"
-                value={bill2.dueDay}
-                onChange={(e) => setBill2((p) => ({ ...p, dueDay: e.target.value }))}
+                value={bankBalance}
+                onChange={(e) => setBankBalance(e.target.value)}
+                style={{ fontSize: "1.5rem", textAlign: "center", fontWeight: 700 }}
               />
             </label>
           </div>
-          {bill2Error && <p className="ob-error">{bill2Error}</p>}
+          <p className="ob-tip">Overdrafted? No problem — just enter a negative number like -50.00 and we'll calculate from there.</p>
           <div className="ob-actions-col">
             <button
               type="button"
               className="primary-button"
               style={{ width: "100%" }}
-              onClick={handleAddBill}
-              disabled={!canAdd || saving}
+              onClick={handleContinue}
+              disabled={saving}
             >
-              {saving ? "Saving..." : "Add Bill →"}
+              {saving ? "Saving..." : "Continue →"}
             </button>
             <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>
               Skip for now →
@@ -338,7 +281,155 @@ const Onboarding = () => {
     );
   }
 
-  // ── Step 6 — All Set ─────────────────────────────────────────────────────────
+  // ── Step 6 — Savings ─────────────────────────────────────────────────────────
+  if (step === 6) {
+    const handleContinue = async () => {
+      setSaving(true);
+      try {
+        const amt = savings !== "" ? Math.max(0, Number(savings)) : 0;
+        await authFetch("/api/user/me", {
+          method: "PUT",
+          body: JSON.stringify({ totalSavings: amt }),
+        });
+        setSavingsSaved(true);
+      } catch { /* non-critical */ }
+      finally {
+        setSaving(false);
+        setStep(7);
+      }
+    };
+
+    return (
+      <div className="onboarding-page">
+        <ProgressBar step={step} />
+        <div className="ob-step">
+          <h2>Do you have any savings set aside?</h2>
+          <p className="ob-subtitle">Savings are kept completely separate from your spendable balance.</p>
+          <div className="ob-form">
+            <label>
+              Current savings
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={savings}
+                onChange={(e) => setSavings(e.target.value)}
+                style={{ fontSize: "1.5rem", textAlign: "center", fontWeight: 700 }}
+              />
+            </label>
+          </div>
+          <div className="ob-actions-col">
+            <button
+              type="button"
+              className="primary-button"
+              style={{ width: "100%" }}
+              onClick={handleContinue}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Continue →"}
+            </button>
+            <button type="button" className="link-button ob-skip" onClick={() => setStep(7)}>
+              Skip for now →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 7 — First Bill ──────────────────────────────────────────────────────
+  if (step === 7) {
+    const canAdd = bill1.name && bill1.amount && bill1.dueDay;
+
+    const handleAddBill = async () => {
+      setBill1Error("");
+      const day = Number(bill1.dueDay);
+      if (day < 1 || day > 31) { setBill1Error("Due day must be between 1 and 31."); return; }
+      setSaving(true);
+      try {
+        await authFetch("/api/bills", {
+          method: "POST",
+          body: JSON.stringify({ name: bill1.name, amount: Number(bill1.amount), dueDayOfMonth: day }),
+        });
+        setBill1Saved(true);
+      } catch (err) {
+        setBill1Error(err.message || "Couldn't save bill. You can add it later.");
+      } finally {
+        setSaving(false);
+        setStep(8);
+      }
+    };
+
+    return (
+      <div className="onboarding-page">
+        <ProgressBar step={step} />
+        <div className="ob-step">
+          <h2>Add your first bill.</h2>
+          <p className="ob-subtitle">What's something you pay every month?</p>
+          <div className="ob-form">
+            <label>Bill name<input type="text" placeholder="e.g. Rent, Phone, Netflix" value={bill1.name} onChange={(e) => setBill1((p) => ({ ...p, name: e.target.value }))} /></label>
+            <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill1.amount} onChange={(e) => setBill1((p) => ({ ...p, amount: e.target.value }))} /></label>
+            <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill1.dueDay} onChange={(e) => setBill1((p) => ({ ...p, dueDay: e.target.value }))} /></label>
+          </div>
+          {bill1Error && <p className="ob-error">{bill1Error}</p>}
+          <div className="ob-actions-col">
+            <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
+              {saving ? "Saving..." : "Add Bill →"}
+            </button>
+            <button type="button" className="link-button ob-skip" onClick={() => setStep(8)}>Skip for now →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 8 — Second Bill ─────────────────────────────────────────────────────
+  if (step === 8) {
+    const canAdd = bill2.name && bill2.amount && bill2.dueDay;
+
+    const handleAddBill = async () => {
+      setBill2Error("");
+      const day = Number(bill2.dueDay);
+      if (day < 1 || day > 31) { setBill2Error("Due day must be between 1 and 31."); return; }
+      setSaving(true);
+      try {
+        await authFetch("/api/bills", {
+          method: "POST",
+          body: JSON.stringify({ name: bill2.name, amount: Number(bill2.amount), dueDayOfMonth: day }),
+        });
+        setBill2Saved(true);
+      } catch (err) {
+        setBill2Error(err.message || "Couldn't save bill. You can add it later.");
+      } finally {
+        setSaving(false);
+        setStep(9);
+      }
+    };
+
+    return (
+      <div className="onboarding-page">
+        <ProgressBar step={step} />
+        <div className="ob-step">
+          <h2>Great! Add one more bill.</h2>
+          <div className="ob-form">
+            <label>Bill name<input type="text" placeholder="e.g. Car payment, Internet" value={bill2.name} onChange={(e) => setBill2((p) => ({ ...p, name: e.target.value }))} /></label>
+            <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill2.amount} onChange={(e) => setBill2((p) => ({ ...p, amount: e.target.value }))} /></label>
+            <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill2.dueDay} onChange={(e) => setBill2((p) => ({ ...p, dueDay: e.target.value }))} /></label>
+          </div>
+          {bill2Error && <p className="ob-error">{bill2Error}</p>}
+          <div className="ob-actions-col">
+            <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
+              {saving ? "Saving..." : "Add Bill →"}
+            </button>
+            <button type="button" className="link-button ob-skip" onClick={() => setStep(9)}>Skip for now →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 9 — All Set ─────────────────────────────────────────────────────────
   return (
     <div className="onboarding-page">
       <ProgressBar step={step} />
@@ -351,12 +442,7 @@ const Onboarding = () => {
             You can add your income and bills anytime from your dashboard.
           </p>
         )}
-        <button
-          type="button"
-          className="primary-button ob-cta"
-          onClick={finishOnboarding}
-          disabled={saving}
-        >
+        <button type="button" className="primary-button ob-cta" onClick={finishOnboarding} disabled={saving}>
           {saving ? "Setting up..." : "Go to my dashboard →"}
         </button>
       </div>

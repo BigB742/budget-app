@@ -22,6 +22,7 @@ const userResponse = (user) => ({
   incomeSettings: user.incomeSettings || {},
   loginHistory: (user.loginHistory || []).slice(0, 5),
   twoFactorEnabled: !!user.twoFactorEnabled,
+  incomeType: user.incomeType || "fixed",
   createdAt: user.createdAt,
 });
 
@@ -61,6 +62,8 @@ router.put("/me", authRequired, async (req, res) => {
     if (isPremium !== undefined) { user.isPremium = isPremium; if (isPremium && !user.premiumSince) user.premiumSince = new Date(); }
     if (twoFactorEnabled !== undefined) user.twoFactorEnabled = twoFactorEnabled;
     if (currentBalance !== undefined) user.currentBalance = Number(currentBalance);
+    if (req.body.incomeType !== undefined) user.incomeType = req.body.incomeType;
+    if (req.body.totalSavings !== undefined) user.totalSavings = Number(req.body.totalSavings);
 
     if (notificationPrefs) {
       const p = user.notificationPrefs || {};

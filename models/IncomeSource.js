@@ -34,6 +34,7 @@ const incomeSourceSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    lastAutoIncomeDate: { type: Date },
   },
   { timestamps: true }
 );

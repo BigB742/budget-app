@@ -28,10 +28,13 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const getStoredUser = () => { try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; } };
+
 const Dashboard = () => {
   const cache = useDataCache();
   const summary = cache?.summary;
   const { isFree, isTrialing, trialDaysLeft } = useSubscription();
+  const storedUser = getStoredUser();
 
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
@@ -123,6 +126,22 @@ const Dashboard = () => {
           <div className="stat-card"><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></div>
           <div className="stat-card"><span className="stat-label">Saved</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></div>
         </div>
+      )}
+
+      {/* Incomplete setup warning */}
+      {summary && summary.empty && (!storedUser.currentBalance || storedUser.currentBalance === 0) && (
+        <Link to="/onboarding" className="dash-setup-banner">
+          <span>⚠️ Your balance may not be accurate. Add your current bank balance and income to see your real spendable balance.</span>
+          <span className="dash-setup-banner-cta">Set up →</span>
+        </Link>
+      )}
+
+      {/* Variable income prompt */}
+      {storedUser.incomeType === "variable" && summary && summary.totalIncome === 0 && !summary.empty && (
+        <Link to="/app/income" className="dash-variable-banner">
+          <span>💰 Don't forget to log your income for this pay period!</span>
+          <span className="dash-setup-banner-cta">Add income →</span>
+        </Link>
       )}
 
       {/* Upgrade banner for free/trialing users */}

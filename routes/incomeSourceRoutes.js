@@ -27,13 +27,15 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    const count = await IncomeSource.countDocuments({ user: req.userId, isActive: true });
+    if (count >= 1) {
+      return res.status(403).json({ message: "You already have a primary income source. Edit your existing income source to change the amount or schedule." });
+    }
+
     // If this is marked primary, unmark others
     if (isPrimary) {
       await IncomeSource.updateMany({ user: req.userId }, { isPrimary: false });
     }
-
-    // If this is the first source, make it primary automatically
-    const count = await IncomeSource.countDocuments({ user: req.userId, isActive: true });
 
     const source = await IncomeSource.create({
       user: req.userId,
@@ -41,7 +43,7 @@ router.post("/", authRequired, async (req, res) => {
       amount,
       frequency,
       nextPayDate: new Date(nextPayDate),
-      isPrimary: isPrimary || count === 0,
+      isPrimary: true, // always primary since only 1 allowed
     });
 
     res.status(201).json(source);

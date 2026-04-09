@@ -82,9 +82,10 @@ protectedRouter.use("/export", exportRoutes);
 protectedRouter.use("/one-time-income", oneTimeIncomeRoutes);
 app.use("/api", protectedRouter);
 
-// Cron jobs (bill reminders + savings autopilot)
+// Cron jobs
 require("./jobs/billReminders");
 require("./jobs/savingsAutopilot");
+require("./jobs/paydayIncome");
 
 // Export for Vercel serverless
 module.exports = app;

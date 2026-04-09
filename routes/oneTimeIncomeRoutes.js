@@ -1,6 +1,7 @@
 const express = require("express");
 const { authRequired } = require("../middleware/auth");
 const OneTimeIncome = require("../models/OneTimeIncome");
+const User = require("../models/User");
 
 const router = express.Router();
 
@@ -30,6 +31,21 @@ router.post("/", authRequired, async (req, res) => {
 
     if (!name || amount == null || !date) {
       return res.status(400).json({ error: "name, amount, and date are required." });
+    }
+
+    // Enforce 50 extra income entries per calendar year
+    const currentYear = new Date().getFullYear();
+    const user = await User.findById(req.userId).select("extraIncomeCount extraIncomeYearReset");
+    if (user) {
+      const resetNeeded = !user.extraIncomeYearReset || user.extraIncomeYearReset !== currentYear;
+      const count = resetNeeded ? 0 : (user.extraIncomeCount || 0);
+      if (count >= 50) {
+        return res.status(403).json({ error: "You have reached the maximum of 50 extra income entries for this year. Your limit resets on January 1st." });
+      }
+      await User.findByIdAndUpdate(req.userId, {
+        extraIncomeCount: count + 1,
+        extraIncomeYearReset: currentYear,
+      });
     }
 
     const item = await OneTimeIncome.create({

@@ -830,6 +830,18 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .ob-checkmark { font-size: 3.5rem; color: var(--teal); animation: ob-pop 0.4s ease; margin-bottom: 0.5rem; }
 @keyframes ob-pop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
 .ob-skip-note { color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 1.5rem; text-align: center; max-width: 320px; }
+.ob-income-type-grid { display: flex; flex-direction: column; gap: 0.75rem; margin: 1rem 0 1rem; width: 100%; }
+.ob-income-type-card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; padding: 1.1rem 1rem; border-radius: var(--radius-lg); border: 2px solid var(--card-border); background: var(--card); text-align: left; cursor: pointer; transition: all 0.12s; }
+.ob-income-type-card:hover { border-color: var(--teal); }
+.ob-income-type-icon { font-size: 1.5rem; }
+.ob-income-type-title { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.ob-income-type-desc { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; }
+.ob-tip { font-size: 0.82rem; color: var(--text-secondary); background: var(--bg); border-radius: var(--radius); padding: 0.6rem 0.75rem; margin: 0 0 1rem; line-height: 1.5; }
+.dash-setup-banner { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: rgba(255,163,0,0.12); border: 1px solid rgba(255,163,0,0.3); border-radius: var(--radius-lg); color: var(--text); text-decoration: none; font-size: 0.85rem; margin-bottom: 0.75rem; }
+.dash-setup-banner:hover { background: rgba(255,163,0,0.2); }
+.dash-variable-banner { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: rgba(0,200,150,0.1); border: 1px solid rgba(0,200,150,0.25); border-radius: var(--radius-lg); color: var(--text); text-decoration: none; font-size: 0.85rem; margin-bottom: 0.75rem; }
+.dash-variable-banner:hover { background: rgba(0,200,150,0.18); }
+.dash-setup-banner-cta { font-weight: 700; white-space: nowrap; color: var(--accent); font-size: 0.82rem; }
 
 /* Subscription page */
 .sub-page { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
