@@ -4,12 +4,26 @@
     {
       "src": "index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/cron/payday.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
+      "src": "/api/cron/payday",
+      "dest": "api/cron/payday.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/payday",
+      "schedule": "0 0 * * *"
     }
   ]
 }
