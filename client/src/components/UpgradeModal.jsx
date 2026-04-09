@@ -1,4 +1,9 @@
+import { useState } from "react";
+import { authFetch } from "../apiClient";
+
 const UpgradeModal = ({ onClose }) => {
+  const [loading, setLoading] = useState(false);
+
   const features = [
     "Calendar full year projections",
     "PDF expense reports",
@@ -8,12 +13,27 @@ const UpgradeModal = ({ onClose }) => {
     "Spending insights",
   ];
 
+  const handleUpgrade = async () => {
+    setLoading(true);
+    try {
+      const data = await authFetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        body: JSON.stringify({ plan: "monthly" }),
+      });
+      if (data.url) window.location.href = data.url;
+    } catch {
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, textAlign: "center" }}>
         <h3 style={{ margin: "0 0 0.25rem" }}>Unlock Premium</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", margin: "0 0 0.75rem" }}>
-          $6.99/month or $59.99/year (save 28%)
+          $4.99/month or $39.99/year (save 33%)
         </p>
         <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", textAlign: "left" }}>
           {features.map((f) => (
@@ -26,9 +46,10 @@ const UpgradeModal = ({ onClose }) => {
           type="button"
           className="primary-button"
           style={{ width: "100%", marginBottom: "0.5rem" }}
-          onClick={() => { /* TODO: Stripe checkout */ onClose(); }}
+          onClick={handleUpgrade}
+          disabled={loading}
         >
-          Start Free Trial &mdash; 7 days free
+          {loading ? "Redirecting..." : "Start Free Trial \u2014 3 days free"}
         </button>
         <button type="button" className="link-button" style={{ color: "var(--text-secondary)", fontSize: "0.78rem" }} onClick={onClose}>
           Maybe later

@@ -20,6 +20,7 @@ const exportRoutes = require("./routes/exportRoutes");
 const oneTimeIncomeRoutes = require("./routes/oneTimeIncomeRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
+const { authRequired } = require("./middleware/auth");
 const { checkSubscriptionStatus } = require("./middleware/subscription");
 const stripeRoutes = require("./routes/stripe");
 
@@ -60,22 +61,26 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-// All routes below get subscription status checked on every request
-app.use("/api/bills", billRoutes);
-app.use("/api/pay-schedule", payScheduleRoutes);
-app.use("/api/expenses", expenseRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/summary", summaryRoutes);
-app.use("/api/savings-goals", savingsRoutes);
-app.use("/api/investments", investmentRoutes);
-app.use("/api/income-sources", incomeSourceRoutes);
-app.use("/api/payment-overrides", paymentOverrideRoutes);
-app.use("/api/bill-payments", billPaymentRoutes);
-app.use("/api/debts", debtRoutes);
-app.use("/api/export", exportRoutes);
-app.use("/api/one-time-income", oneTimeIncomeRoutes);
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Protected routes: auth + subscription status sync on every request
+const protectedRouter = express.Router();
+protectedRouter.use(authRequired, checkSubscriptionStatus);
+protectedRouter.use("/bills", billRoutes);
+protectedRouter.use("/pay-schedule", payScheduleRoutes);
+protectedRouter.use("/expenses", expenseRoutes);
+protectedRouter.use("/user", userRoutes);
+protectedRouter.use("/summary", summaryRoutes);
+protectedRouter.use("/savings-goals", savingsRoutes);
+protectedRouter.use("/investments", investmentRoutes);
+protectedRouter.use("/income-sources", incomeSourceRoutes);
+protectedRouter.use("/payment-overrides", paymentOverrideRoutes);
+protectedRouter.use("/bill-payments", billPaymentRoutes);
+protectedRouter.use("/debts", debtRoutes);
+protectedRouter.use("/export", exportRoutes);
+protectedRouter.use("/one-time-income", oneTimeIncomeRoutes);
+app.use("/api", protectedRouter);
 
 // Cron jobs (bill reminders + savings autopilot)
 require("./jobs/billReminders");
