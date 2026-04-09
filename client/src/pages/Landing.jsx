@@ -154,9 +154,9 @@ const Landing = () => (
           </Link>
         </div>
         <div className="lp-price-card lp-premium">
-          <div className="lp-save-badge">Save 28% annually</div>
+          <div className="lp-save-badge">Save 33% annually</div>
           <h3>Premium</h3>
-          <p className="lp-price">$6.99<span>/month or $59.99/year</span></p>
+          <p className="lp-price">$4.99<span>/month or $39.99/year</span></p>
           <ul>
             <li>Everything in Free</li>
             <li>Unlimited bills and history</li>
