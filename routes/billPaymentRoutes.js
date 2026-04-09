@@ -59,7 +59,7 @@ router.post("/", authRequired, async (req, res) => {
 
         if (duePeriod && paidPeriod && !sameStart) {
           // Different periods — create an expense in the paid-date period
-          const bill = await Bill.findById(billId);
+          const bill = await Bill.findOne({ _id: billId, user: req.userId });
           const billName = bill ? bill.name : "Bill";
 
           // Check if auto-expense already exists to avoid duplicates
@@ -108,7 +108,7 @@ router.delete("/:id", authRequired, async (req, res) => {
     // Cascade: delete linked auto-generated expense
     try {
       if (deleted.paidDate && deleted.bill) {
-        const bill = await Bill.findById(deleted.bill);
+        const bill = await Bill.findOne({ _id: deleted.bill, user: req.userId });
         const billName = bill ? bill.name : "";
         if (billName) {
           await Expense.deleteMany({

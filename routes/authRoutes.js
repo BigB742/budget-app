@@ -7,10 +7,9 @@ const IncomeSource = require("../models/IncomeSource");
 const Bill = require("../models/Bill");
 const { sendEmail } = require("../utils/email");
 
-const sendVerificationEmail = async (user, token) => {
-  const verifyUrl = `${process.env.APP_URL || "https://paypulse-frontend.vercel.app"}/verify-email?token=${token}`;
-  await sendEmail(user.email, "Verify your PayPulse account",
-    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Welcome to PayPulse!</h2><p>Hi ${user.firstName || "there"},</p><p>Please verify your email to activate your account.</p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Verify my email</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 24 hours.</p></div>`
+const sendVerificationEmail = async (user, code) => {
+  await sendEmail(user.email, "Your PayPulse verification code",
+    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;text-align:center"><h2>Welcome to PayPulse!</h2><p style="color:#555">Hi ${user.firstName || "there"},</p><p style="color:#555;margin-bottom:1.5rem">Your verification code is:</p><div style="font-size:2.5rem;font-weight:800;letter-spacing:0.3em;color:#00C896;margin:1rem 0">${code}</div><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This code expires in 15 minutes.</p></div>`
   );
 };
 
@@ -79,12 +78,12 @@ router.post("/signup", async (req, res) => {
       return res.status(201).json(createTokenResponse(user));
     }
 
-    const vToken = crypto.randomBytes(32).toString("hex");
-    user.verificationToken = vToken;
-    user.verificationTokenExpiry = new Date(Date.now() + 24*60*60*1000);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = code;
+    user.verificationCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    await sendVerificationEmail(user, vToken).catch(err => console.error("Verification email error:", err));
+    await sendVerificationEmail(user, code).catch(err => console.error("Verification email error:", err));
 
     res.status(201).json({ needsVerification: true, email: user.email });
   } catch (error) {
@@ -161,28 +160,27 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.get("/verify-email", async (req, res) => {
+router.post("/verify-email", async (req, res) => {
   try {
-    const { token } = req.query;
-    if (!token) {
-      return res.status(400).json({ error: "Token is required." });
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and code are required." });
     }
 
-    const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpiry: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: "Invalid or expired verification link." });
+    const user = await User.findOne({ email: email.toLowerCase().trim(), emailVerified: false });
+    if (!user || user.verificationCode !== code) {
+      return res.status(400).json({ error: "Invalid code." });
+    }
+    if (!user.verificationCodeExpiry || user.verificationCodeExpiry < Date.now()) {
+      return res.status(400).json({ error: "Code expired, please request a new one." });
     }
 
     user.emailVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpiry = undefined;
+    user.verificationCode = undefined;
+    user.verificationCodeExpiry = undefined;
     await user.save();
 
-    res.json({ success: true, message: "Email verified!" });
+    res.json(createTokenResponse(user));
   } catch (error) {
     console.error("Verify email error:", error);
     res.status(500).json({ error: "Server error" });
@@ -198,15 +196,16 @@ router.post("/resend-verification", async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase().trim(), emailVerified: false });
     if (!user) {
-      return res.status(400).json({ error: "No unverified account found for this email." });
+      // Return success to avoid exposing whether email exists
+      return res.json({ success: true });
     }
 
-    const vToken = crypto.randomBytes(32).toString("hex");
-    user.verificationToken = vToken;
-    user.verificationTokenExpiry = new Date(Date.now() + 24*60*60*1000);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = code;
+    user.verificationCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    await sendVerificationEmail(user, vToken).catch(err => console.error("Verification email error:", err));
+    await sendVerificationEmail(user, code).catch(err => console.error("Verification email error:", err));
 
     res.json({ success: true });
   } catch (error) {
@@ -215,7 +214,7 @@ router.post("/resend-verification", async (req, res) => {
   }
 });
 
-// POST /forgot-password — request a password reset link
+// POST /forgot-password — send a 6-digit reset code
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -223,27 +222,21 @@ router.post("/forgot-password", async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      // Return success even if user not found to prevent email enumeration
+      // Return success to prevent email enumeration
       return res.json({ success: true });
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.passwordResetToken = resetToken;
-    user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetCode = code;
+    user.resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
     await user.save();
 
-    // Send reset email using the shared sendEmail utility (uses Gmail SMTP)
-    const APP_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
-    const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
-    console.log("[ForgotPassword] Attempting to send reset email to:", user.email);
     try {
       await sendEmail(user.email, "Reset your PayPulse password",
-        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem"><h2>Password Reset</h2><p>Hi ${user.firstName || "there"},</p><p>You requested a password reset. Click the button below to set a new password.</p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B35;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold">Reset password</a><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p></div>`
+        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;text-align:center"><h2>Password Reset</h2><p style="color:#555">Hi ${user.firstName || "there"},</p><p style="color:#555;margin-bottom:1.5rem">Your password reset code is:</p><div style="font-size:2.5rem;font-weight:800;letter-spacing:0.3em;color:#FF6B35;margin:1rem 0">${code}</div><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.</p></div>`
       );
-      console.log("[ForgotPassword] Email sent successfully");
     } catch (emailErr) {
-      console.error("[ForgotPassword] Email send failed:", emailErr.message, emailErr.code, emailErr.response);
-      // Still return success to prevent email enumeration — token is saved even if email fails
+      console.error("[ForgotPassword] Email send failed:", emailErr.message);
     }
 
     res.json({ success: true });
@@ -253,27 +246,28 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-// POST /reset-password — set new password using reset token
+// POST /reset-password — set new password using 6-digit code
 router.post("/reset-password", async (req, res) => {
   try {
-    const { token, password } = req.body;
-    if (!token || !password) return res.status(400).json({ error: "Token and password are required." });
-
-    const user = await User.findOne({
-      passwordResetToken: token,
-      passwordResetExpiry: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: "Invalid or expired reset token." });
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "Email, code, and new password are required." });
     }
 
-    user.passwordHash = await bcrypt.hash(password, 10);
-    user.passwordResetToken = undefined;
-    user.passwordResetExpiry = undefined;
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user || user.resetCode !== code) {
+      return res.status(400).json({ error: "Invalid code." });
+    }
+    if (!user.resetCodeExpiry || user.resetCodeExpiry < Date.now()) {
+      return res.status(400).json({ error: "Code expired, please request a new one." });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.resetCode = undefined;
+    user.resetCodeExpiry = undefined;
     await user.save();
 
-    res.json({ success: true, message: "Password updated." });
+    res.json({ success: true, message: "Password reset successful." });
   } catch (error) {
     console.error("Reset password error:", error);
     res.status(500).json({ error: "Server error" });

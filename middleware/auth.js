@@ -14,10 +14,13 @@ const authRequired = async (req, res, next) => {
     req.userId = decoded.userId;
     req.user = req.user || { _id: decoded.userId };
 
-    // Check and sync subscription status (auto-expire trials)
+    // Check email verification and sync subscription status
     try {
-      const user = await User.findById(req.userId).select("subscriptionStatus trialEndDate");
+      const user = await User.findById(req.userId).select("subscriptionStatus trialEndDate emailVerified");
       if (user) {
+        if (!user.emailVerified) {
+          return res.status(403).json({ error: "Please verify your email first.", needsVerification: true });
+        }
         if (user.subscriptionStatus === "trialing" && user.trialEndDate && new Date() > user.trialEndDate) {
           user.subscriptionStatus = "expired";
           await user.save();

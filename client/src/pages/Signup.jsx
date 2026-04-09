@@ -45,7 +45,7 @@ const Signup = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Signup failed.");
       if (data.needsVerification) {
-        navigate(`/check-email?email=${encodeURIComponent(data.email)}`);
+        navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
         localStorage.setItem("token", data.token);
         if (data.user) localStorage.setItem("user", JSON.stringify(data.user));

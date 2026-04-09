@@ -29,6 +29,14 @@ router.post("/", authRequired, async (req, res) => {
     if (!name || amount == null || !dueDayOfMonth) {
       return res.status(400).json({ error: "Name, amount, and due day of month are required." });
     }
+
+    if (req.subscriptionStatus === "free") {
+      const billCount = await Bill.countDocuments({ user: req.userId, isActive: { $ne: false } });
+      if (billCount >= 5) {
+        return res.status(403).json({ message: "Free accounts are limited to 5 bills. Upgrade to Premium for unlimited bills." });
+      }
+    }
+
     const bill = await Bill.create({
       user: req.userId,
       name,
