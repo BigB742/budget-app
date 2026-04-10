@@ -107,6 +107,52 @@ router.put("/me", authRequired, async (req, res) => {
   }
 });
 
+// DELETE /me — permanently delete account and all associated data
+router.delete("/me", authRequired, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id || req.userId;
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ message: "Password is required." });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return res.status(401).json({ message: "Incorrect password." });
+
+    const IncomeSource = require("../models/IncomeSource");
+    const Bill = require("../models/Bill");
+    const Expense = require("../models/Expense");
+    const SavingsGoal = require("../models/SavingsGoal");
+    const PaySchedule = require("../models/PaySchedule");
+    const BillPayment = require("../models/BillPayment");
+    const OneTimeIncome = require("../models/OneTimeIncome");
+    const Investment = require("../models/Investment");
+    const Debt = require("../models/Debt");
+    const PaymentOverride = require("../models/PaymentOverride");
+
+    await Promise.all([
+      IncomeSource.deleteMany({ user: userId }),
+      Bill.deleteMany({ user: userId }),
+      Expense.deleteMany({ user: userId }),
+      SavingsGoal.deleteMany({ user: userId }),
+      PaySchedule.deleteMany({ user: userId }),
+      BillPayment.deleteMany({ user: userId }),
+      OneTimeIncome.deleteMany({ user: userId }),
+      Investment.deleteMany({ user: userId }),
+      Debt.deleteMany({ user: userId }),
+      PaymentOverride.deleteMany({ user: userId }),
+    ]);
+
+    await User.findByIdAndDelete(userId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete account error:", error);
+    res.status(500).json({ message: "Failed to delete account." });
+  }
+});
+
 // POST /complete-onboarding — mark onboarding done
 router.post("/complete-onboarding", authRequired, async (req, res) => {
   try {

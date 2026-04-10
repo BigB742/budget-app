@@ -42,6 +42,8 @@ const Settings = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     const r = document.documentElement;
@@ -282,7 +284,15 @@ const Settings = () => {
             <div className="modal-header"><h4>Delete account</h4><button type="button" className="ghost-button" onClick={() => setShowDeleteModal(false)}>&#x2715;</button></div>
             <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will permanently delete your account and all your data. This cannot be undone.</p>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter your password to confirm<input type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} style={{ marginTop: "0.15rem" }} /></label>
-            <div className="modal-actions" style={{ marginTop: "0.5rem" }}><button type="button" className="ghost-button" onClick={() => setShowDeleteModal(false)}>Cancel</button><button type="button" className="delete-button" disabled={!deletePassword} onClick={() => { setShowDeleteModal(false); }}>Delete my account</button></div>
+            {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
+            <div className="modal-actions" style={{ marginTop: "0.5rem" }}><button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteError(""); }}>Cancel</button><button type="button" className="delete-button" disabled={!deletePassword || deleteLoading} onClick={async () => {
+              setDeleteLoading(true); setDeleteError("");
+              try {
+                await authFetch("/api/user/me", { method: "DELETE", body: JSON.stringify({ password: deletePassword }) });
+                localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/");
+              } catch (err) { setDeleteError(err?.message || "Failed to delete account."); }
+              finally { setDeleteLoading(false); }
+            }}>{deleteLoading ? "Deleting..." : "Delete my account"}</button></div>
           </div>
         </div>
       )}
