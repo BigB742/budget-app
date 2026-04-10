@@ -10,11 +10,11 @@ const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.ap
 
 const PLANS = {
   monthly: {
-    priceId: "price_1TIvB0G0K5DOC4SQm90gNzC5",
+    priceId: "price_1TKXPzG0K5DOC4SQnXTMze8Q",
     trialDays: 3,
   },
   annual: {
-    priceId: "price_1TIvBxG0K5DOC4SQXYBe0HVO",
+    priceId: "price_1TKXQGG0K5DOC4SQ2EzwQL3y",
     trialDays: 0,
   },
 };
