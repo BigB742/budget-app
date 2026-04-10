@@ -67,9 +67,16 @@ router.post("/webhook", async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    // Handle both raw Buffer (local dev) and pre-parsed body (Vercel serverless)
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(JSON.stringify(req.body));
+
+    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log("[Stripe Webhook] Event received:", event.type, "| Event ID:", event.id);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
+    console.error("[Stripe Webhook] Signature verification FAILED:", err.message);
+    console.error("[Stripe Webhook] Body type:", typeof req.body, "| isBuffer:", Buffer.isBuffer(req.body));
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -78,25 +85,29 @@ router.post("/webhook", async (req, res) => {
       case "checkout.session.completed": {
         const session = event.data.object;
         const userId = session.client_reference_id || session.metadata?.userId;
-        if (!userId) break;
+        console.log("[Stripe Webhook] checkout.session.completed | userId:", userId, "| customer:", session.customer);
+        if (!userId) { console.log("[Stripe Webhook] No userId found — skipping"); break; }
 
         const plan = session.metadata?.plan || "monthly";
         const subscriptionStatus = plan === "annual" ? "premium_annual" : "premium_monthly";
 
-        await User.findByIdAndUpdate(userId, {
+        const result = await User.findByIdAndUpdate(userId, {
           subscriptionStatus,
           isPremium: true,
           premiumSince: new Date(),
           stripeCustomerId: session.customer,
           stripeSubscriptionId: session.subscription,
-        });
+        }, { new: true });
+        console.log("[Stripe Webhook] User updated:", result ? { id: result._id, subscriptionStatus: result.subscriptionStatus, isPremium: result.isPremium } : "NOT FOUND");
         break;
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object;
+        console.log("[Stripe Webhook] subscription.updated | subId:", subscription.id, "| status:", subscription.status);
         const user = await User.findOne({ stripeSubscriptionId: subscription.id });
-        if (!user) break;
+        if (!user) { console.log("[Stripe Webhook] No user found for subscription", subscription.id); break; }
+        console.log("[Stripe Webhook] Found user:", user._id);
 
         if (subscription.status === "active" || subscription.status === "trialing") {
           user.isPremium = true;
@@ -106,35 +117,46 @@ router.post("/webhook", async (req, res) => {
           user.isPremium = false;
           user.subscriptionStatus = "expired";
         }
-        await user.save();
+        const saved = await user.save();
+        console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
+        console.log("[Stripe Webhook] subscription.deleted | subId:", subscription.id);
         const user = await User.findOne({ stripeSubscriptionId: subscription.id });
-        if (!user) break;
+        if (!user) { console.log("[Stripe Webhook] No user found for subscription", subscription.id); break; }
+        console.log("[Stripe Webhook] Found user:", user._id);
 
         user.subscriptionStatus = "expired";
         user.isPremium = false;
         user.stripeSubscriptionId = null;
-        await user.save();
+        const saved = await user.save();
+        console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
         break;
       }
 
       case "invoice.payment_failed": {
         const invoice = event.data.object;
+        console.log("[Stripe Webhook] invoice.payment_failed | customer:", invoice.customer);
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
-        if (!user) break;
+        if (!user) { console.log("[Stripe Webhook] No user found for customer", invoice.customer); break; }
+        console.log("[Stripe Webhook] Found user:", user._id);
 
         user.subscriptionStatus = "expired";
         user.isPremium = false;
-        await user.save();
+        const saved = await user.save();
+        console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
         break;
       }
+
+      default:
+        console.log("[Stripe Webhook] Unhandled event type:", event.type);
     }
   } catch (err) {
-    console.error("Webhook handler error:", err);
+    console.error("[Stripe Webhook] Handler error:", err.message);
+    console.error("[Stripe Webhook] Stack:", err.stack);
   }
 
   res.json({ received: true });
