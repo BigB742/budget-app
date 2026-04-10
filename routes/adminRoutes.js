@@ -8,15 +8,15 @@ const IncomeSource = require("../models/IncomeSource");
 
 const router = express.Router();
 
-// Middleware: require admin
-const requireAdmin = async (req, res, next) => {
+// All admin routes require auth + admin role
+router.use(authRequired, async (req, res, next) => {
   const user = await User.findById(req.userId).select("isAdmin");
-  if (!user || !user.isAdmin) return res.status(403).json({ error: "Admin access required." });
+  if (!user?.isAdmin) return res.status(403).json({ error: "Forbidden" });
   next();
-};
+});
 
 // GET /api/admin/users — list all users
-router.get("/users", authRequired, requireAdmin, async (req, res) => {
+router.get("/users", async (req, res) => {
   try {
     const users = await User.find({}).select("-passwordHash -loginHistory").lean();
     // Enrich with income and bill data
@@ -32,7 +32,7 @@ router.get("/users", authRequired, requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/reset-password — generate temp password
-router.post("/reset-password", authRequired, requireAdmin, async (req, res) => {
+router.post("/reset-password", async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: "userId required." });

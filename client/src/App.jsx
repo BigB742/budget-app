@@ -23,6 +23,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminPanel from "./pages/AdminPanel";
 import Verify2FA from "./pages/Verify2FA";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const RootRedirect = () => {
   const token = localStorage.getItem("token");
@@ -32,6 +33,7 @@ const RootRedirect = () => {
 function App() {
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
@@ -64,6 +66,7 @@ function App() {
           <Route path="income" element={<ManageIncome />} />
         </Route>
       </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
