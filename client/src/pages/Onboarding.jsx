@@ -215,9 +215,10 @@ const Onboarding = () => {
             >
               {saving ? "Saving..." : "Continue →"}
             </button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(5)}>
-              Skip for now →
-            </button>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(3)}>← Back</button>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(5)}>Skip for now →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -272,9 +273,10 @@ const Onboarding = () => {
             >
               {saving ? "Saving..." : "Continue →"}
             </button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>
-              Skip for now →
-            </button>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(4)}>← Back</button>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>Skip for now →</button>
+            </div>
           </div>
         </div>
       </div>

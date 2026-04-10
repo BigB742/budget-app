@@ -29,7 +29,7 @@ const sendEmail = async (to, subject, html) => {
 
   // Gmail requires 'from' to match the authenticated account
   const result = await transporter.sendMail({
-    from: `"PayPulse" <${user}>`,
+    from: `"no-reply" <${user}>`,
     to, subject, html,
   });
 

@@ -754,6 +754,7 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .s-field-label { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; min-width: 90px; }
 .s-field input { flex: 1; min-width: 0; padding: 0 0.5rem; height: 34px; border: 1px solid transparent; border-radius: var(--radius); font-size: var(--font-base); font-family: inherit; background: transparent; color: var(--text); text-align: right; }
 .s-field input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
+.s-field input[type="date"] { appearance: none; -webkit-appearance: none; width: 100%; }
 .s-pw-row { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: flex-end; }
 .s-pw-dots { color: var(--text-muted); font-size: 0.9rem; letter-spacing: 0.1em; }
 .s-change-pw { color: var(--accent) !important; font-size: 0.78rem !important; }
