@@ -20,6 +20,7 @@ const ManageIncome = () => {
   const [incomeType, setIncomeType] = useState("recurring");
   const [recForm, setRecForm] = useState({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" });
   const [otForm, setOtForm] = useState({ name: "", amount: "", date: "", note: "" });
+  const [editingSource, setEditingSource] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -49,6 +50,27 @@ const ManageIncome = () => {
     finally { setSaving(false); }
   };
 
+  const handleEditRecurring = async (e) => {
+    e.preventDefault();
+    if (!editingSource) return;
+    setSaving(true);
+    try {
+      await authFetch(`/api/income-sources/${editingSource}`, { method: "PUT", body: JSON.stringify({ name: recForm.name, amount: Number(recForm.amount), frequency: recForm.frequency, nextPayDate: recForm.nextPayDate }) });
+      setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" });
+      setEditingSource(null);
+      setShowModal(false);
+      load();
+    } catch { /* ignore */ }
+    finally { setSaving(false); }
+  };
+
+  const openEditModal = (s) => {
+    setEditingSource(s._id);
+    setRecForm({ name: s.name || "", amount: String(s.amount || ""), frequency: s.frequency || "biweekly", nextPayDate: s.nextPayDate ? new Date(s.nextPayDate).toISOString().slice(0, 10) : "" });
+    setIncomeType("recurring");
+    setShowModal(true);
+  };
+
   const handleAddOneTime = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -76,7 +98,7 @@ const ManageIncome = () => {
     <div className="manage-income-page">
       <div className="history-header">
         <h1>Manage Income</h1>
-        <button type="button" className="primary-button" onClick={() => { setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
+        <button type="button" className="primary-button" onClick={() => { setEditingSource(null); setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" }); setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
       </div>
 
       {loading ? <p className="status">Loading...</p> : (
@@ -94,6 +116,7 @@ const ManageIncome = () => {
                     </div>
                     <div className="recurring-actions">
                       <span className="entry-amount positive">{currency.format(s.amount)}</span>
+                      <button type="button" className="ghost-button" onClick={() => openEditModal(s)}>Edit</button>
                       <button type="button" className="ghost-button" onClick={() => handleDeleteSource(s._id)}>Remove</button>
                     </div>
                   </div>
@@ -127,21 +150,23 @@ const ManageIncome = () => {
 
       {/* Add modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingSource(null); }}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h4>Add income</h4>
-              <button type="button" className="ghost-button" onClick={() => setShowModal(false)}>&#x2715;</button>
+              <h4>{editingSource ? "Edit income" : "Add income"}</h4>
+              <button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingSource(null); }}>&#x2715;</button>
             </div>
 
-            {/* Type selector */}
-            <div style={{ display: "flex", gap: "0.35rem", margin: "0.65rem 0" }}>
-              <button type="button" className={`s-pill${incomeType === "recurring" ? " active" : ""}`} onClick={() => setIncomeType("recurring")}>Recurring paycheck</button>
-              <button type="button" className={`s-pill${incomeType === "onetime" ? " active" : ""}`} onClick={() => setIncomeType("onetime")}>One-time income</button>
-            </div>
+            {/* Type selector (hidden when editing) */}
+            {!editingSource && (
+              <div style={{ display: "flex", gap: "0.35rem", margin: "0.65rem 0" }}>
+                <button type="button" className={`s-pill${incomeType === "recurring" ? " active" : ""}`} onClick={() => setIncomeType("recurring")}>Recurring paycheck</button>
+                <button type="button" className={`s-pill${incomeType === "onetime" ? " active" : ""}`} onClick={() => setIncomeType("onetime")}>One-time income</button>
+              </div>
+            )}
 
             {incomeType === "recurring" ? (
-              <form className="modal-form" onSubmit={handleAddRecurring}>
+              <form className="modal-form" onSubmit={editingSource ? handleEditRecurring : handleAddRecurring}>
                 <label>Source name<input value={recForm.name} onChange={(e) => setRecForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FPE Inc" required /></label>
                 <label>Amount per paycheck<input type="number" step="0.01" value={recForm.amount} onChange={(e) => setRecForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
                 <label>Frequency<select value={recForm.frequency} onChange={(e) => setRecForm((p) => ({ ...p, frequency: e.target.value }))}>

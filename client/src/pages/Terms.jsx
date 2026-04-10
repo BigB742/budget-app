@@ -40,7 +40,7 @@ const Terms = () => (
       <p>These terms are governed by the laws of the State of California, United States of America.</p>
 
       <h2>Contact</h2>
-      <p>For questions about these terms, contact us at <a href="mailto:legal@paypulse.app">legal@paypulse.app</a>.</p>
+      <p>For questions about these terms, contact us at <a href="mailto:contacto@productoslaloma.com">contacto@productoslaloma.com</a>.</p>
 
       <p className="terms-back"><Link to="/">Back to PayPulse</Link></p>
     </div>

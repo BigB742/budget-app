@@ -195,7 +195,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       (sum, goal) => sum + (Number(goal.perPaycheckAmount) || 0),
       0
     );
-    const totalSaved = savingsGoals.reduce(
+    const goalsSaved = savingsGoals.reduce(
       (sum, goal) => sum + (Number(goal.savedAmount) || 0),
       0
     );
@@ -231,7 +231,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     //   New window: Apr 10 → Apr 23
     //   Only bills with dayOfMonth in 10-23 range are counted
     // ═══════════════════════════════════════════════════════════════
-    const userDoc = await User.findById(req.userId).select("currentBalance");
+    const userDoc = await User.findById(req.userId).select("currentBalance totalSavings");
+    const totalSaved = goalsSaved + (Number(userDoc?.totalSavings) || 0);
     const currentBalance = userDoc?.currentBalance;
     const hasCurrentBalance = currentBalance != null;
 
