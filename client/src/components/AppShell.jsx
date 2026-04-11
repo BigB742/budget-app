@@ -55,6 +55,13 @@ const AppShell = () => {
                 </NavLink>
               </li>
             ))}
+            {(() => { try { const u = JSON.parse(localStorage.getItem("user")); return u?.isAdmin || u?.email === "admin@productoslaloma.com"; } catch { return false; } })() && (
+              <li>
+                <NavLink to="/admin" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`} onClick={closeSidebar}>
+                  Admin
+                </NavLink>
+              </li>
+            )}
           </ul>
           <div className="sidebar-bottom">
             <button type="button" className="sidebar-logout" onClick={handleLogout}>

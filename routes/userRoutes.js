@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 
 const { authRequired } = require("../middleware/auth");
 const User = require("../models/User");
+const { sendEmail } = require("../utils/email");
 
 const router = express.Router();
 
@@ -107,8 +108,88 @@ router.put("/me", authRequired, async (req, res) => {
   }
 });
 
-// DELETE /me — permanently delete account and all associated data
+// POST /send-delete-code — send 6-digit deletion confirmation code
+router.post("/send-delete-code", authRequired, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id || req.userId;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.deleteCode = code;
+    user.deleteCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    await sendEmail(
+      user.email,
+      "Confirm PayPulse account deletion",
+      `<p>Hello ${user.firstName || ""},</p>
+      <p>You requested to delete your PayPulse account. Your confirmation code is:</p>
+      <h2 style="letter-spacing: 0.2em; color: #E53E3E;">${code}</h2>
+      <p>This code expires in 15 minutes.</p>
+      <p>If you did not request this, you can safely ignore this email.</p>
+      <p>— PayPulse Team</p>`
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Send delete code error:", error);
+    res.status(500).json({ message: "Failed to send confirmation code." });
+  }
+});
+
+// DELETE /me — permanently delete account (requires 6-digit code)
 router.delete("/me", authRequired, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id || req.userId;
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ message: "Confirmation code is required." });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    if (!user.deleteCode || user.deleteCode !== code) {
+      return res.status(401).json({ message: "Incorrect code." });
+    }
+    if (!user.deleteCodeExpiry || new Date() > user.deleteCodeExpiry) {
+      return res.status(401).json({ message: "Code has expired. Please request a new one." });
+    }
+
+    const IncomeSource = require("../models/IncomeSource");
+    const Bill = require("../models/Bill");
+    const Expense = require("../models/Expense");
+    const SavingsGoal = require("../models/SavingsGoal");
+    const PaySchedule = require("../models/PaySchedule");
+    const BillPayment = require("../models/BillPayment");
+    const OneTimeIncome = require("../models/OneTimeIncome");
+    const Investment = require("../models/Investment");
+    const Debt = require("../models/Debt");
+    const PaymentOverride = require("../models/PaymentOverride");
+
+    await Promise.all([
+      IncomeSource.deleteMany({ user: userId }),
+      Bill.deleteMany({ user: userId }),
+      Expense.deleteMany({ $or: [{ user: userId }, { userId }] }),
+      SavingsGoal.deleteMany({ userId }),
+      PaySchedule.deleteMany({ user: userId }),
+      BillPayment.deleteMany({ user: userId }),
+      OneTimeIncome.deleteMany({ user: userId }),
+      Investment.deleteMany({ userId }),
+      Debt.deleteMany({ user: userId }),
+      PaymentOverride.deleteMany({ user: userId }),
+    ]);
+
+    await User.findByIdAndDelete(userId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete account error:", error);
+    res.status(500).json({ message: "Failed to delete account." });
+  }
+});
+
+// POST /reset-account — delete all financial data but keep the user account
+router.post("/reset-account", authRequired, async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id || req.userId;
     const { password } = req.body || {};
@@ -134,22 +215,28 @@ router.delete("/me", authRequired, async (req, res) => {
     await Promise.all([
       IncomeSource.deleteMany({ user: userId }),
       Bill.deleteMany({ user: userId }),
-      Expense.deleteMany({ user: userId }),
-      SavingsGoal.deleteMany({ user: userId }),
+      Expense.deleteMany({ $or: [{ user: userId }, { userId }] }),
+      SavingsGoal.deleteMany({ userId }),
       PaySchedule.deleteMany({ user: userId }),
       BillPayment.deleteMany({ user: userId }),
       OneTimeIncome.deleteMany({ user: userId }),
-      Investment.deleteMany({ user: userId }),
+      Investment.deleteMany({ userId }),
       Debt.deleteMany({ user: userId }),
       PaymentOverride.deleteMany({ user: userId }),
     ]);
 
-    await User.findByIdAndDelete(userId);
+    // Reset financial fields but keep user account
+    user.onboardingComplete = false;
+    user.currentBalance = 0;
+    user.totalSavings = 0;
+    user.extraIncomeCount = 0;
+    user.extraIncomeYearReset = undefined;
+    await user.save();
 
     res.json({ success: true });
   } catch (error) {
-    console.error("Delete account error:", error);
-    res.status(500).json({ message: "Failed to delete account." });
+    console.error("Reset account error:", error);
+    res.status(500).json({ message: "Failed to reset account." });
   }
 });
 
@@ -163,6 +250,23 @@ router.post("/complete-onboarding", authRequired, async (req, res) => {
   } catch (error) {
     console.error("Complete onboarding error:", error);
     res.status(500).json({ message: "Failed to complete onboarding" });
+  }
+});
+
+// POST /support-ticket — submit a support ticket
+router.post("/support-ticket", authRequired, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id || req.userId;
+    const { subject, message } = req.body || {};
+    if (!subject || !message) return res.status(400).json({ message: "Subject and message are required." });
+    const user = await User.findById(userId).select("email");
+    if (!user) return res.status(404).json({ message: "User not found." });
+    const SupportTicket = require("../models/SupportTicket");
+    await SupportTicket.create({ userId, email: user.email, subject, message });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Support ticket error:", error);
+    res.status(500).json({ message: "Failed to submit support ticket." });
   }
 });
 

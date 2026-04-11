@@ -25,7 +25,7 @@ const Terms = () => (
       </div>
 
       <h2>Annual Plan</h2>
-      <p>The annual plan is $39.99 per year, charged upfront. There is no free trial for the annual plan. Refunds are available within 7 days of purchase. After 7 days, no refunds are issued.</p>
+      <p>The annual plan is $39.99 per year, charged upfront. All sales are final. No refunds are issued for annual plan purchases. By purchasing the annual plan, you acknowledge and agree that you are not entitled to a refund for any reason, including but not limited to cancellation, non-use, or dissatisfaction with the service. This policy complies with California Business and Professions Code and applicable consumer protection laws. You may cancel at any time to prevent future charges, but no refund will be issued for the current billing period.</p>
 
       <h2>Your Data and Privacy</h2>
       <p>We collect the following information: your name, email address, date of birth, phone number (optional), and any financial data you choose to enter (income, bills, expenses). We do not sell your data to third parties. Your data is used solely to provide and improve the PayPulse service.</p>

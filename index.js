@@ -69,6 +69,17 @@ app.get("/", (req, res) => {
   res.send("PayPulse API is running");
 });
 
+// Public feature flags endpoint (no auth required)
+app.get("/api/feature-flags", async (req, res) => {
+  try {
+    const FeatureFlag = require("./models/FeatureFlag");
+    const flags = await FeatureFlag.find().lean();
+    const map = {};
+    flags.forEach((f) => { map[f.key] = f.enabled; });
+    res.json(map);
+  } catch { res.json({}); }
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/admin", adminRoutes);

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
+import { useDataCache } from "../context/DataCache";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const SavingsPanel = () => {
+  const cache = useDataCache();
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -57,6 +59,7 @@ const SavingsPanel = () => {
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: dateStr, amount, category: "Savings", description: `Savings — ${goal.name}` }) });
       load();
+      if (cache?.fetchSummary) cache.fetchSummary(true);
     } catch { /* ignore */ }
   };
 
@@ -66,15 +69,15 @@ const SavingsPanel = () => {
     const amount = Number(input);
     if (!amount || amount <= 0 || amount > (goal.savedAmount || 0)) { alert("Invalid amount."); return; }
     try {
-      // Decrease savings goal
-      await authFetch(`/api/savings-goals/${goal._id}`, { method: "PATCH", body: JSON.stringify({ savedAmount: (goal.savedAmount || 0) - amount }) });
-      // Add back to currentBalance
-      await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ currentBalance: undefined }) });
-      // Log as income entry
+      // Use the dedicated withdraw endpoint (updates goal + currentBalance atomically)
+      await authFetch(`/api/savings-goals/${goal._id}/withdraw`, { method: "POST", body: JSON.stringify({ amount }) });
+      // Log as income entry so it shows on dashboard
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: `Savings Withdrawal — ${goal.name}`, amount, date: dateStr }) });
       load();
+      // Force refresh dashboard summary so balance updates immediately
+      if (cache?.fetchSummary) cache.fetchSummary(true);
     } catch { /* ignore */ }
   };
 

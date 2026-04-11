@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
+import { useSubscription } from "../hooks/useSubscription";
 
 // TODO: Implement TOTP 2FA using speakeasy or otplib.
 // Send code via email or authenticator app. Require on login after password.
@@ -15,6 +16,7 @@ const FONT_SCALES = [
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { isPremium } = useSubscription();
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "system");
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
@@ -41,9 +43,21 @@ const Settings = () => {
   const [thresholdDraft, setThresholdDraft] = useState("100");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteStep, setDeleteStep] = useState("confirm"); // "confirm" | "code"
+  const [deleteCode, setDeleteCode] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportForm, setSupportForm] = useState({ subject: "", message: "" });
+  const [supportSaving, setSupportSaving] = useState(false);
+  const [supportMsg, setSupportMsg] = useState("");
 
   useEffect(() => {
     const r = document.documentElement;
@@ -216,24 +230,34 @@ const Settings = () => {
               <div><span className="s-toggle-label">Bill reminders</span><span className="s-toggle-sub">Get emailed 3 days before a bill is due</span></div>
               <input type="checkbox" className="s-toggle" checked={billReminders} onChange={(e) => handleBillToggle(e.target.checked)} />
             </label>
-            <label className="s-toggle-row">
-              <div>
-                <span className="s-toggle-label">Low balance warning</span>
-                {lowBalanceWarning && !editingThreshold && (
-                  <span className="s-toggle-sub">
-                    Alert me when balance drops below <strong>${lowBalanceThreshold}</strong>{" "}
-                    <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={() => { setThresholdDraft(String(lowBalanceThreshold)); setEditingThreshold(true); }}>Edit</button>
-                  </span>
-                )}
-                {lowBalanceWarning && editingThreshold && (
-                  <span className="s-toggle-sub s-threshold-edit">
-                    Alert below: $<input type="number" min="0" value={thresholdDraft} onChange={(e) => setThresholdDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleThresholdSave()} className="s-threshold-input" />
-                    <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={handleThresholdSave}>Save</button>
-                  </span>
-                )}
+            {isPremium ? (
+              <label className="s-toggle-row">
+                <div>
+                  <span className="s-toggle-label">Low balance warning</span>
+                  {lowBalanceWarning && !editingThreshold && (
+                    <span className="s-toggle-sub">
+                      Alert me when balance drops below <strong>${lowBalanceThreshold}</strong>{" "}
+                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={() => { setThresholdDraft(String(lowBalanceThreshold)); setEditingThreshold(true); }}>Edit</button>
+                    </span>
+                  )}
+                  {lowBalanceWarning && editingThreshold && (
+                    <span className="s-toggle-sub s-threshold-edit">
+                      Alert below: $<input type="number" min="0" value={thresholdDraft} onChange={(e) => setThresholdDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleThresholdSave()} className="s-threshold-input" />
+                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={handleThresholdSave}>Save</button>
+                    </span>
+                  )}
+                </div>
+                <input type="checkbox" className="s-toggle" checked={lowBalanceWarning} onChange={(e) => handleLowBalToggle(e.target.checked)} />
+              </label>
+            ) : (
+              <div className="s-toggle-row premium-locked-row">
+                <div>
+                  <span className="s-toggle-label" style={{ opacity: 0.5 }}>Low balance warning</span>
+                  <span className="s-toggle-sub" style={{ color: "var(--accent)" }}>Low balance alerts are a Premium feature. Upgrade to get notified before you overdraft.</span>
+                </div>
+                <Link to="/subscription" className="premium-lock-badge">Premium <span style={{ fontSize: "0.65rem" }}>Upgrade</span></Link>
               </div>
-              <input type="checkbox" className="s-toggle" checked={lowBalanceWarning} onChange={(e) => handleLowBalToggle(e.target.checked)} />
-            </label>
+            )}
           </div>
 
           {/* Login history */}
@@ -250,9 +274,16 @@ const Settings = () => {
             )}
           </div>
 
+          {/* Support */}
+          <div className="settings-section">
+            <h2 className="section-title">Support</h2>
+            <button type="button" className="secondary-button" onClick={() => { setShowSupportModal(true); setSupportMsg(""); }}>Contact Support</button>
+          </div>
+
           {/* Danger zone */}
           <div className="settings-section danger-zone">
             <h2 className="section-title">Danger zone</h2>
+            <button type="button" className="s-danger-btn" style={{ marginBottom: "0.5rem" }} onClick={() => { setShowResetModal(true); setResetConfirm(""); setResetPassword(""); setResetError(""); }}>Reset & Re-onboard</button>
             <button type="button" className="s-danger-btn" onClick={() => setShowDeleteModal(true)}>Delete account</button>
           </div>
 
@@ -281,18 +312,104 @@ const Settings = () => {
       {showDeleteModal && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>Delete account</h4><button type="button" className="ghost-button" onClick={() => setShowDeleteModal(false)}>&#x2715;</button></div>
+            <div className="modal-header"><h4>Delete account</h4><button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}>&#x2715;</button></div>
             <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will permanently delete your account and all your data. This cannot be undone.</p>
-            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter your password to confirm<input type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} style={{ marginTop: "0.15rem" }} /></label>
-            {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
-            <div className="modal-actions" style={{ marginTop: "0.5rem" }}><button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteError(""); }}>Cancel</button><button type="button" className="delete-button" disabled={!deletePassword || deleteLoading} onClick={async () => {
-              setDeleteLoading(true); setDeleteError("");
-              try {
-                await authFetch("/api/user/me", { method: "DELETE", body: JSON.stringify({ password: deletePassword }) });
-                localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/");
-              } catch (err) { setDeleteError(err?.message || "Failed to delete account."); }
-              finally { setDeleteLoading(false); }
-            }}>{deleteLoading ? "Deleting..." : "Delete my account"}</button></div>
+
+            {deleteStep === "confirm" && (
+              <>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>We will send a 6-digit confirmation code to your registered email address.</p>
+                {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
+                <div className="modal-actions" style={{ marginTop: "0.75rem" }}>
+                  <button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteError(""); }}>Cancel</button>
+                  <button type="button" className="delete-button" disabled={deleteLoading} onClick={async () => {
+                    setDeleteLoading(true); setDeleteError("");
+                    try {
+                      await authFetch("/api/user/send-delete-code", { method: "POST" });
+                      setDeleteStep("code");
+                    } catch (err) { setDeleteError(err?.message || "Failed to send code."); }
+                    finally { setDeleteLoading(false); }
+                  }}>{deleteLoading ? "Sending..." : "Send Confirmation Code"}</button>
+                </div>
+              </>
+            )}
+
+            {deleteStep === "code" && (
+              <>
+                <p style={{ fontSize: "0.82rem", color: "var(--teal)", fontWeight: 600, margin: "0.5rem 0" }}>Code sent. Check your email (and spam folder).</p>
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter 6-digit code<input type="text" maxLength="6" value={deleteCode} onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, "").slice(0, 6))} style={{ marginTop: "0.15rem", letterSpacing: "0.3em", textAlign: "center", fontSize: "1.2rem", fontWeight: 700 }} /></label>
+                {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
+                <div className="modal-actions" style={{ marginTop: "0.5rem" }}>
+                  <button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); setDeleteCode(""); }}>Cancel</button>
+                  <button type="button" className="link-button" style={{ fontSize: "0.75rem" }} onClick={async () => {
+                    try { await authFetch("/api/user/send-delete-code", { method: "POST" }); setDeleteError(""); } catch {}
+                  }}>Resend code</button>
+                  <button type="button" className="delete-button" disabled={deleteCode.length !== 6 || deleteLoading} onClick={async () => {
+                    setDeleteLoading(true); setDeleteError("");
+                    try {
+                      await authFetch("/api/user/me", { method: "DELETE", body: JSON.stringify({ code: deleteCode }) });
+                      localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/");
+                    } catch (err) { setDeleteError(err?.message || "Failed to delete account."); }
+                    finally { setDeleteLoading(false); }
+                  }}>{deleteLoading ? "Deleting..." : "Delete my account"}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {/* Reset account modal */}
+      {showResetModal && (
+        <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h4>Reset account</h4><button type="button" className="ghost-button" onClick={() => setShowResetModal(false)}>&#x2715;</button></div>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will delete all your financial data including bills, income, expenses, and savings. Your account will remain but you will go through onboarding again. This cannot be undone.</p>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.5rem" }}>Type RESET to confirm<input value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="RESET" style={{ marginTop: "0.15rem" }} /></label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter your password<input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} style={{ marginTop: "0.15rem" }} /></label>
+            {resetError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{resetError}</div>}
+            <div className="modal-actions" style={{ marginTop: "0.5rem" }}>
+              <button type="button" className="ghost-button" onClick={() => setShowResetModal(false)}>Cancel</button>
+              <button type="button" className="delete-button" disabled={resetConfirm !== "RESET" || !resetPassword || resetLoading} onClick={async () => {
+                setResetLoading(true); setResetError("");
+                try {
+                  await authFetch("/api/user/reset-account", { method: "POST", body: JSON.stringify({ password: resetPassword }) });
+                  const stored = JSON.parse(localStorage.getItem("user") || "{}");
+                  stored.onboardingComplete = false;
+                  localStorage.setItem("user", JSON.stringify(stored));
+                  navigate("/onboarding");
+                } catch (err) { setResetError(err?.message || "Failed to reset account."); }
+                finally { setResetLoading(false); }
+              }}>{resetLoading ? "Resetting..." : "Reset my account"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Support modal */}
+      {showSupportModal && (
+        <div className="modal-overlay" onClick={() => setShowSupportModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h4>Contact Support</h4><button type="button" className="ghost-button" onClick={() => setShowSupportModal(false)}>&#x2715;</button></div>
+            {supportMsg ? (
+              <div style={{ padding: "1rem 0", textAlign: "center" }}>
+                <p style={{ color: "var(--teal)", fontWeight: 600 }}>{supportMsg}</p>
+                <button type="button" className="primary-button" style={{ marginTop: "0.75rem" }} onClick={() => setShowSupportModal(false)}>Close</button>
+              </div>
+            ) : (
+              <form className="modal-form" onSubmit={async (e) => {
+                e.preventDefault();
+                setSupportSaving(true);
+                try {
+                  await authFetch("/api/user/support-ticket", { method: "POST", body: JSON.stringify(supportForm) });
+                  setSupportMsg("Your message has been sent. We'll get back to you via email.");
+                  setSupportForm({ subject: "", message: "" });
+                } catch { setSupportMsg("Failed to send. Please try again."); }
+                finally { setSupportSaving(false); }
+              }}>
+                <label>Subject<input value={supportForm.subject} onChange={(e) => setSupportForm((p) => ({ ...p, subject: e.target.value }))} placeholder="What do you need help with?" required /></label>
+                <label>Message<textarea rows="4" value={supportForm.message} onChange={(e) => setSupportForm((p) => ({ ...p, message: e.target.value }))} placeholder="Describe your issue..." required style={{ width: "100%", resize: "vertical", fontFamily: "inherit", fontSize: "0.85rem", padding: "0.5rem", borderRadius: "var(--radius)", border: "1px solid var(--card-border)", background: "var(--bg)", color: "var(--text)" }} /></label>
+                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowSupportModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={supportSaving}>{supportSaving ? "Sending..." : "Send"}</button></div>
+              </form>
+            )}
           </div>
         </div>
       )}

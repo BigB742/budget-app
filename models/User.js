@@ -58,6 +58,8 @@ const UserSchema = new mongoose.Schema(
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorOTP: { type: String },
     twoFactorOTPExpiry: { type: Date },
+    deleteCode: { type: String },
+    deleteCodeExpiry: { type: Date },
     billReminderEnabled: { type: Boolean, default: true },
     lowBalanceAlertEnabled: { type: Boolean, default: true },
     lowBalanceThreshold: { type: Number, default: 150 },

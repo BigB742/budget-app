@@ -157,18 +157,30 @@ const Dashboard = () => {
       <AdSlot placement="banner" isPremium={!isFree && !isTrialing} />
 
       {/* Quick add */}
-      <section className="quick-add">
-        <p className="quick-add-label">Quick add</p>
-        <form className="quick-add-form" onSubmit={handleQuickExpense}>
-          <input type="text" name="description" placeholder={quickForm.category === "Other" ? "What is this for? (required)" : "Description"} value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} required={quickForm.category === "Other"} className="quick-input quick-desc" />
-          <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />
-          <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
-            {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button type="submit" className="quick-add-btn" disabled={quickSaving}>{quickSaving ? "..." : "+ Add"}</button>
-        </form>
-        {quickError && <p className="quick-error">{quickError}</p>}
-      </section>
+      {!isFree ? (
+        <section className="quick-add">
+          <p className="quick-add-label">Quick add</p>
+          <form className="quick-add-form" onSubmit={handleQuickExpense}>
+            <input type="text" name="description" placeholder={quickForm.category === "Other" ? "What is this for? (required)" : "Description"} value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} required={quickForm.category === "Other"} className="quick-input quick-desc" />
+            <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />
+            <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
+              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button type="submit" className="quick-add-btn" disabled={quickSaving}>{quickSaving ? "..." : "+ Add"}</button>
+          </form>
+          {quickError && <p className="quick-error">{quickError}</p>}
+        </section>
+      ) : (
+        <section className="quick-add premium-locked-section">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <p className="quick-add-label" style={{ opacity: 0.5 }}>Quick add expense</p>
+              <p style={{ fontSize: "0.78rem", color: "var(--accent)", margin: "0.25rem 0 0" }}>Quick expense tracking is a Premium feature.</p>
+            </div>
+            <Link to="/subscription" className="premium-lock-badge">Premium <span style={{ fontSize: "0.65rem" }}>Upgrade</span></Link>
+          </div>
+        </section>
+      )}
 
       {/* Two-column: planner + charts */}
       <div className="dash-columns">
