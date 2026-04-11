@@ -236,18 +236,34 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const currentBalance = userDoc?.currentBalance;
     const hasCurrentBalance = currentBalance != null;
 
-    // Calculate bills due from TODAY through periodEnd (not from periodStart)
-    // This avoids double-counting bills that already came out of the bank
+    // Calculate bills/expenses/income due from TODAY through periodEnd (not periodStart)
+    // This avoids double-counting items that have already cleared the bank
     const todayNorm = startOfDay(today);
     const upcomingBills = sumBillsInPeriod(bills, todayNorm, end, overrideMap, payments);
     const upcomingExpenses = await sumExpensesInPeriod(req.userId, todayNorm, end);
 
+    // Upcoming one-time income (today through period end) — e.g. "Starting Balance"
+    // entries created during onboarding that aren't yet reflected in currentBalance.
+    const upcomingOneTimeIncomes = await OneTimeIncome.find({
+      user: req.userId,
+      date: { $gte: todayNorm, $lte: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999) },
+    });
+    const upcomingOneTimeTotal = upcomingOneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
     let balance;
     if (hasCurrentBalance) {
-      // Core PayPulse logic: real bank balance minus what's still coming
-      balance = currentBalance - upcomingBills - upcomingExpenses;
+      // Core PayPulse logic:
+      //   real bank balance
+      //   + any one-time income still arriving this period (e.g. "Starting Balance")
+      //   - upcoming bills
+      //   - upcoming expenses (includes "Overdrawn Balance" expense if set today)
+      //
+      // Formula: You Can Spend = currentBalance + upcomingOneTimeIncome - upcomingBills - upcomingExpenses
+      balance = currentBalance + upcomingOneTimeTotal - upcomingBills - upcomingExpenses;
     } else {
-      // Fallback for users without currentBalance set
+      // Fallback for users without currentBalance set (new "payday is today" path,
+      // or users who skipped balance entry).
+      // Formula: You Can Spend = totalIncome + oneTimeIncome - totalBills - totalExpenses
       balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
     }
 

@@ -1,8 +1,8 @@
 require("dotenv").config();
 
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
+const { connectDB } = require("./utils/db");
 
 const authRoutes = require("./routes/authRoutes");
 const billRoutes = require("./routes/billRoutes");
@@ -32,29 +32,38 @@ app.use(cors());
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
-const mongoURI = process.env.MONGO_URI;
+// ── DB connection middleware (Vercel serverless safe) ──────────────────────
+// Ensures a cached Mongoose connection exists before every request.
+// Fixes: MongooseError: Operation buffering timed out after 10000ms
+// on Vercel cold starts where mongoose.connect() hasn't finished yet.
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("[DB] Failed to connect:", err.message);
+    res.status(503).json({ error: "Database temporarily unavailable. Please try again in a moment." });
+  }
+});
 
-mongoose
-  .connect(mongoURI, {})
-  .then(async () => {
-    // One-time migration: auto-verify legacy users with existing data
-    try {
-      const User = require("./models/User");
-      const IncomeSource = require("./models/IncomeSource");
-      const unverified = await User.find({ $or: [{ emailVerified: false }, { emailVerified: { $exists: false } }] });
-      for (const u of unverified) {
-        const hasData = await IncomeSource.countDocuments({ user: u._id });
-        if (hasData > 0) {
-          u.emailVerified = true;
-          u.onboardingComplete = true;
-          await u.save();
-        }
+// One-time migration on first warm boot: auto-verify legacy users with existing data
+// (runs once per instance, non-blocking)
+setImmediate(async () => {
+  try {
+    await connectDB();
+    const User = require("./models/User");
+    const IncomeSource = require("./models/IncomeSource");
+    const unverified = await User.find({ $or: [{ emailVerified: false }, { emailVerified: { $exists: false } }] });
+    for (const u of unverified) {
+      const hasData = await IncomeSource.countDocuments({ user: u._id });
+      if (hasData > 0) {
+        u.emailVerified = true;
+        u.onboardingComplete = true;
+        await u.save();
       }
-    } catch { /* migration non-critical */ }
-  })
-  .catch((error) => {
-    console.error("MongoDB connection error:", error);
-  });
+    }
+  } catch { /* migration non-critical */ }
+});
 
 app.get("/", (req, res) => {
   res.send("PayPulse API is running");

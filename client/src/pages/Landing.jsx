@@ -1,4 +1,88 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+
+// Animated "How It Works" flow replacing fake testimonials
+const HowItWorksFlow = () => {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            el.classList.add("hiw-visible");
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="hiw-flow" ref={ref}>
+      {/* Step 1 */}
+      <div className="hiw-step hiw-step-1">
+        <div className="hiw-icon-wrap">
+          <span className="hiw-icon">💵</span>
+        </div>
+        <div className="hiw-text">
+          <p className="hiw-label">Step 1</p>
+          <p className="hiw-title">Paycheck comes in</p>
+          <p className="hiw-desc">You tell PayPulse your take-home amount and payday. That's your starting number.</p>
+        </div>
+      </div>
+
+      {/* Connector arrow */}
+      <div className="hiw-connector">
+        <div className="hiw-arrow-line" />
+        <div className="hiw-arrow-head">▼</div>
+        <div className="hiw-minus-badge">− Bills</div>
+      </div>
+
+      {/* Step 2 */}
+      <div className="hiw-step hiw-step-2">
+        <div className="hiw-icon-wrap hiw-icon-warn">
+          <span className="hiw-icon">🧾</span>
+        </div>
+        <div className="hiw-text">
+          <p className="hiw-label">Step 2</p>
+          <p className="hiw-title">Bills get subtracted automatically</p>
+          <p className="hiw-desc">Rent, car payment, subscriptions — every bill due before your next paycheck is deducted the moment you add it.</p>
+        </div>
+      </div>
+
+      {/* Connector arrow */}
+      <div className="hiw-connector">
+        <div className="hiw-arrow-line" />
+        <div className="hiw-arrow-head">▼</div>
+        <div className="hiw-equals-badge">= Yours</div>
+      </div>
+
+      {/* Step 3 */}
+      <div className="hiw-step hiw-step-3">
+        <div className="hiw-icon-wrap hiw-icon-green">
+          <span className="hiw-icon">✅</span>
+        </div>
+        <div className="hiw-text">
+          <p className="hiw-label">Step 3</p>
+          <p className="hiw-title">You see your real spendable number</p>
+          <p className="hiw-desc">No guessing. No mental math. Just one clear number — what you can actually spend right now.</p>
+        </div>
+
+        {/* Mock balance pill */}
+        <div className="hiw-balance-pill">
+          <span className="hiw-balance-label">You can spend</span>
+          <span className="hiw-balance-amount">$847.00</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Landing = () => (
   <div className="lp">
@@ -105,35 +189,11 @@ const Landing = () => (
       </div>
     </section>
 
-    {/* Testimonials */}
-    <section className="lp-section lp-testimonials">
-      <h2 className="lp-section-title">What people are saying</h2>
-      <div className="lp-quotes">
-        <div className="lp-quote-card">
-          <p>
-            "I used to check my bank and think I had money. Then rent
-            would hit and I would be negative. PayPulse fixed that in
-            one day. I finally know what I can actually spend."
-          </p>
-          <span className="lp-quote-author">-- Marcus T., warehouse supervisor</span>
-        </div>
-        <div className="lp-quote-card">
-          <p>
-            "My husband and I get paid on different weeks. This app
-            finally lets us see the full picture without a spreadsheet.
-            We stopped overdrafting within the first month."
-          </p>
-          <span className="lp-quote-author">-- Daniela R., medical assistant</span>
-        </div>
-        <div className="lp-quote-card">
-          <p>
-            "I am not bad with money. I just never had a tool that
-            thought about money the way I do -- paycheck to paycheck.
-            PayPulse gets it."
-          </p>
-          <span className="lp-quote-author">-- James K., delivery driver</span>
-        </div>
-      </div>
+    {/* How It Works — animated visual flow (replaced fake testimonials) */}
+    <section className="lp-section lp-hiw-section">
+      <h2 className="lp-section-title">See exactly how it works</h2>
+      <p className="lp-section-sub">Three steps. No spreadsheets. No surprises.</p>
+      <HowItWorksFlow />
     </section>
 
     {/* Pricing */}

@@ -27,9 +27,13 @@ const sendEmail = async (to, subject, html) => {
     throw verifyErr;
   }
 
-  // Gmail requires 'from' to match the authenticated account
+  // Use EMAIL_FROM env var if set (e.g. for non-Gmail SMTP providers).
+  // Gmail SMTP requires the 'from' domain to match the authenticated account,
+  // so set EMAIL_FROM=no-reply@productoslaloma.com only when using a
+  // provider that supports custom sender addresses (SendGrid, Postmark, etc.).
+  const fromAddress = process.env.EMAIL_FROM || `"PayPulse" <${user}>`;
   const result = await transporter.sendMail({
-    from: `"no-reply" <${user}>`,
+    from: fromAddress,
     to, subject, html,
   });
 

@@ -28,9 +28,14 @@ const Onboarding = () => {
   const [incomeError, setIncomeError] = useState("");
   const [incomeSaved, setIncomeSaved] = useState(false);
 
-  // Step 5 — Bank Balance
+  // Step 5 — Bank Balance (or payday-today smart screen)
   const [bankBalance, setBankBalance] = useState("");
   const [balanceSaved, setBalanceSaved] = useState(false);
+  // payday-today smart screen state
+  const [paydayIsToday, setPaydayIsToday] = useState(false);
+  const [paydayTodayChoice, setPaydayTodayChoice] = useState(""); // "extra" | "fresh" | "overdrawn"
+  const [paydayTodayAmount, setPaydayTodayAmount] = useState("");
+  const [paydayTodayError, setPaydayTodayError] = useState("");
 
   // Step 6 — Savings
   const [savings, setSavings] = useState("");
@@ -148,6 +153,12 @@ const Onboarding = () => {
     const handleContinue = async () => {
       setIncomeError("");
       setSaving(true);
+
+      // Determine if selected payday is TODAY — drives which Step 5 screen appears
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      setPaydayIsToday(nextPayDate === todayStr);
+
       try {
         await authFetch("/api/income-sources", {
           method: "POST",
@@ -225,8 +236,149 @@ const Onboarding = () => {
     );
   }
 
-  // ── Step 5 — Current Bank Balance ────────────────────────────────────────────
+  // ── Step 5 — Bank Balance OR Payday-Today Smart Screen ───────────────────────
   if (step === 5) {
+
+    // ── 5A: Payday is TODAY — show smart screen ───────────────────────────────
+    if (paydayIsToday) {
+      const needsAmount = paydayTodayChoice === "extra" || paydayTodayChoice === "overdrawn";
+      const canContinue = paydayTodayChoice === "fresh" || (needsAmount && paydayTodayAmount !== "");
+
+      const previewSpendable = () => {
+        const paycheck = Number(incomeAmount) || 0;
+        if (paydayTodayChoice === "extra") return paycheck + (Number(paydayTodayAmount) || 0);
+        if (paydayTodayChoice === "overdrawn") return paycheck - (Number(paydayTodayAmount) || 0);
+        return paycheck;
+      };
+
+      const handlePaydayTodayContinue = async () => {
+        setPaydayTodayError("");
+        setSaving(true);
+        try {
+          if (paydayTodayChoice === "extra") {
+            // Create a one-time income entry for money already in the account
+            await authFetch("/api/one-time-income", {
+              method: "POST",
+              body: JSON.stringify({
+                name: "Starting Balance",
+                amount: Number(paydayTodayAmount),
+                date: new Date().toISOString().slice(0, 10),
+                note: "Money in account before first paycheck",
+              }),
+            });
+          } else if (paydayTodayChoice === "overdrawn") {
+            // Create an expense entry for the overdraft amount
+            await authFetch("/api/expenses", {
+              method: "POST",
+              body: JSON.stringify({
+                description: "Overdrawn Balance",
+                amount: Number(paydayTodayAmount),
+                category: "Other",
+                date: new Date().toISOString().slice(0, 10),
+                note: "Account was overdrawn before first paycheck",
+              }),
+            });
+          }
+          // "fresh" — income source alone handles the spendable calculation
+          setBalanceSaved(true);
+        } catch (err) {
+          setPaydayTodayError("Couldn't save. You can update this from your dashboard.");
+        } finally {
+          setSaving(false);
+          setStep(6);
+        }
+      };
+
+      return (
+        <div className="onboarding-page">
+          <ProgressBar step={step} />
+          <div className="ob-step">
+            <h2>🎉 You're getting paid today!</h2>
+            <p className="ob-subtitle">Did you have any money in your account before this paycheck?</p>
+
+            <div className="ob-payday-choices">
+              <button
+                type="button"
+                className={`ob-payday-choice${paydayTodayChoice === "extra" ? " selected" : ""}`}
+                onClick={() => { setPaydayTodayChoice("extra"); setPaydayTodayAmount(""); }}
+              >
+                <span className="ob-choice-icon">💰</span>
+                <span className="ob-choice-label">Yes, I had extra money</span>
+              </button>
+              <button
+                type="button"
+                className={`ob-payday-choice${paydayTodayChoice === "fresh" ? " selected" : ""}`}
+                onClick={() => { setPaydayTodayChoice("fresh"); setPaydayTodayAmount(""); }}
+              >
+                <span className="ob-choice-icon">✨</span>
+                <span className="ob-choice-label">Nope, fresh start</span>
+              </button>
+              <button
+                type="button"
+                className={`ob-payday-choice${paydayTodayChoice === "overdrawn" ? " selected" : ""}`}
+                onClick={() => { setPaydayTodayChoice("overdrawn"); setPaydayTodayAmount(""); }}
+              >
+                <span className="ob-choice-icon">📉</span>
+                <span className="ob-choice-label">I was overdrawn</span>
+              </button>
+            </div>
+
+            {needsAmount && (
+              <div className="ob-form" style={{ marginTop: "1.25rem" }}>
+                <label>
+                  {paydayTodayChoice === "extra"
+                    ? "How much extra did you have?"
+                    : "How much were you overdrawn?"}
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={paydayTodayAmount}
+                    onChange={(e) => setPaydayTodayAmount(e.target.value)}
+                    style={{ fontSize: "1.4rem", textAlign: "center", fontWeight: 700 }}
+                  />
+                </label>
+              </div>
+            )}
+
+            {paydayTodayChoice === "fresh" && (
+              <p className="ob-tip" style={{ textAlign: "center" }}>
+                Your spendable ≈ <strong>${(Number(incomeAmount) || 0).toFixed(2)}</strong> (before bills)
+              </p>
+            )}
+
+            {needsAmount && paydayTodayAmount !== "" && (
+              <p className="ob-tip" style={{ textAlign: "center" }}>
+                {paydayTodayChoice === "overdrawn"
+                  ? <>Your spendable ≈ <strong>${Math.max(0, previewSpendable()).toFixed(2)}</strong> (before bills)</>
+                  : <>Your spendable ≈ <strong>${previewSpendable().toFixed(2)}</strong> (before bills)</>}
+              </p>
+            )}
+
+            {paydayTodayError && <p className="ob-error">{paydayTodayError}</p>}
+
+            <div className="ob-actions-col">
+              <button
+                type="button"
+                className="primary-button"
+                style={{ width: "100%" }}
+                onClick={handlePaydayTodayContinue}
+                disabled={!canContinue || saving}
+              >
+                {saving ? "Saving..." : "Continue →"}
+              </button>
+              <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                <button type="button" className="link-button ob-skip" onClick={() => setStep(4)}>← Back</button>
+                <button type="button" className="link-button ob-skip" onClick={() => setStep(6)}>Skip for now →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── 5B: Standard bank balance screen (payday is in the future) ───────────
     const handleContinue = async () => {
       setSaving(true);
       try {

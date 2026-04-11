@@ -21,7 +21,11 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   console.log("[billReminders] EMAIL_USER not configured — email reminders will be skipped.");
 }
 
-const emailFrom = process.env.EMAIL_USER ? `"PayPulse" <${process.env.EMAIL_USER}>` : "noreply@paypulse.app";
+// Use EMAIL_FROM env var if set (e.g. no-reply@productoslaloma.com with a
+// provider that supports custom senders). Gmail SMTP requires the address
+// to match the authenticated account, so set EMAIL_FROM when switching SMTP.
+const emailFrom = process.env.EMAIL_FROM
+  || (process.env.EMAIL_USER ? `"PayPulse" <${process.env.EMAIL_USER}>` : "no-reply@productoslaloma.com");
 
 /**
  * Send an HTML email. Silently logs and continues on failure.
