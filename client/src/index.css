@@ -757,31 +757,49 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .s-field-label { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; min-width: 90px; }
 .s-field input { flex: 1; min-width: 0; padding: 0 0.5rem; height: 34px; border: 1px solid transparent; border-radius: var(--radius); font-size: var(--font-base); font-family: inherit; background: transparent; color: var(--text); text-align: right; }
 .s-field input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
-/* Date inputs in account fields — strip native chrome so width/alignment
-   match text inputs exactly. Without this Safari/Chrome render a fixed-width
-   control that left-aligns and won't flex. */
+/* Date input in Settings Account section — force identical layout to text
+   inputs. WebKit otherwise renders a fixed-width date control with its own
+   padding and a calendar icon that throws off right-alignment. */
 .s-field input[type="date"] {
-  appearance: none;
   -webkit-appearance: none;
-  flex: 1;
+  appearance: none;
+  flex: 1 1 auto;
   min-width: 0;
-  width: auto;
+  width: 100%;
+  box-sizing: border-box;
   padding: 0 0.5rem;
   height: 34px;
+  line-height: 34px;
   text-align: right;
   font-family: inherit;
   font-size: var(--font-base);
+  font-weight: 400;
   color: var(--text);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius);
 }
-.s-field input[type="date"]::-webkit-calendar-picker-indicator {
-  margin-left: 0;
-  filter: invert(0.5);
-  cursor: pointer;
+/* The WebKit internal wrapper — needs explicit right-alignment or the
+   date text sits left-aligned even when text-align:right is set on the input. */
+.s-field input[type="date"]::-webkit-date-and-time-value {
+  text-align: right;
+  margin: 0;
+  padding: 0;
 }
-.s-field input[type="date"]::-webkit-date-and-time-value { text-align: right; }
+.s-field input[type="date"]::-webkit-datetime-edit {
+  text-align: right;
+  padding: 0;
+}
+.s-field input[type="date"]::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+.s-field input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 0.4rem;
+  padding: 0;
+  filter: invert(0.55);
+  cursor: pointer;
+  opacity: 0.8;
+}
+.s-field input[type="date"]::-webkit-inner-spin-button { display: none; }
+.s-field input[type="date"]:focus { border-color: var(--accent); background: var(--bg); outline: none; }
 .s-pw-row { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: flex-end; }
 .s-pw-dots { color: var(--text-muted); font-size: 0.9rem; letter-spacing: 0.1em; }
 .s-change-pw { color: var(--accent) !important; font-size: 0.78rem !important; }
@@ -931,6 +949,8 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .sub-best-badge { position: absolute; top: -10px; right: 16px; background: var(--cta); color: #fff; font-size: 0.62rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; text-transform: uppercase; }
 .sub-card-active { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 2rem; text-align: center; max-width: 420px; }
 .sub-card-active h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+.sub-spinner { width: 40px; height: 40px; margin: 0 auto 1rem; border: 3px solid var(--card-border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .sub-back { margin-top: 1.25rem; color: var(--text-muted); font-size: 0.82rem; display: block; text-align: center; }
 
 /* Upgrade banner on dashboard */

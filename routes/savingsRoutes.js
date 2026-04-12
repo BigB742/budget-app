@@ -18,7 +18,7 @@ router.get("/", authRequired, async (req, res) => {
 
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { name, targetAmount, perPaycheckAmount, category } = req.body || {};
+    const { name, targetAmount, perPaycheckAmount, category, savedAmount } = req.body || {};
     if (!name || targetAmount == null) {
       return res.status(400).json({ message: "Name and target amount are required." });
     }
@@ -36,7 +36,7 @@ router.post("/", authRequired, async (req, res) => {
       targetAmount: Number(targetAmount),
       perPaycheckAmount: Number(perPaycheckAmount) || 0,
       category: category || "Other",
-      savedAmount: 0,
+      savedAmount: Math.max(0, Number(savedAmount) || 0),
     });
     res.status(201).json(goal);
   } catch (err) {

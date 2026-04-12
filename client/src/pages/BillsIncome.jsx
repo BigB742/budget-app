@@ -105,22 +105,16 @@ const BillsIncome = () => {
     if (!savForm.name || savForm.name.length < 2 || !amt || amt <= 0) return;
     setSavSaving(true);
     try {
-      const created = await authFetch("/api/savings-goals", {
+      await authFetch("/api/savings-goals", {
         method: "POST",
         body: JSON.stringify({
           name: savForm.name,
           targetAmount: 999999,
+          savedAmount: amt,
           perPaycheckAmount: 0,
           category: "Savings",
         }),
       });
-      // POST creates with savedAmount: 0 — patch it to the entered amount
-      if (created?._id && amt > 0) {
-        await authFetch(`/api/savings-goals/${created._id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ savedAmount: amt }),
-        });
-      }
       setSavForm({ name: "", amount: "" });
       setShowAddSavings(false);
       loadData();

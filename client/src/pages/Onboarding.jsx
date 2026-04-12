@@ -446,8 +446,9 @@ const Onboarding = () => {
           method: "PUT",
           body: JSON.stringify({ totalSavings: amt }),
         });
-        // Also create a SavingsGoal record so it shows in Bills & Income Savings tab
-        // and the user can add/withdraw. Only create if amount > 0.
+        // Also create a real SavingsGoal record so the onboarding amount shows
+        // in the Savings page (where add/withdraw lives). POST now honors
+        // savedAmount directly, so a single call is enough.
         if (amt > 0) {
           try {
             await authFetch("/api/savings-goals", {
@@ -460,17 +461,6 @@ const Onboarding = () => {
                 category: "Savings",
               }),
             });
-            // The POST endpoint initializes savedAmount to 0, so PATCH the
-            // savedAmount to the real amount the user entered.
-            // (See routes/savingsRoutes.js — create ignores savedAmount from body.)
-            const goals = await authFetch("/api/savings-goals");
-            const mine = Array.isArray(goals) ? goals.find((g) => g.name === "My Savings") : null;
-            if (mine && mine.savedAmount !== amt) {
-              await authFetch(`/api/savings-goals/${mine._id}`, {
-                method: "PATCH",
-                body: JSON.stringify({ savedAmount: amt }),
-              });
-            }
           } catch { /* non-critical */ }
         }
         setSavingsSaved(true);

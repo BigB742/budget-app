@@ -7,8 +7,20 @@ import SessionTimeout from "./SessionTimeout";
 const NAV_ITEMS = [
   { to: "/app", label: "Dashboard" },
   { to: "/app/calendar", label: "Calendar" },
-  { to: "/app/history", label: "History" },
-  { to: "/app/bills", label: "Bills & Income" },
+  { to: "/app/expenses", label: "Expenses" },
+  { to: "/app/bills", label: "Bills" },
+  { to: "/app/income", label: "Income" },
+  { to: "/app/savings", label: "Savings" },
+  { to: "/app/settings", label: "Settings" },
+];
+
+// Mobile bottom tabs — most-used pages only, to avoid cramming 7 items.
+// Income and Savings live in the sidebar (accessible via hamburger on mobile).
+const BOTTOM_TAB_ITEMS = [
+  { to: "/app", label: "Home" },
+  { to: "/app/calendar", label: "Calendar" },
+  { to: "/app/expenses", label: "Expenses" },
+  { to: "/app/bills", label: "Bills" },
   { to: "/app/settings", label: "Settings" },
 ];
 
@@ -74,7 +86,7 @@ const AppShell = () => {
         <main className="shell-main"><Outlet /></main>
 
         <nav className="bottom-tabs">
-          {NAV_ITEMS.map((item) => (
+          {BOTTOM_TAB_ITEMS.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === "/app"} className={({ isActive }) => `tab-item${isActive ? " active" : ""}`}>
               <span className="tab-label">{item.label}</span>
             </NavLink>

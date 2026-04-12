@@ -7,6 +7,8 @@ import Calendar from "./pages/Calendar";
 import Settings from "./pages/Settings";
 import ExpenseHistory from "./pages/ExpenseHistory";
 import BillsIncome from "./pages/BillsIncome";
+import Bills from "./pages/Bills";
+import Savings from "./pages/Savings";
 import Onboarding from "./pages/Onboarding";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -60,10 +62,15 @@ function App() {
         <Route path="/app" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="calendar" element={<Calendar />} />
-          <Route path="history" element={<ExpenseHistory />} />
-          <Route path="bills" element={<BillsIncome />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="expenses" element={<ExpenseHistory />} />
+          {/* Legacy redirect — old /history links keep working */}
+          <Route path="history" element={<Navigate to="/app/expenses" replace />} />
+          <Route path="bills" element={<Bills />} />
           <Route path="income" element={<ManageIncome />} />
+          <Route path="savings" element={<Savings />} />
+          {/* Legacy route — old combined Bills & Income page */}
+          <Route path="bills-income" element={<BillsIncome />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
       </ErrorBoundary>

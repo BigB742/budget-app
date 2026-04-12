@@ -123,7 +123,7 @@ const buildDeleteAccountEmail = ({ firstName, code }) => wrapper(`
 const buildSupportConfirmationEmail = ({ firstName, subject, message }) => wrapper(`
   <h1 style="margin:0 0 16px;font-size:24px;font-weight:800;color:#ffffff;">We got your message</h1>
   <p style="margin:0 0 8px;color:#cbd5e1;">Hi${firstName ? ` ${escapeHtml(firstName)}` : ""},</p>
-  <p style="margin:0 0 16px;color:#cbd5e1;">Thanks for reaching out to PayPulse support. We've received your request and a human will get back to you within <strong style="color:#f97316;">24 hours</strong>.</p>
+  <p style="margin:0 0 16px;color:#cbd5e1;">Thanks for reaching out to PayPulse support. We've received your request and a human will get back to you within <strong style="color:#f97316;">24 to 48 hours</strong>.</p>
   ${quoteBlock(subject, message)}
   <p style="margin:0;color:#94a3b8;font-size:13px;">If you need to add more detail, just reply to this email.</p>
 `);
