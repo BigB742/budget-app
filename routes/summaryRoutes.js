@@ -507,26 +507,34 @@ router.get("/projected-balance", authRequired, async (req, res) => {
 
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
 
+    // Seed the chain with the user's current bank balance — the same starting
+    // point the dashboard uses. Previously this loop started with rollover = 0
+    // which produced wrong numbers for the first period (and therefore every
+    // subsequent period). The "You Can Spend" value on the dashboard and the
+    // "Estimated balance" shown on the calendar snapshot for the current
+    // period must match, and they now do.
+    const userDoc = await User.findById(req.userId).select("createdAt currentBalance");
+    const initialBalance = Number(userDoc?.currentBalance) || 0;
+
     const today = new Date();
+    const todayNorm = startOfDay(today);
     let currentPeriod = getBudgetPeriod(sources, today);
     if (!currentPeriod) {
       return res.status(400).json({ error: "Unable to compute current budget period." });
     }
 
-    // If the user's account was created inside the current pay period, they
-    // have no prior paycheck history in PayPulse — the rollover value shown
-    // to them represents the balance they entered at onboarding, not a
-    // carryover from a previous paycheck. The frontend uses this flag to
-    // relabel "Rollover from previous" → "Opening balance" for such users.
-    const userDoc = await User.findById(req.userId).select("createdAt");
-    const isFirstPeriod = !!(
+    // True when the user was created during the current (onboarding) pay
+    // period. Only the snapshot for the current period uses the "Opening
+    // balance" label — future-period snapshots get "Rollover from previous"
+    // showing the real carried-forward balance.
+    const isOnboardingPeriod = !!(
       userDoc?.createdAt &&
       new Date(userDoc.createdAt) >= startOfDay(currentPeriod.start)
     );
 
     const MAX_ITERATIONS = 26;
     const periods = [];
-    let rollover = 0;
+    let rollover = initialBalance;
     let iteration = 0;
 
     while (iteration < MAX_ITERATIONS) {
@@ -534,17 +542,42 @@ router.get("/projected-balance", authRequired, async (req, res) => {
 
       const overrideMap = await loadOverrideMap(req.userId, start, end);
       const periodPayments = await loadBillPayments(req.userId, start, end);
-      const totalBills = sumBillsInPeriod(bills, start, end, overrideMap, periodPayments);
-      const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
 
-      const periodBalance = rollover + totalIncome - totalBills - totalExpenses;
+      let billsForPeriod;
+      let expensesForPeriod;
+      let paycheckForPeriod;
+      let periodBalance;
+
+      if (iteration === 0) {
+        // Iteration 0 = current period. Matches the dashboard engine:
+        //   - Starting balance = user.currentBalance (onboarding source of truth)
+        //   - Deduct ONLY bills/expenses from today forward — past activity
+        //     within this period is already reflected in currentBalance.
+        //   - Don't add the period's income. Any paycheck that already hit
+        //     before today is already in currentBalance; a paycheck still
+        //     scheduled for later in the current period lives in the NEXT
+        //     period's snapshot (the user joined mid-period with their
+        //     balance accounted for, so the "next payday" is the next
+        //     period's row).
+        billsForPeriod = sumBillsInPeriod(bills, todayNorm, end, overrideMap, periodPayments);
+        expensesForPeriod = await sumExpensesInPeriod(req.userId, todayNorm, end);
+        paycheckForPeriod = 0;
+        periodBalance = rollover - billsForPeriod - expensesForPeriod;
+      } else {
+        // Future periods: full-period totals. Rollover is the previous
+        // period's end balance (computed by this same loop).
+        billsForPeriod = sumBillsInPeriod(bills, start, end, overrideMap, periodPayments);
+        expensesForPeriod = await sumExpensesInPeriod(req.userId, start, end);
+        paycheckForPeriod = totalIncome;
+        periodBalance = rollover + paycheckForPeriod - billsForPeriod - expensesForPeriod;
+      }
 
       periods.push({
         start: toDateString(start),
         end: toDateString(end),
-        totalIncome,
-        totalBills,
-        totalExpenses,
+        totalIncome: paycheckForPeriod,
+        totalBills: billsForPeriod,
+        totalExpenses: expensesForPeriod,
         rollover,
         balance: periodBalance,
       });
@@ -554,23 +587,20 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const pEnd = startOfDay(end);
       const pTarget = startOfDay(targetDate);
       if (pTarget >= pStart && pTarget <= pEnd) {
-        // This period contains the target payday
-        const lastPeriod = periods[periods.length - 1];
         return res.json({
           paydayDate,
-          paycheckAmount: totalIncome,
-          rollover: lastPeriod.rollover,
-          totalAvailable: lastPeriod.rollover + totalIncome,
-          billsThisPeriod: totalBills,
-          expensesThisPeriod: totalExpenses,
+          paycheckAmount: paycheckForPeriod,
+          rollover,
+          totalAvailable: rollover + paycheckForPeriod,
+          billsThisPeriod: billsForPeriod,
+          expensesThisPeriod: expensesForPeriod,
           estimatedBalance: periodBalance,
           periods,
-          // True when the user's account was created during the current
-          // (first) pay period. Any rollover the user sees in the snapshot
-          // — even on future-period snapshots — traces back to the balance
-          // they entered at onboarding, so the frontend relabels it as
-          // "Opening balance" to avoid confusing them.
-          isFirstPeriod,
+          // Only show "Opening balance" when the selected payday is in the
+          // user's onboarding period (iteration 0 AND they joined this period).
+          // For any future-period snapshot the rollover is a real
+          // carried-forward balance and gets the default label.
+          isFirstPeriod: iteration === 0 && isOnboardingPeriod,
         });
       }
 

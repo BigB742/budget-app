@@ -152,7 +152,17 @@ router.delete("/subscription", authRequired, async (req, res) => {
       sub = list.data.find((s) => s.status === "active" || s.status === "trialing");
     }
     if (!sub) {
-      return res.status(404).json({ error: "No active subscription to cancel." });
+      // Nothing to cancel — return 200 with a friendly message rather than
+      // a 404. The UI should never show a raw error when the user clicks
+      // cancel and there simply isn't an active sub (e.g. already canceled,
+      // or state drift between Mongo and Stripe).
+      console.log("[Stripe] cancel-subscription: no active sub for", user.email);
+      return res.json({
+        success: true,
+        wasTrialing: false,
+        endDate: null,
+        message: "No active subscription found.",
+      });
     }
 
     // Cancel at period end — Stripe will fire customer.subscription.updated

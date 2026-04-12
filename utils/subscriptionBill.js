@@ -27,21 +27,31 @@ const PREMIUM_BILL_CATEGORY = "Subscription";
 async function upsertPremiumBill(userId, firstChargeDate) {
   if (!userId) return { created: false, bill: null };
 
+  const validDate = firstChargeDate instanceof Date && !Number.isNaN(firstChargeDate.getTime());
+  const startDate = validDate ? firstChargeDate : new Date();
+
   const existing = await Bill.findOne({ user: userId, name: PREMIUM_BILL_NAME });
   if (existing) {
-    // Re-activate if the user previously cancelled and is now resubscribing
-    if (existing.isActive === false) {
-      existing.isActive = true;
-      if (firstChargeDate) {
-        existing.startDate = firstChargeDate;
-        existing.dueDayOfMonth = firstChargeDate.getDate();
+    // Duplicate protection: never create a second row. On a re-subscribe
+    // (post-cancel) refresh the dates to the new trial end / first charge,
+    // re-activate if soft-deleted, and reset paid state so the new cycle
+    // starts unpaid. If the bill is already active and the new charge date
+    // matches what's stored, this is a no-op save.
+    let changed = false;
+    if (existing.isActive === false) { existing.isActive = true; changed = true; }
+    if (validDate) {
+      const newDay = startDate.getDate();
+      if (existing.dueDayOfMonth !== newDay) { existing.dueDayOfMonth = newDay; changed = true; }
+      if (!existing.startDate || existing.startDate.getTime() !== startDate.getTime()) {
+        existing.startDate = startDate;
+        changed = true;
       }
-      await existing.save();
     }
+    if (existing.paid !== false) { existing.paid = false; changed = true; }
+    if (changed) await existing.save();
     return { created: false, bill: existing };
   }
 
-  const startDate = firstChargeDate instanceof Date ? firstChargeDate : new Date();
   const bill = await Bill.create({
     user: userId,
     name: PREMIUM_BILL_NAME,
@@ -50,6 +60,7 @@ async function upsertPremiumBill(userId, firstChargeDate) {
     category: PREMIUM_BILL_CATEGORY,
     startDate, // hides the bill from periods before the first charge
     isActive: true,
+    paid: false,
   });
   return { created: true, bill };
 }

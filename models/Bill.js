@@ -8,6 +8,11 @@ const billSchema = new mongoose.Schema(
     dueDayOfMonth: { type: Number, required: true },
     category: { type: String },
     isActive: { type: Boolean, default: true },
+    // Per-bill paid flag. The canonical source of paid-state for recurring
+    // bills is still the BillPayment collection (one record per due date);
+    // this flag is mainly for one-shot bills like the auto-created PayPulse
+    // Premium bill where we want the doc to self-describe its paid-ness.
+    paid: { type: Boolean, default: false },
     startDate: { type: Date, default: null },
     lastPaymentDate: { type: Date, default: null },
     lastPaymentAmount: { type: Number, default: null },

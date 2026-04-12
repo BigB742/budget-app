@@ -429,25 +429,25 @@ const Settings = () => {
               </>
             ) : (
               <>
-                <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--teal)", margin: "0.75rem 0 0.25rem" }}>
-                  {cancelResult.wasTrialing
-                    ? "Trial canceled — you won't be charged."
-                    : "Subscription canceled."}
-                </p>
-                {!cancelResult.wasTrialing && cancelResult.endDate && (
-                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
-                    Access continues until{" "}
-                    <strong>
-                      {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                    </strong>.
-                  </p>
-                )}
-                {cancelResult.wasTrialing && cancelResult.endDate && (
-                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
-                    Trial ends{" "}
-                    <strong>
-                      {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                    </strong>.
+                {cancelResult.endDate ? (
+                  <>
+                    <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--teal)", margin: "0.75rem 0 0.25rem" }}>
+                      {cancelResult.wasTrialing
+                        ? "Trial canceled — you won't be charged."
+                        : "Subscription canceled."}
+                    </p>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
+                      {cancelResult.wasTrialing ? "Trial ends " : "Access continues until "}
+                      <strong>
+                        {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                      </strong>.
+                    </p>
+                  </>
+                ) : (
+                  // No active subscription to cancel — show the server's friendly
+                  // message instead of a raw error.
+                  <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: "0.75rem 0" }}>
+                    {cancelResult.message || "No active subscription found."}
                   </p>
                 )}
                 <div className="modal-actions">
