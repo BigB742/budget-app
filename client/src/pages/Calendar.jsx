@@ -369,7 +369,7 @@ const Calendar = () => {
                 ) : snapshot ? (
                   <>
                     <div className="snapshot-row"><span>Paycheck amount</span><span>{currency.format(snapshot.paycheckAmount || 0)}</span></div>
-                    <div className="snapshot-row"><span>Rollover from previous</span><span>{currency.format(snapshot.rollover || 0)}</span></div>
+                    <div className="snapshot-row"><span>{snapshot.isFirstPeriod ? "Opening balance" : "Rollover from previous"}</span><span>{currency.format(snapshot.rollover || 0)}</span></div>
                     <div className="snapshot-row"><span>Total available</span><span className="positive">{currency.format(snapshot.totalAvailable || 0)}</span></div>
                     <div className="snapshot-row"><span>Bills this period</span><span className="negative">&minus;{currency.format(snapshot.billsThisPeriod || 0)}</span></div>
                     <div className="snapshot-row"><span>Expenses this period</span><span className="negative">&minus;{currency.format(snapshot.expensesThisPeriod || 0)}</span></div>

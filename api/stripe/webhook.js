@@ -14,6 +14,7 @@ require("dotenv").config();
 const Stripe = require("stripe");
 const mongoose = require("mongoose");
 const User = require("../../models/User");
+const { upsertPremiumBill, removePremiumBill } = require("../../utils/subscriptionBill");
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
@@ -153,6 +154,17 @@ module.exports = async (req, res) => {
           isPremium: saved.isPremium,
           trialEndDate: saved.trialEndDate,
         });
+
+        // Auto-create the "PayPulse Premium" recurring bill due on the
+        // first real charge date (trial end for trialing, start of
+        // today's period for active-out-of-the-gate).
+        try {
+          const billDueDate = trialEnd || new Date();
+          const billResult = await upsertPremiumBill(saved._id, billDueDate);
+          console.log("[Stripe Webhook Fn] Step 8: Premium bill", billResult.created ? "CREATED" : "already exists", "| dueDate:", billDueDate);
+        } catch (billErr) {
+          console.error("[Stripe Webhook Fn] Step 8: failed to upsert Premium bill:", billErr.message);
+        }
         break;
       }
 
@@ -194,7 +206,9 @@ module.exports = async (req, res) => {
         user.isPremium = false;
         user.subscriptionStatus = "free";
         user.stripeSubscriptionId = null;
+        user.subscriptionEndDate = undefined;
         await user.save();
+        try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook Fn] removePremiumBill failed:", e.message); }
         console.log("[Stripe Webhook Fn] User downgraded to free:", user.email);
         break;
       }

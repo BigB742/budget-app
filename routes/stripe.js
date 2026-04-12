@@ -2,6 +2,7 @@ const express = require("express");
 const Stripe = require("stripe");
 const User = require("../models/User");
 const { authRequired } = require("../middleware/auth");
+const { upsertPremiumBill, removePremiumBill } = require("../utils/subscriptionBill");
 
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -124,6 +125,76 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
   }
 });
 
+// DELETE /subscription — cancel the authenticated user's Stripe
+// subscription at period end. User keeps premium access until then.
+router.delete("/subscription", authRequired, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured." });
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (!user.stripeCustomerId) {
+      return res.status(400).json({ error: "No Stripe customer on file for this user." });
+    }
+
+    // Find the live subscription. Prefer the one saved on the user doc,
+    // fall back to listing by customer and picking the first active or
+    // trialing one.
+    let sub = null;
+    if (user.stripeSubscriptionId) {
+      try {
+        sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+      } catch (e) {
+        console.warn("[Stripe] stripeSubscriptionId on user didn't resolve:", e.message);
+      }
+    }
+    if (!sub || (sub.status !== "active" && sub.status !== "trialing")) {
+      const list = await stripe.subscriptions.list({ customer: user.stripeCustomerId, status: "all", limit: 10 });
+      sub = list.data.find((s) => s.status === "active" || s.status === "trialing");
+    }
+    if (!sub) {
+      return res.status(404).json({ error: "No active subscription to cancel." });
+    }
+
+    // Cancel at period end — Stripe will fire customer.subscription.updated
+    // now (we'll mark the user canceled) and customer.subscription.deleted
+    // later when the period actually ends (we'll clear isPremium + delete bill).
+    const canceled = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+    console.log("[Stripe] cancel_at_period_end=true for sub", sub.id, "| status:", canceled.status);
+
+    const wasTrialing = sub.status === "trialing";
+    // For trialing subs the access end is the trial end; for active it's the current period end.
+    const endUnix = wasTrialing ? (sub.trial_end || canceled.current_period_end) : canceled.current_period_end;
+    const endDate = endUnix ? new Date(endUnix * 1000) : null;
+
+    user.subscriptionStatus = "canceled";
+    if (endDate) user.subscriptionEndDate = endDate;
+    // isPremium stays TRUE — user retains access until endDate. The
+    // subscription.deleted webhook will flip isPremium to false when Stripe
+    // finishes the cancellation.
+    await user.save();
+
+    // Remove the "PayPulse Premium" recurring bill now so it stops appearing
+    // on future calendar/bills views. (If we waited for subscription.deleted
+    // it would sit there as a dead row for up to a month.)
+    await removePremiumBill(user._id);
+
+    res.json({
+      success: true,
+      wasTrialing,
+      endDate: endDate ? endDate.toISOString() : null,
+      message: wasTrialing
+        ? "Trial canceled — you won't be charged."
+        : "Subscription canceled — access continues until the end of the billing period.",
+    });
+  } catch (error) {
+    console.error("[Stripe] Cancel subscription error:", error);
+    const isStripeError = error?.type?.startsWith?.("Stripe");
+    res.status(isStripeError ? 400 : 500).json({
+      error: isStripeError ? `Stripe error: ${error.message}` : "Failed to cancel subscription.",
+    });
+  }
+});
+
 // POST /webhook — handles Stripe webhook events
 router.post("/webhook", async (req, res) => {
   if (!stripe) return res.status(503).json({ error: "Stripe not configured." });
@@ -204,6 +275,15 @@ router.post("/webhook", async (req, res) => {
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
         const saved = await user.save();
         console.log("[Stripe Webhook] Step 7: SAVED ✓", { id: saved._id, email: saved.email, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
+
+        // Auto-create the recurring Premium bill.
+        try {
+          const billDueDate = trialEnd || new Date();
+          const billResult = await upsertPremiumBill(saved._id, billDueDate);
+          console.log("[Stripe Webhook] Step 8: Premium bill", billResult.created ? "CREATED" : "already exists");
+        } catch (billErr) {
+          console.error("[Stripe Webhook] Step 8: failed to upsert Premium bill:", billErr.message);
+        }
         break;
       }
 
@@ -254,7 +334,9 @@ router.post("/webhook", async (req, res) => {
         user.subscriptionStatus = "free";
         user.isPremium = false;
         user.stripeSubscriptionId = null;
+        user.subscriptionEndDate = undefined;
         const saved = await user.save();
+        try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
         console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
         break;
       }

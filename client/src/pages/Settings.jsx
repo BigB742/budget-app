@@ -16,7 +16,7 @@ const FONT_SCALES = [
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { isPremium } = useSubscription();
+  const { isPremium, isTrialing, isCanceled, status, subscriptionEndDate } = useSubscription();
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "system");
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
@@ -58,6 +58,11 @@ const Settings = () => {
   const [supportForm, setSupportForm] = useState({ subject: "", message: "" });
   const [supportSaving, setSupportSaving] = useState(false);
   const [supportMsg, setSupportMsg] = useState("");
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelResult, setCancelResult] = useState(null); // { wasTrialing, endDate, message }
 
   useEffect(() => {
     const r = document.documentElement;
@@ -216,6 +221,25 @@ const Settings = () => {
                   </div></div>
                 </div>
                 {dirty && <div className="s-save-bar"><button type="button" className="primary-button" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>{saveMsg && <span className="s-save-msg">{saveMsg}</span>}</div>}
+
+                {/* Subscription status + cancel */}
+                <div className="s-sub-block">
+                  {(isTrialing || status === "premium" || status === "premium_monthly" || status === "premium_annual") && !isCanceled && (
+                    <>
+                      <p className="s-sub-status">
+                        {isTrialing ? "Free trial — Premium" : "Premium — active"}
+                      </p>
+                      <button type="button" className="link-button s-cancel-btn" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
+                        Cancel subscription
+                      </button>
+                    </>
+                  )}
+                  {isCanceled && subscriptionEndDate && (
+                    <p className="s-sub-status s-sub-canceled">
+                      Subscription canceled — access until {new Date(subscriptionEndDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -357,6 +381,84 @@ const Settings = () => {
           </div>
         </div>
       )}
+      {/* Cancel subscription modal */}
+      {showCancelModal && (
+        <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h4>Cancel subscription</h4>
+              <button type="button" className="ghost-button" onClick={() => setShowCancelModal(false)}>&#x2715;</button>
+            </div>
+
+            {!cancelResult ? (
+              <>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", margin: "0.5rem 0 0.75rem" }}>
+                  {isTrialing
+                    ? "Are you sure? Your trial will end and you won't be charged. You'll lose premium access immediately after the trial end date."
+                    : "Are you sure? You'll keep premium access until the end of your current billing period, then revert to the free plan."}
+                </p>
+                {cancelError && <div className="inline-error" style={{ marginBottom: "0.5rem" }}>{cancelError}</div>}
+                <div className="modal-actions">
+                  <button type="button" className="ghost-button" onClick={() => setShowCancelModal(false)}>Keep subscription</button>
+                  <button
+                    type="button"
+                    className="delete-button"
+                    disabled={cancelLoading}
+                    onClick={async () => {
+                      setCancelLoading(true);
+                      setCancelError("");
+                      try {
+                        const data = await authFetch("/api/stripe/subscription", { method: "DELETE" });
+                        setCancelResult(data);
+                        // Refresh user in localStorage so useSubscription picks up the new status
+                        try {
+                          const refreshed = await authFetch("/api/user/me");
+                          localStorage.setItem("user", JSON.stringify(refreshed));
+                          setUser(refreshed);
+                        } catch { /* ignore */ }
+                      } catch (err) {
+                        setCancelError(err?.message || "Failed to cancel subscription.");
+                      } finally {
+                        setCancelLoading(false);
+                      }
+                    }}
+                  >
+                    {cancelLoading ? "Canceling..." : "Yes, cancel"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--teal)", margin: "0.75rem 0 0.25rem" }}>
+                  {cancelResult.wasTrialing
+                    ? "Trial canceled — you won't be charged."
+                    : "Subscription canceled."}
+                </p>
+                {!cancelResult.wasTrialing && cancelResult.endDate && (
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
+                    Access continues until{" "}
+                    <strong>
+                      {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </strong>.
+                  </p>
+                )}
+                {cancelResult.wasTrialing && cancelResult.endDate && (
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
+                    Trial ends{" "}
+                    <strong>
+                      {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </strong>.
+                  </p>
+                )}
+                <div className="modal-actions">
+                  <button type="button" className="primary-button" onClick={() => { setShowCancelModal(false); setCancelResult(null); }}>Close</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Reset account modal */}
       {showResetModal && (
         <div className="modal-overlay" onClick={() => setShowResetModal(false)}>

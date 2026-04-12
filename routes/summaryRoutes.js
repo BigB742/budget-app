@@ -513,6 +513,17 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       return res.status(400).json({ error: "Unable to compute current budget period." });
     }
 
+    // If the user's account was created inside the current pay period, they
+    // have no prior paycheck history in PayPulse — the rollover value shown
+    // to them represents the balance they entered at onboarding, not a
+    // carryover from a previous paycheck. The frontend uses this flag to
+    // relabel "Rollover from previous" → "Opening balance" for such users.
+    const userDoc = await User.findById(req.userId).select("createdAt");
+    const isFirstPeriod = !!(
+      userDoc?.createdAt &&
+      new Date(userDoc.createdAt) >= startOfDay(currentPeriod.start)
+    );
+
     const MAX_ITERATIONS = 26;
     const periods = [];
     let rollover = 0;
@@ -554,6 +565,12 @@ router.get("/projected-balance", authRequired, async (req, res) => {
           expensesThisPeriod: totalExpenses,
           estimatedBalance: periodBalance,
           periods,
+          // True when the user's account was created during the current
+          // (first) pay period. Any rollover the user sees in the snapshot
+          // — even on future-period snapshots — traces back to the balance
+          // they entered at onboarding, so the frontend relabels it as
+          // "Opening balance" to avoid confusing them.
+          isFirstPeriod,
         });
       }
 

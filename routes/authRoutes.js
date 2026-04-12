@@ -39,6 +39,7 @@ const createTokenResponse = (user) => {
       emailVerified: !!user.emailVerified,
       subscriptionStatus: user.subscriptionStatus || "free",
       trialEndDate: user.trialEndDate || null,
+      subscriptionEndDate: user.subscriptionEndDate || null,
       locale: user.locale || "en",
       notificationPrefs: user.notificationPrefs || {},
       incomeSettings: user.incomeSettings || {},

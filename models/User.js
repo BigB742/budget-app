@@ -17,11 +17,14 @@ const UserSchema = new mongoose.Schema(
     locale: { type: String, default: "en" },
     subscriptionStatus: {
       type: String,
-      enum: ["free", "trialing", "premium", "premium_monthly", "premium_annual", "expired"],
+      enum: ["free", "trialing", "premium", "premium_monthly", "premium_annual", "canceled", "expired"],
       default: "free",
     },
     trialStartDate: { type: Date },
     trialEndDate: { type: Date },
+    // When the subscription access actually ends (for canceled subs, this is
+    // the Stripe current_period_end — user keeps premium access until then).
+    subscriptionEndDate: { type: Date },
     notificationPrefs: {
       billReminders: { type: Boolean, default: true },
       paydayReminders: { type: Boolean, default: true },
