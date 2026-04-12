@@ -171,14 +171,39 @@ router.post("/webhook", async (req, res) => {
           break;
         }
 
-        console.log("[Stripe Webhook] Step 6: upgrading user", user.email, "to premium");
-        user.subscriptionStatus = "premium";
+        console.log("[Stripe Webhook] Step 6: upgrading user", user.email);
+
+        // Use Stripe's authoritative subscription status so trial subscriptions
+        // get subscriptionStatus = "trialing" (not "premium") and we persist
+        // trial_end for the frontend's days-left banner.
+        let subStatus = "premium";
+        let trialEnd = null;
+        if (session.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription);
+            console.log("[Stripe Webhook] Step 6a: subscription status =", sub.status, "| trial_end =", sub.trial_end);
+            if (sub.status === "trialing") {
+              subStatus = "trialing";
+              if (sub.trial_end) trialEnd = new Date(sub.trial_end * 1000);
+            } else if (sub.status === "active") {
+              subStatus = "premium";
+            }
+          } catch (e) {
+            console.error("[Stripe Webhook] Step 6a: subscription retrieve failed:", e.message);
+          }
+        }
+
+        user.subscriptionStatus = subStatus;
         user.isPremium = true;
         if (!user.premiumSince) user.premiumSince = new Date();
+        if (trialEnd) {
+          user.trialStartDate = user.trialStartDate || new Date();
+          user.trialEndDate = trialEnd;
+        }
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
         const saved = await user.save();
-        console.log("[Stripe Webhook] Step 7: SAVED ✓", { id: saved._id, email: saved.email, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, stripeCustomerId: saved.stripeCustomerId });
+        console.log("[Stripe Webhook] Step 7: SAVED ✓", { id: saved._id, email: saved.email, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
         break;
       }
 
@@ -192,15 +217,20 @@ router.post("/webhook", async (req, res) => {
         if (!user) { console.log("[Stripe Webhook] Step 2: No user found for subscription", subscription.id); break; }
         console.log("[Stripe Webhook] Step 2: Found user:", user._id, user.email);
 
-        // active/trialing → premium. canceled/incomplete_expired/unpaid/past_due → free.
-        const activeStatuses = ["active", "trialing"];
+        // trialing → trialing. active → premium. canceled/incomplete_expired/unpaid/past_due → free.
         const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
 
-        if (activeStatuses.includes(subscription.status)) {
+        if (subscription.status === "trialing") {
+          user.isPremium = true;
+          user.subscriptionStatus = "trialing";
+          if (subscription.trial_end) user.trialEndDate = new Date(subscription.trial_end * 1000);
+          if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
+          console.log("[Stripe Webhook] Step 3: Setting user to trialing, trialEnd =", user.trialEndDate);
+        } else if (subscription.status === "active") {
           user.isPremium = true;
           user.subscriptionStatus = "premium";
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
-          console.log("[Stripe Webhook] Step 3: Setting user to premium (status:", subscription.status, ")");
+          console.log("[Stripe Webhook] Step 3: Setting user to premium");
         } else if (downgradeStatuses.includes(subscription.status)) {
           user.isPremium = false;
           user.subscriptionStatus = "free";
@@ -209,7 +239,7 @@ router.post("/webhook", async (req, res) => {
           console.log("[Stripe Webhook] Step 3: Unrecognized status:", subscription.status, "— leaving unchanged");
         }
         const saved = await user.save();
-        console.log("[Stripe Webhook] Step 4: SAVED ✓", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
+        console.log("[Stripe Webhook] Step 4: SAVED ✓", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
         break;
       }
 

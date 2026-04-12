@@ -35,12 +35,12 @@ function readRawBody(req) {
   });
 }
 
-// Tell Vercel's Node runtime NOT to auto-parse the body.
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// NOTE: The `config` export must be assigned AFTER module.exports is set to
+// the handler function. If we set module.exports.config first and then
+// module.exports = async ..., the second assignment replaces the exports
+// object entirely and the config is silently lost — Vercel falls back to
+// auto-parsing the body, which breaks Stripe signature verification. Order
+// matters: handler first, then attach config as a property of it.
 
 module.exports = async (req, res) => {
   console.log("[Stripe Webhook Fn] Invoked. method =", req.method);
@@ -113,9 +113,36 @@ module.exports = async (req, res) => {
         }
 
         console.log("[Stripe Webhook Fn] Step 6: upgrading", user.email);
-        user.subscriptionStatus = "premium";
+
+        // Retrieve the subscription so we use Stripe's authoritative status.
+        // A checkout with trial_period_days completes with status = "trialing",
+        // not "active", so setting subscriptionStatus = "premium" here would be
+        // wrong and would make useSubscription treat the user as paid instead
+        // of on-trial (hiding the trial-days-left banner).
+        let subStatus = "premium";
+        let trialEnd = null;
+        if (session.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription);
+            console.log("[Stripe Webhook Fn] Step 6a: subscription status =", sub.status, "| trial_end =", sub.trial_end);
+            if (sub.status === "trialing") {
+              subStatus = "trialing";
+              if (sub.trial_end) trialEnd = new Date(sub.trial_end * 1000);
+            } else if (sub.status === "active") {
+              subStatus = "premium";
+            }
+          } catch (e) {
+            console.error("[Stripe Webhook Fn] Step 6a: failed to retrieve subscription:", e.message);
+          }
+        }
+
+        user.subscriptionStatus = subStatus;
         user.isPremium = true;
         if (!user.premiumSince) user.premiumSince = new Date();
+        if (trialEnd) {
+          user.trialStartDate = user.trialStartDate || new Date();
+          user.trialEndDate = trialEnd;
+        }
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
         const saved = await user.save();
@@ -124,6 +151,7 @@ module.exports = async (req, res) => {
           email: saved.email,
           subscriptionStatus: saved.subscriptionStatus,
           isPremium: saved.isPremium,
+          trialEndDate: saved.trialEndDate,
         });
         break;
       }
@@ -137,10 +165,14 @@ module.exports = async (req, res) => {
         if (!user) { console.log("[Stripe Webhook Fn] No user found"); break; }
         console.log("[Stripe Webhook Fn] Found user:", user._id, user.email);
 
-        const activeStatuses = ["active", "trialing"];
         const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
 
-        if (activeStatuses.includes(subscription.status)) {
+        if (subscription.status === "trialing") {
+          user.isPremium = true;
+          user.subscriptionStatus = "trialing";
+          if (subscription.trial_end) user.trialEndDate = new Date(subscription.trial_end * 1000);
+          if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
+        } else if (subscription.status === "active") {
           user.isPremium = true;
           user.subscriptionStatus = "premium";
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
@@ -149,7 +181,7 @@ module.exports = async (req, res) => {
           user.subscriptionStatus = "free";
         }
         const saved = await user.save();
-        console.log("[Stripe Webhook Fn] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
+        console.log("[Stripe Webhook Fn] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
         break;
       }
 
@@ -188,4 +220,13 @@ module.exports = async (req, res) => {
   }
 
   res.json({ received: true });
+};
+
+// Disable Vercel's automatic body parsing so we can read the raw stream for
+// Stripe signature verification. Assigned AFTER module.exports so it
+// actually lands on the handler function.
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
 };

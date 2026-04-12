@@ -1,4 +1,5 @@
 const express = require("express");
+const Stripe = require("stripe");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { authRequired } = require("../middleware/auth");
@@ -217,6 +218,97 @@ router.post("/support-tickets/:id/reply", async (req, res) => {
   } catch (error) {
     console.error("Reply error:", error);
     res.status(500).json({ error: "Failed to send reply." });
+  }
+});
+
+// ── STRIPE RECONCILIATION ────────────────────────────────────────────────────
+
+// POST /api/admin/sync-stripe/:userId — reconcile a user's subscription
+// status against Stripe. Use this to recover from webhook failures.
+//
+// Lookup order:
+//   1. If Mongo has user.stripeCustomerId, fetch that customer.
+//   2. Else fall back to searching Stripe by the user's email.
+// Then list that customer's subscriptions and pick the first
+// active/trialing one (if any), and apply it to the Mongo doc.
+router.post("/sync-stripe/:userId", async (req, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // 1. Resolve Stripe customer
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const matches = await stripe.customers.list({ email: user.email, limit: 1 });
+      if (matches.data.length > 0) {
+        customerId = matches.data[0].id;
+        user.stripeCustomerId = customerId;
+      }
+    }
+    if (!customerId) {
+      return res.status(404).json({ error: "No Stripe customer found for this user" });
+    }
+
+    // 2. Find an active or trialing subscription
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 10,
+    });
+    const sub = subs.data.find((s) => s.status === "trialing" || s.status === "active") || subs.data[0];
+    if (!sub) {
+      return res.status(404).json({ error: "No subscription found for this customer" });
+    }
+
+    // 3. Apply the status to the user doc
+    const before = {
+      subscriptionStatus: user.subscriptionStatus,
+      isPremium: user.isPremium,
+      trialEndDate: user.trialEndDate,
+    };
+
+    user.stripeSubscriptionId = sub.id;
+    if (sub.status === "trialing") {
+      user.isPremium = true;
+      user.subscriptionStatus = "trialing";
+      if (sub.trial_end) user.trialEndDate = new Date(sub.trial_end * 1000);
+      if (!user.premiumSince) user.premiumSince = new Date();
+    } else if (sub.status === "active") {
+      user.isPremium = true;
+      user.subscriptionStatus = "premium";
+      if (!user.premiumSince) user.premiumSince = new Date();
+    } else {
+      user.isPremium = false;
+      user.subscriptionStatus = "free";
+    }
+
+    const saved = await user.save();
+    console.log("[Admin] sync-stripe", user.email, "before:", before, "after:", {
+      subscriptionStatus: saved.subscriptionStatus,
+      isPremium: saved.isPremium,
+      trialEndDate: saved.trialEndDate,
+    });
+    res.json({
+      success: true,
+      stripeSubscriptionStatus: sub.status,
+      user: {
+        _id: saved._id,
+        email: saved.email,
+        subscriptionStatus: saved.subscriptionStatus,
+        isPremium: saved.isPremium,
+        trialEndDate: saved.trialEndDate,
+        stripeCustomerId: saved.stripeCustomerId,
+        stripeSubscriptionId: saved.stripeSubscriptionId,
+      },
+    });
+  } catch (error) {
+    console.error("[Admin] sync-stripe error:", error);
+    res.status(500).json({ error: error.message || "Failed to sync" });
   }
 });
 
