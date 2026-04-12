@@ -8,16 +8,55 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
 
+// Price IDs live in env vars so we can swap live/test without a code change.
+// The fallbacks below are the test-mode IDs from PayPulse's test Stripe
+// account — they only work when STRIPE_SECRET_KEY is a test key. In
+// production, STRIPE_PRICE_MONTHLY and STRIPE_PRICE_ANNUAL MUST be set to
+// live price IDs (price_xxx created in the live Stripe dashboard).
 const PLANS = {
   monthly: {
-    priceId: "price_1TKXPzG0K5DOC4SQnXTMze8Q",
+    priceId: process.env.STRIPE_PRICE_MONTHLY || "price_1TKXPzG0K5DOC4SQnXTMze8Q",
     trialDays: 3,
   },
   annual: {
-    priceId: "price_1TKXQGG0K5DOC4SQ2EzwQL3y",
+    priceId: process.env.STRIPE_PRICE_ANNUAL || "price_1TKXQGG0K5DOC4SQ2EzwQL3y",
     trialDays: 0,
   },
 };
+
+// Resolve (or create) a Stripe customer for this user. Guarantees we never
+// create a duplicate customer for the same email:
+//   1. If Mongo already has user.stripeCustomerId → reuse it.
+//   2. Else search Stripe by email — if a customer exists there, adopt it
+//      and persist the id to Mongo.
+//   3. Else explicitly create a new customer, persist the id to Mongo.
+// The checkout session always receives `customer: <id>`, never
+// `customer_email`, so Stripe has no opportunity to mint a second customer.
+async function resolveStripeCustomer(user) {
+  if (user.stripeCustomerId) {
+    console.log("[Stripe] Reusing cached customer", user.stripeCustomerId, "for", user.email);
+    return user.stripeCustomerId;
+  }
+
+  const existing = await stripe.customers.list({ email: user.email, limit: 1 });
+  if (existing.data && existing.data.length > 0) {
+    const found = existing.data[0];
+    console.log("[Stripe] Adopted existing Stripe customer", found.id, "for", user.email);
+    user.stripeCustomerId = found.id;
+    await user.save();
+    return found.id;
+  }
+
+  const created = await stripe.customers.create({
+    email: user.email,
+    name: [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined,
+    metadata: { userId: String(user._id) },
+  });
+  console.log("[Stripe] Created new Stripe customer", created.id, "for", user.email);
+  user.stripeCustomerId = created.id;
+  await user.save();
+  return created.id;
+}
 
 // POST /create-checkout-session — creates a Stripe Checkout session
 router.post("/create-checkout-session", authRequired, async (req, res) => {
@@ -30,6 +69,8 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "User not found." });
 
+    const customerId = await resolveStripeCustomer(user);
+
     const sessionParams = {
       mode: "subscription",
       payment_method_types: ["card"],
@@ -37,19 +78,13 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
       success_url: "https://paypulse-frontend.vercel.app/subscription/success?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://paypulse-frontend.vercel.app/subscription/cancel",
       client_reference_id: String(user._id),
-      customer_email: user.email,
+      customer: customerId,
       metadata: { userId: String(user._id), plan },
     };
 
     // Add trial for monthly plan
     if (planConfig.trialDays > 0) {
       sessionParams.subscription_data = { trial_period_days: planConfig.trialDays };
-    }
-
-    // Reuse existing Stripe customer if they have one
-    if (user.stripeCustomerId) {
-      sessionParams.customer = user.stripeCustomerId;
-      delete sessionParams.customer_email;
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
