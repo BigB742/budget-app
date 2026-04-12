@@ -16,6 +16,11 @@ const PaymentOverride = require("../models/PaymentOverride");
 const FeatureFlag = require("../models/FeatureFlag");
 const SupportTicket = require("../models/SupportTicket");
 const { sendEmail } = require("../utils/email");
+const {
+  buildSupportReplyEmail,
+  buildAccountDeletedEmail,
+  SUPPORT_EMAIL,
+} = require("../utils/emailTemplates");
 
 const router = express.Router();
 
@@ -87,10 +92,7 @@ router.delete("/users/:id", async (req, res) => {
       await sendEmail(
         user.email,
         "Your PayPulse account has been deleted",
-        `<p>Hello ${user.firstName || ""},</p>
-        <p>Your PayPulse account and all associated data have been permanently deleted by an administrator.</p>
-        <p>If you believe this was done in error, please contact us at contacto@productoslaloma.com.</p>
-        <p>— PayPulse Team</p>`
+        buildAccountDeletedEmail({ firstName: user.firstName })
       );
     } catch { /* email send is best-effort */ }
 
@@ -190,7 +192,7 @@ router.put("/support-tickets/:id", async (req, res) => {
   }
 });
 
-// POST /api/admin/support-tickets/:id/reply — reply via email
+// POST /api/admin/support-tickets/:id/reply — reply via email (from support@productoslaloma.com)
 router.post("/support-tickets/:id/reply", async (req, res) => {
   try {
     const { message } = req.body;
@@ -201,7 +203,12 @@ router.post("/support-tickets/:id/reply", async (req, res) => {
     await sendEmail(
       ticket.email,
       `Re: ${ticket.subject}`,
-      `<p>${message.replace(/\n/g, "<br>")}</p><hr><p style="color:#888;font-size:0.85rem;">Original message: ${ticket.message}</p><p style="color:#888;font-size:0.85rem;">— PayPulse Support</p>`
+      buildSupportReplyEmail({
+        replyMessage: message,
+        originalSubject: ticket.subject,
+        originalMessage: ticket.message,
+      }),
+      { from: `"PayPulse Support" <${SUPPORT_EMAIL}>` }
     );
 
     ticket.status = "resolved";

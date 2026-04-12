@@ -3,7 +3,7 @@ const nodemailer = require("nodemailer");
 // Log email config on module load
 console.log("[Email] EMAIL_USER configured:", !!process.env.EMAIL_USER);
 
-const sendEmail = async (to, subject, html) => {
+const sendEmail = async (to, subject, html, options = {}) => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
   if (!user || !pass) {
@@ -27,11 +27,14 @@ const sendEmail = async (to, subject, html) => {
     throw verifyErr;
   }
 
-  // Use EMAIL_FROM env var if set (e.g. for non-Gmail SMTP providers).
-  // Gmail SMTP requires the 'from' domain to match the authenticated account,
-  // so set EMAIL_FROM=no-reply@productoslaloma.com only when using a
-  // provider that supports custom sender addresses (SendGrid, Postmark, etc.).
-  const fromAddress = process.env.EMAIL_FROM || `"PayPulse" <${user}>`;
+  // Resolve the from address. Priority:
+  // 1. Explicit options.from passed by caller (e.g., support replies use support@)
+  // 2. EMAIL_FROM env var (for non-Gmail SMTP providers that allow custom senders)
+  // 3. Default PayPulse identity on the authenticated Gmail account
+  // Note: Gmail rewrites the from domain to the authenticated account unless
+  // the alias is configured in the Google Workspace settings. Use a real
+  // transactional provider (SendGrid, Postmark, Resend) for true custom senders.
+  const fromAddress = options.from || process.env.EMAIL_FROM || `"PayPulse" <${user}>`;
   const result = await transporter.sendMail({
     from: fromAddress,
     to, subject, html,

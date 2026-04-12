@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const { authRequired } = require("../middleware/auth");
 const User = require("../models/User");
 const { sendEmail } = require("../utils/email");
+const { buildDeleteAccountEmail } = require("../utils/emailTemplates");
 
 const router = express.Router();
 
@@ -123,12 +124,7 @@ router.post("/send-delete-code", authRequired, async (req, res) => {
     await sendEmail(
       user.email,
       "Confirm PayPulse account deletion",
-      `<p>Hello ${user.firstName || ""},</p>
-      <p>You requested to delete your PayPulse account. Your confirmation code is:</p>
-      <h2 style="letter-spacing: 0.2em; color: #E53E3E;">${code}</h2>
-      <p>This code expires in 15 minutes.</p>
-      <p>If you did not request this, you can safely ignore this email.</p>
-      <p>— PayPulse Team</p>`
+      buildDeleteAccountEmail({ firstName: user.firstName, code })
     );
 
     res.json({ success: true });
@@ -259,10 +255,24 @@ router.post("/support-ticket", authRequired, async (req, res) => {
     const userId = req.user?.id || req.user?._id || req.userId;
     const { subject, message } = req.body || {};
     if (!subject || !message) return res.status(400).json({ message: "Subject and message are required." });
-    const user = await User.findById(userId).select("email");
+    const user = await User.findById(userId).select("email firstName");
     if (!user) return res.status(404).json({ message: "User not found." });
     const SupportTicket = require("../models/SupportTicket");
     await SupportTicket.create({ userId, email: user.email, subject, message });
+
+    // Send confirmation email to the user
+    try {
+      const { buildSupportConfirmationEmail } = require("../utils/emailTemplates");
+      await sendEmail(
+        user.email,
+        "We received your support request — PayPulse",
+        buildSupportConfirmationEmail({ firstName: user.firstName, subject, message })
+      );
+    } catch (emailErr) {
+      console.error("[Support] Confirmation email failed:", emailErr.message);
+      // Non-critical — ticket was saved successfully
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error("Support ticket error:", error);

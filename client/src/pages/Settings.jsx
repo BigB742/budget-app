@@ -372,10 +372,16 @@ const Settings = () => {
                 setResetLoading(true); setResetError("");
                 try {
                   await authFetch("/api/user/reset-account", { method: "POST", body: JSON.stringify({ password: resetPassword }) });
+                  // Update local session so ProtectedRoute routes to onboarding
                   const stored = JSON.parse(localStorage.getItem("user") || "{}");
                   stored.onboardingComplete = false;
+                  stored.currentBalance = 0;
+                  stored.totalSavings = 0;
                   localStorage.setItem("user", JSON.stringify(stored));
-                  navigate("/onboarding");
+                  setShowResetModal(false);
+                  // Hard redirect — forces ProtectedRoute to re-mount and fetch
+                  // the fresh profile, which will now have onboardingComplete: false
+                  window.location.href = "/onboarding";
                 } catch (err) { setResetError(err?.message || "Failed to reset account."); }
                 finally { setResetLoading(false); }
               }}>{resetLoading ? "Resetting..." : "Reset my account"}</button>

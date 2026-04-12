@@ -441,10 +441,38 @@ const Onboarding = () => {
       setSaving(true);
       try {
         const amt = savings !== "" ? Math.max(0, Number(savings)) : 0;
+        // Save to user.totalSavings (used by dashboard summary card)
         await authFetch("/api/user/me", {
           method: "PUT",
           body: JSON.stringify({ totalSavings: amt }),
         });
+        // Also create a SavingsGoal record so it shows in Bills & Income Savings tab
+        // and the user can add/withdraw. Only create if amount > 0.
+        if (amt > 0) {
+          try {
+            await authFetch("/api/savings-goals", {
+              method: "POST",
+              body: JSON.stringify({
+                name: "My Savings",
+                targetAmount: 999999,
+                savedAmount: amt,
+                perPaycheckAmount: 0,
+                category: "Savings",
+              }),
+            });
+            // The POST endpoint initializes savedAmount to 0, so PATCH the
+            // savedAmount to the real amount the user entered.
+            // (See routes/savingsRoutes.js — create ignores savedAmount from body.)
+            const goals = await authFetch("/api/savings-goals");
+            const mine = Array.isArray(goals) ? goals.find((g) => g.name === "My Savings") : null;
+            if (mine && mine.savedAmount !== amt) {
+              await authFetch(`/api/savings-goals/${mine._id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ savedAmount: amt }),
+              });
+            }
+          } catch { /* non-critical */ }
+        }
         setSavingsSaved(true);
       } catch { /* non-critical */ }
       finally {

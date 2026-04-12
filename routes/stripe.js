@@ -85,37 +85,49 @@ router.post("/webhook", async (req, res) => {
       case "checkout.session.completed": {
         const session = event.data.object;
         const userId = session.client_reference_id || session.metadata?.userId;
-        console.log("[Stripe Webhook] checkout.session.completed | userId:", userId, "| customer:", session.customer);
-        if (!userId) { console.log("[Stripe Webhook] No userId found — skipping"); break; }
+        const customerEmail = session.customer_details?.email || session.customer_email;
+        console.log("[Stripe Webhook] checkout.session.completed | userId:", userId, "| customer:", session.customer, "| email:", customerEmail);
+
+        // Find user — prefer metadata userId, fall back to customer email
+        let user = null;
+        if (userId) user = await User.findById(userId);
+        if (!user && customerEmail) user = await User.findOne({ email: customerEmail.toLowerCase() });
+        if (!user) {
+          console.log("[Stripe Webhook] No user found by userId or email — skipping");
+          break;
+        }
 
         const plan = session.metadata?.plan || "monthly";
         const subscriptionStatus = plan === "annual" ? "premium_annual" : "premium_monthly";
 
-        const result = await User.findByIdAndUpdate(userId, {
-          subscriptionStatus,
-          isPremium: true,
-          premiumSince: new Date(),
-          stripeCustomerId: session.customer,
-          stripeSubscriptionId: session.subscription,
-        }, { new: true });
-        console.log("[Stripe Webhook] User updated:", result ? { id: result._id, subscriptionStatus: result.subscriptionStatus, isPremium: result.isPremium } : "NOT FOUND");
+        user.subscriptionStatus = subscriptionStatus;
+        user.isPremium = true;
+        if (!user.premiumSince) user.premiumSince = new Date();
+        if (session.customer) user.stripeCustomerId = session.customer;
+        if (session.subscription) user.stripeSubscriptionId = session.subscription;
+        const saved = await user.save();
+        console.log("[Stripe Webhook] User upgraded to premium:", { id: saved._id, email: saved.email, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
         break;
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object;
         console.log("[Stripe Webhook] subscription.updated | subId:", subscription.id, "| status:", subscription.status);
-        const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+        // Find user by subscription ID first, then by customer ID as fallback
+        let user = await User.findOne({ stripeSubscriptionId: subscription.id });
+        if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) { console.log("[Stripe Webhook] No user found for subscription", subscription.id); break; }
         console.log("[Stripe Webhook] Found user:", user._id);
 
         if (subscription.status === "active" || subscription.status === "trialing") {
           user.isPremium = true;
-          if (subscription.plan?.interval === "year") user.subscriptionStatus = "premium_annual";
-          else user.subscriptionStatus = "premium_monthly";
+          // Stripe's newer API exposes plan via items.data[0].price.recurring.interval
+          const interval = subscription.items?.data?.[0]?.price?.recurring?.interval || subscription.plan?.interval;
+          user.subscriptionStatus = interval === "year" ? "premium_annual" : "premium_monthly";
+          if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
         } else {
           user.isPremium = false;
-          user.subscriptionStatus = "expired";
+          user.subscriptionStatus = "free";
         }
         const saved = await user.save();
         console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
@@ -125,11 +137,12 @@ router.post("/webhook", async (req, res) => {
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
         console.log("[Stripe Webhook] subscription.deleted | subId:", subscription.id);
-        const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+        let user = await User.findOne({ stripeSubscriptionId: subscription.id });
+        if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) { console.log("[Stripe Webhook] No user found for subscription", subscription.id); break; }
         console.log("[Stripe Webhook] Found user:", user._id);
 
-        user.subscriptionStatus = "expired";
+        user.subscriptionStatus = "free";
         user.isPremium = false;
         user.stripeSubscriptionId = null;
         const saved = await user.save();

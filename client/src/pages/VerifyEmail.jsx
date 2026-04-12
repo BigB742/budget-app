@@ -59,16 +59,21 @@ const VerifyEmail = () => {
   };
 
   const handleResend = async () => {
+    if (!email) { setError("Missing email — go back and try again."); return; }
     setResending(true);
     setResent(false);
+    setError("");
     try {
-      await fetch(`${API_URL}/api/auth/resend-verification`, {
+      const res = await fetch(`${API_URL}/api/auth/resend-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      if (!res.ok) throw new Error("Failed to resend.");
       setResent(true);
-    } catch { /* ignore */ }
+      // Auto-clear the success message after 4 seconds
+      setTimeout(() => setResent(false), 4000);
+    } catch (err) { setError(err.message || "Failed to resend email."); }
     finally { setResending(false); }
   };
 
@@ -113,13 +118,13 @@ const VerifyEmail = () => {
         </form>
         <p style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
           Didn't get it?{" "}
-          <button type="button" className="link-button" onClick={handleResend} disabled={resending} style={{ fontSize: "0.85rem" }}>
-            {resending ? "Sending..." : "Resend code"}
+          <button type="button" className="link-button" onClick={handleResend} disabled={resending} style={{ fontSize: "0.85rem", color: "var(--accent)", fontWeight: 600 }}>
+            {resending ? "Sending..." : "Resend email"}
           </button>
         </p>
         {resent && (
-          <p style={{ color: "var(--teal)", textAlign: "center", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-            Code resent! Check your inbox.
+          <p style={{ color: "var(--teal)", textAlign: "center", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>
+            ✓ Email resent!
           </p>
         )}
         <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.75rem" }}>

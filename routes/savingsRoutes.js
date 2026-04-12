@@ -47,7 +47,7 @@ router.post("/", authRequired, async (req, res) => {
 
 router.patch("/:id", authRequired, async (req, res) => {
   try {
-    const { name, targetAmount, perPaycheckAmount, category, autopilotEnabled } = req.body || {};
+    const { name, targetAmount, perPaycheckAmount, category, autopilotEnabled, savedAmount } = req.body || {};
     const goal = await SavingsGoal.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId },
       {
@@ -56,6 +56,7 @@ router.patch("/:id", authRequired, async (req, res) => {
         ...(perPaycheckAmount !== undefined ? { perPaycheckAmount: Number(perPaycheckAmount) } : {}),
         ...(category !== undefined ? { category } : {}),
         ...(autopilotEnabled !== undefined ? { autopilotEnabled } : {}),
+        ...(savedAmount !== undefined ? { savedAmount: Number(savedAmount) } : {}),
       },
       { new: true }
     );

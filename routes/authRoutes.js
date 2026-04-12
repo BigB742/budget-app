@@ -6,10 +6,16 @@ const User = require("../models/User");
 const IncomeSource = require("../models/IncomeSource");
 const Bill = require("../models/Bill");
 const { sendEmail } = require("../utils/email");
+const {
+  buildVerificationEmail,
+  buildPasswordResetEmail,
+} = require("../utils/emailTemplates");
 
 const sendVerificationEmail = async (user, code) => {
-  await sendEmail(user.email, "Your PayPulse verification code",
-    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;text-align:center"><h2>Welcome to PayPulse!</h2><p style="color:#555">Hi ${user.firstName || "there"},</p><p style="color:#555;margin-bottom:1.5rem">Your verification code is:</p><div style="font-size:2.5rem;font-weight:800;letter-spacing:0.3em;color:#00C896;margin:1rem 0">${code}</div><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This code expires in 15 minutes.</p></div>`
+  await sendEmail(
+    user.email,
+    "Your PayPulse verification code",
+    buildVerificationEmail({ firstName: user.firstName, code })
   );
 };
 
@@ -233,8 +239,10 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     try {
-      await sendEmail(user.email, "Reset your PayPulse password",
-        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;text-align:center"><h2>Password Reset</h2><p style="color:#555">Hi ${user.firstName || "there"},</p><p style="color:#555;margin-bottom:1.5rem">Your password reset code is:</p><div style="font-size:2.5rem;font-weight:800;letter-spacing:0.3em;color:#FF6B35;margin:1rem 0">${code}</div><p style="color:#888;font-size:0.85rem;margin-top:1.5rem">This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.</p></div>`
+      await sendEmail(
+        user.email,
+        "Reset your PayPulse password",
+        buildPasswordResetEmail({ firstName: user.firstName, code })
       );
     } catch (emailErr) {
       console.error("[ForgotPassword] Email send failed:", emailErr.message);
