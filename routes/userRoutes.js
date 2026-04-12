@@ -8,6 +8,9 @@ const { buildDeleteAccountEmail } = require("../utils/emailTemplates");
 
 const router = express.Router();
 
+// Whitelist of safe fields to return to the client. Must never include
+// passwordHash, verificationCode, resetCode, deleteCode, twoFactorOTP,
+// or any other sensitive credential field.
 const userResponse = (user) => ({
   _id: user._id,
   email: user.email,

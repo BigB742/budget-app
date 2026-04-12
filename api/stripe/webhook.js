@@ -44,45 +44,38 @@ function readRawBody(req) {
 // matters: handler first, then attach config as a property of it.
 
 module.exports = async (req, res) => {
-  console.log("[Stripe Webhook Fn] Invoked. method =", req.method);
-
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
   if (!stripe) {
-    console.error("[Stripe Webhook Fn] STRIPE_SECRET_KEY not configured");
+    console.error("[Stripe Webhook] STRIPE_SECRET_KEY not configured");
     return res.status(503).json({ error: "Stripe not configured." });
   }
 
   const sig = req.headers["stripe-signature"];
   if (!sig) {
-    console.error("[Stripe Webhook Fn] Missing stripe-signature header");
+    console.error("[Stripe Webhook] Missing stripe-signature header");
     return res.status(400).json({ error: "Missing signature" });
   }
 
   let event;
   try {
-    // Read body as raw — Vercel/Express may have pre-parsed req.body. If so,
-    // use it directly as a Buffer, otherwise consume the stream.
+    // Prefer the raw stream. Vercel may pre-parse the body in some cases
+    // (if config.api.bodyParser=false fails to apply) — we tolerate that
+    // by re-serializing, though signature verification usually fails in
+    // that path since Stripe signs the original byte sequence.
     let rawBody;
     if (Buffer.isBuffer(req.body)) {
       rawBody = req.body;
-      console.log("[Stripe Webhook Fn] Body was pre-parsed as Buffer");
     } else if (req.body && typeof req.body === "object") {
-      // Vercel may have auto-parsed it as JSON — signature check will likely
-      // fail here, but try anyway with re-serialized bytes.
       rawBody = Buffer.from(JSON.stringify(req.body));
-      console.log("[Stripe Webhook Fn] Body was pre-parsed as object, re-serialized");
     } else {
       rawBody = await readRawBody(req);
-      console.log("[Stripe Webhook Fn] Body read from raw stream, length =", rawBody.length);
     }
-
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log("[Stripe Webhook Fn] ✓ Signature verified. Event:", event.type, "| id:", event.id);
+    console.log(`[Stripe Webhook] Received ${event.type} (${event.id})`);
   } catch (err) {
-    console.error("[Stripe Webhook Fn] ✗ Signature verification FAILED:", err.message);
+    console.error("[Stripe Webhook] Signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -92,48 +85,30 @@ module.exports = async (req, res) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        console.log("[Stripe Webhook Fn] Step 1: checkout.session.completed");
-        console.log("[Stripe Webhook Fn] Step 2: session id =", session.id, "| customer =", session.customer);
-
         const customerEmail = session.customer_email || session.customer_details?.email;
         const userId = session.client_reference_id || session.metadata?.userId;
-        console.log("[Stripe Webhook Fn] Step 3: email =", customerEmail, "| userId =", userId);
 
         let user = null;
-        if (customerEmail) {
-          user = await User.findOne({ email: customerEmail.toLowerCase() });
-          console.log("[Stripe Webhook Fn] Step 4a: email lookup →", user ? `found ${user._id}` : "not found");
-        }
-        if (!user && userId) {
-          user = await User.findById(userId);
-          console.log("[Stripe Webhook Fn] Step 4b: userId lookup →", user ? `found ${user._id}` : "not found");
-        }
+        if (customerEmail) user = await User.findOne({ email: customerEmail.toLowerCase() });
+        if (!user && userId) user = await User.findById(userId);
         if (!user) {
-          console.error("[Stripe Webhook Fn] Step 5: NO USER FOUND — cannot upgrade");
+          console.error("[Stripe Webhook] checkout.session.completed — no user for email:", customerEmail, "userId:", userId);
           break;
         }
 
-        console.log("[Stripe Webhook Fn] Step 6: upgrading", user.email);
-
-        // Retrieve the subscription so we use Stripe's authoritative status.
-        // A checkout with trial_period_days completes with status = "trialing",
-        // not "active", so setting subscriptionStatus = "premium" here would be
-        // wrong and would make useSubscription treat the user as paid instead
-        // of on-trial (hiding the trial-days-left banner).
+        // Use Stripe's authoritative subscription status so trial subs get
+        // "trialing" (not "premium") and trial_end is persisted.
         let subStatus = "premium";
         let trialEnd = null;
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(session.subscription);
-            console.log("[Stripe Webhook Fn] Step 6a: subscription status =", sub.status, "| trial_end =", sub.trial_end);
             if (sub.status === "trialing") {
               subStatus = "trialing";
               if (sub.trial_end) trialEnd = new Date(sub.trial_end * 1000);
-            } else if (sub.status === "active") {
-              subStatus = "premium";
             }
           } catch (e) {
-            console.error("[Stripe Webhook Fn] Step 6a: failed to retrieve subscription:", e.message);
+            console.error("[Stripe Webhook] subscription retrieve failed:", e.message);
           }
         }
 
@@ -146,39 +121,24 @@ module.exports = async (req, res) => {
         }
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
-        const saved = await user.save();
-        console.log("[Stripe Webhook Fn] Step 7: SAVED ✓", {
-          id: saved._id.toString(),
-          email: saved.email,
-          subscriptionStatus: saved.subscriptionStatus,
-          isPremium: saved.isPremium,
-          trialEndDate: saved.trialEndDate,
-        });
+        await user.save();
+        console.log(`[Stripe Webhook] Upgraded ${user.email} → ${subStatus}`);
 
-        // Auto-create the "PayPulse Premium" recurring bill due on the
-        // first real charge date (trial end for trialing, start of
-        // today's period for active-out-of-the-gate).
         try {
-          const billDueDate = trialEnd || new Date();
-          const billResult = await upsertPremiumBill(saved._id, billDueDate);
-          console.log("[Stripe Webhook Fn] Step 8: Premium bill", billResult.created ? "CREATED" : "already exists", "| dueDate:", billDueDate);
+          await upsertPremiumBill(user._id, trialEnd || new Date());
         } catch (billErr) {
-          console.error("[Stripe Webhook Fn] Step 8: failed to upsert Premium bill:", billErr.message);
+          console.error("[Stripe Webhook] upsertPremiumBill failed:", billErr.message);
         }
         break;
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object;
-        console.log("[Stripe Webhook Fn] subscription.updated | subId:", subscription.id, "| status:", subscription.status);
-
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
-        if (!user) { console.log("[Stripe Webhook Fn] No user found"); break; }
-        console.log("[Stripe Webhook Fn] Found user:", user._id, user.email);
+        if (!user) break;
 
         const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
-
         if (subscription.status === "trialing") {
           user.isPremium = true;
           user.subscriptionStatus = "trialing";
@@ -192,14 +152,13 @@ module.exports = async (req, res) => {
           user.isPremium = false;
           user.subscriptionStatus = "free";
         }
-        const saved = await user.save();
-        console.log("[Stripe Webhook Fn] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
+        await user.save();
+        console.log(`[Stripe Webhook] subscription.updated ${user.email} → ${user.subscriptionStatus} (Stripe: ${subscription.status})`);
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
-        console.log("[Stripe Webhook Fn] subscription.deleted | subId:", subscription.id);
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) break;
@@ -208,29 +167,25 @@ module.exports = async (req, res) => {
         user.stripeSubscriptionId = null;
         user.subscriptionEndDate = undefined;
         await user.save();
-        try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook Fn] removePremiumBill failed:", e.message); }
-        console.log("[Stripe Webhook Fn] User downgraded to free:", user.email);
+        try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
+        console.log(`[Stripe Webhook] subscription.deleted ${user.email} → free`);
         break;
       }
 
       case "invoice.payment_failed": {
         const invoice = event.data.object;
-        console.log("[Stripe Webhook Fn] invoice.payment_failed | customer:", invoice.customer);
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
         if (!user) break;
         user.isPremium = false;
         user.subscriptionStatus = "free";
         await user.save();
-        console.log("[Stripe Webhook Fn] User downgraded after payment failure:", user.email);
+        console.log(`[Stripe Webhook] invoice.payment_failed ${user.email} → free`);
         break;
       }
-
-      default:
-        console.log("[Stripe Webhook Fn] Unhandled event type:", event.type);
     }
   } catch (err) {
-    console.error("[Stripe Webhook Fn] Handler error:", err.message);
-    console.error("[Stripe Webhook Fn] Stack:", err.stack);
+    console.error("[Stripe Webhook] Handler error:", err.message);
+    console.error("[Stripe Webhook] Stack:", err.stack);
   }
 
   res.json({ received: true });

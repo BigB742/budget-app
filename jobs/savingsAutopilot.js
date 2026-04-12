@@ -3,7 +3,7 @@
 const cron = require("node-cron");
 const SavingsGoal = require("../models/SavingsGoal");
 const IncomeSource = require("../models/IncomeSource");
-const { getPaydaysInRange, toLocalDate, startOfLocalDay } = require("../utils/paycheckUtils");
+const { getPaydaysInRange, startOfLocalDay } = require("../utils/paycheckUtils");
 
 cron.schedule("0 7 * * *", async () => {
   try {

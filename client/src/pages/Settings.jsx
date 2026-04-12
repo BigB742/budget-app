@@ -3,8 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 
-// TODO: Implement TOTP 2FA using speakeasy or otplib.
-// Send code via email or authenticator app. Require on login after password.
 
 const FONT_SCALES = [
   { key: "xs", scale: 0.85, base: "0.75rem" },

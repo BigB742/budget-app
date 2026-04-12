@@ -99,8 +99,8 @@ const ExpenseHistory = () => {
   // Sort expenses client-side
   const sortedExpenses = useMemo(() => {
     const list = [...expenses];
-    if (sort === "newest") list.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
-    else if (sort === "oldest") list.sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+    if (sort === "newest") list.sort((a, b) => new Date(b.date) - new Date(a.date));
+    else if (sort === "oldest") list.sort((a, b) => new Date(a.date) - new Date(b.date));
     else if (sort === "highest") list.sort((a, b) => (b.amount || 0) - (a.amount || 0));
     else if (sort === "lowest") list.sort((a, b) => (a.amount || 0) - (b.amount || 0));
     return list;

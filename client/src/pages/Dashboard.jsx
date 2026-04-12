@@ -45,7 +45,7 @@ const Dashboard = () => {
   const [quickError, setQuickError] = useState("");
 
   // Use the cache-provided summary; also keep the hook for day-level data
-  const { days: payPeriodDays, loading: payPeriodLoading, error: payPeriodError, refresh: refreshPayPeriod } = useCurrentPayPeriodDays();
+  const { days: payPeriodDays, loading: payPeriodLoading, refresh: refreshPayPeriod } = useCurrentPayPeriodDays();
 
   // Fetch summary + spending categories via cache on mount
   const loadSpendingCategories = useCallback(async () => {
@@ -67,7 +67,6 @@ const Dashboard = () => {
   };
 
   const summaryLoading = !summary && !cache;
-  const summaryError = null;
 
   const handleQuickExpense = async (e) => {
     e.preventDefault();
@@ -87,23 +86,11 @@ const Dashboard = () => {
     finally { setQuickSaving(false); }
   };
 
-  const activeDays = payPeriodDays.filter((d) => d.billsTotal > 0 || d.expensesTotal > 0 || d.incomesTotal > 0 || d.isPayday);
-  const displayDays = showAllDays ? payPeriodDays : activeDays;
-
-  // Find per-source paycheck amount for payday rows
-  const getPaydayAmount = () => {
-    if (!summary?.sources?.length) return summary?.totalIncome || 0;
-    // Show primary source amount, or first source
-    const primary = summary.sources.find((s) => s.paydaysInPeriod > 0);
-    return primary ? primary.amount : (summary.totalIncome || 0);
-  };
-
   return (
     <div className="dashboard-page">
       {/* Hero */}
       <section className="hero">
         {summaryLoading && <p className="hero-loading">Loading...</p>}
-        {summaryError && <p className="hero-error">{summaryError}</p>}
         {summary && (
           <>
             <p className="hero-label">You can spend</p>

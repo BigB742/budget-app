@@ -7,6 +7,9 @@ const { upsertPremiumBill, removePremiumBill } = require("../utils/subscriptionB
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
+// Frontend base URL for Stripe redirect URLs. Override in env for local dev
+// (APP_URL=http://localhost:5173) so checkout redirects back to your local
+// server instead of the deployed one.
 const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
 
 // Price IDs come from env vars only — NO fallbacks. Price IDs are
@@ -89,8 +92,8 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: planConfig.priceId, quantity: 1 }],
-      success_url: "https://paypulse-frontend.vercel.app/subscription/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://paypulse-frontend.vercel.app/subscription/cancel",
+      success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${FRONTEND_URL}/subscription/cancel`,
       client_reference_id: String(user._id),
       customer: customerId,
       metadata: { userId: String(user._id), plan },
@@ -229,48 +232,31 @@ router.post("/webhook", async (req, res) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        console.log("[Stripe Webhook] Step 1: checkout.session.completed received");
-        console.log("[Stripe Webhook] Step 2: session id =", session.id, "| customer =", session.customer, "| subscription =", session.subscription);
-
-        // Extract email from both possible locations
         const customerEmail = session.customer_email || session.customer_details?.email;
         const userId = session.client_reference_id || session.metadata?.userId;
-        console.log("[Stripe Webhook] Step 3: customer_email =", customerEmail, "| metadata userId =", userId);
 
-        // Find user — try email first (per ITEM 1 spec), fall back to metadata userId
+        // Find user — email first, userId fallback.
         let user = null;
-        if (customerEmail) {
-          user = await User.findOne({ email: customerEmail.toLowerCase() });
-          console.log("[Stripe Webhook] Step 4a: lookup by email →", user ? `found user ${user._id}` : "not found");
-        }
-        if (!user && userId) {
-          user = await User.findById(userId);
-          console.log("[Stripe Webhook] Step 4b: fallback lookup by userId →", user ? `found user ${user._id}` : "not found");
-        }
+        if (customerEmail) user = await User.findOne({ email: customerEmail.toLowerCase() });
+        if (!user && userId) user = await User.findById(userId);
         if (!user) {
-          console.error("[Stripe Webhook] Step 5: NO USER FOUND — cannot upgrade to premium. email:", customerEmail, "userId:", userId);
+          console.error("[Stripe Webhook] checkout.session.completed — no user found. email:", customerEmail, "userId:", userId);
           break;
         }
 
-        console.log("[Stripe Webhook] Step 6: upgrading user", user.email);
-
-        // Use Stripe's authoritative subscription status so trial subscriptions
-        // get subscriptionStatus = "trialing" (not "premium") and we persist
-        // trial_end for the frontend's days-left banner.
+        // Use Stripe's authoritative subscription status so trial subs get
+        // "trialing" (not "premium") and trial_end is persisted.
         let subStatus = "premium";
         let trialEnd = null;
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(session.subscription);
-            console.log("[Stripe Webhook] Step 6a: subscription status =", sub.status, "| trial_end =", sub.trial_end);
             if (sub.status === "trialing") {
               subStatus = "trialing";
               if (sub.trial_end) trialEnd = new Date(sub.trial_end * 1000);
-            } else if (sub.status === "active") {
-              subStatus = "premium";
             }
           } catch (e) {
-            console.error("[Stripe Webhook] Step 6a: subscription retrieve failed:", e.message);
+            console.error("[Stripe Webhook] subscription retrieve failed:", e.message);
           }
         }
 
@@ -283,90 +269,70 @@ router.post("/webhook", async (req, res) => {
         }
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
-        const saved = await user.save();
-        console.log("[Stripe Webhook] Step 7: SAVED ✓", { id: saved._id, email: saved.email, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
+        await user.save();
+        console.log(`[Stripe Webhook] Upgraded ${user.email} → ${subStatus}`);
 
-        // Auto-create the recurring Premium bill.
         try {
-          const billDueDate = trialEnd || new Date();
-          const billResult = await upsertPremiumBill(saved._id, billDueDate);
-          console.log("[Stripe Webhook] Step 8: Premium bill", billResult.created ? "CREATED" : "already exists");
+          await upsertPremiumBill(user._id, trialEnd || new Date());
         } catch (billErr) {
-          console.error("[Stripe Webhook] Step 8: failed to upsert Premium bill:", billErr.message);
+          console.error("[Stripe Webhook] upsertPremiumBill failed:", billErr.message);
         }
         break;
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object;
-        console.log("[Stripe Webhook] Step 1: subscription.updated | subId:", subscription.id, "| status:", subscription.status);
-
-        // Find user by subscription ID first, then by customer ID as fallback
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
-        if (!user) { console.log("[Stripe Webhook] Step 2: No user found for subscription", subscription.id); break; }
-        console.log("[Stripe Webhook] Step 2: Found user:", user._id, user.email);
+        if (!user) break;
 
-        // trialing → trialing. active → premium. canceled/incomplete_expired/unpaid/past_due → free.
+        // trialing → trialing, active → premium, canceled/incomplete_expired/unpaid/past_due → free.
         const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
-
         if (subscription.status === "trialing") {
           user.isPremium = true;
           user.subscriptionStatus = "trialing";
           if (subscription.trial_end) user.trialEndDate = new Date(subscription.trial_end * 1000);
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
-          console.log("[Stripe Webhook] Step 3: Setting user to trialing, trialEnd =", user.trialEndDate);
         } else if (subscription.status === "active") {
           user.isPremium = true;
           user.subscriptionStatus = "premium";
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
-          console.log("[Stripe Webhook] Step 3: Setting user to premium");
         } else if (downgradeStatuses.includes(subscription.status)) {
           user.isPremium = false;
           user.subscriptionStatus = "free";
-          console.log("[Stripe Webhook] Step 3: Downgrading user to free (status:", subscription.status, ")");
-        } else {
-          console.log("[Stripe Webhook] Step 3: Unrecognized status:", subscription.status, "— leaving unchanged");
         }
-        const saved = await user.save();
-        console.log("[Stripe Webhook] Step 4: SAVED ✓", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium, trialEndDate: saved.trialEndDate });
+        await user.save();
+        console.log(`[Stripe Webhook] subscription.updated ${user.email} → ${user.subscriptionStatus} (Stripe: ${subscription.status})`);
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
-        console.log("[Stripe Webhook] subscription.deleted | subId:", subscription.id);
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
-        if (!user) { console.log("[Stripe Webhook] No user found for subscription", subscription.id); break; }
-        console.log("[Stripe Webhook] Found user:", user._id);
+        if (!user) break;
 
         user.subscriptionStatus = "free";
         user.isPremium = false;
         user.stripeSubscriptionId = null;
         user.subscriptionEndDate = undefined;
-        const saved = await user.save();
+        await user.save();
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
-        console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
+        console.log(`[Stripe Webhook] subscription.deleted ${user.email} → free`);
         break;
       }
 
       case "invoice.payment_failed": {
         const invoice = event.data.object;
-        console.log("[Stripe Webhook] invoice.payment_failed | customer:", invoice.customer);
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
-        if (!user) { console.log("[Stripe Webhook] No user found for customer", invoice.customer); break; }
-        console.log("[Stripe Webhook] Found user:", user._id);
+        if (!user) break;
 
         user.subscriptionStatus = "expired";
         user.isPremium = false;
-        const saved = await user.save();
-        console.log("[Stripe Webhook] User saved:", { id: saved._id, subscriptionStatus: saved.subscriptionStatus, isPremium: saved.isPremium });
+        await user.save();
+        console.log(`[Stripe Webhook] invoice.payment_failed ${user.email} → expired`);
         break;
       }
-
-      default:
-        console.log("[Stripe Webhook] Unhandled event type:", event.type);
     }
   } catch (err) {
     console.error("[Stripe Webhook] Handler error:", err.message);

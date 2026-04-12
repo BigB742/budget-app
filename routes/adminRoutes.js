@@ -36,10 +36,17 @@ router.use(authRequired, async (req, res, next) => {
 
 // ── USERS ────────────────────────────────────────────────────────────────────
 
+// Explicit exclude list for sensitive user fields. Admins are trusted with
+// profile and financial data but MUST NOT see live verification codes, reset
+// codes, delete codes, or 2FA OTPs — those are temporary credentials and
+// leaking them to the admin UI would be an account-takeover vector.
+const USER_SENSITIVE_EXCLUDE =
+  "-passwordHash -verificationCode -verificationCodeExpiry -resetCode -resetCodeExpiry -deleteCode -deleteCodeExpiry -twoFactorOTP -twoFactorOTPExpiry -verificationToken -passwordResetToken -passwordResetExpiry";
+
 // GET /api/admin/users — list all users with enriched data
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find({}).select("-passwordHash").lean();
+    const users = await User.find({}).select(USER_SENSITIVE_EXCLUDE).lean();
     const enriched = await Promise.all(users.map(async (u) => {
       const [sources, bills, expenses, savings] = await Promise.all([
         IncomeSource.find({ user: u._id, isActive: true }).lean(),

@@ -143,8 +143,8 @@ export const useCurrentPayPeriodDays = () => {
 
     const expensesByDateKey = new Map();
     for (const exp of expenses || []) {
-      const rawDate = exp.dateString ?? exp.date ?? exp.createdAt;
-      const key = toDateKey(rawDate);
+      // expense.date is required on the schema — bucket by it, period.
+      const key = toDateKey(exp.date);
       if (!key) continue;
       const bucket = expensesByDateKey.get(key) || { total: 0, items: [] };
       bucket.total += Number(exp.amount) || 0;

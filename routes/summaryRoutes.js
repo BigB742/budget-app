@@ -12,7 +12,6 @@ const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPay
 const {
   startOfDay,
   getEffectiveBillAmount,
-  sumBillsInPeriod,
   sumExpensesInPeriod,
   loadOverrideMap,
   loadBillPayments,
@@ -39,37 +38,19 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const budget = getBudgetPeriod(sources, today);
     if (!budget) return res.json(emptyResponse);
 
-    const { start, end, nextPayDate, totalIncome, sources: sourceBreakdown } = budget;
+    const { start, end, nextPayDate, totalIncome: recurringIncome, sources: sourceBreakdown } = budget;
 
-    // Add one-time income falling in this period
-    const oneTimeIncomes = await OneTimeIncome.find({
-      user: req.userId,
-      date: { $gte: startOfDay(start), $lte: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999) },
-    });
-    const oneTimeTotal = oneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
-    const adjustedTotalIncome = totalIncome + oneTimeTotal;
-
-    // Bills due in this period (with override + lastPayment + bill payment support)
+    // Prefetch bills + period-scoped override/payment maps once — reused by
+    // both engine calls below.
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
     const overrideMap = await loadOverrideMap(req.userId, start, end);
     const payments = await loadBillPayments(req.userId, start, end);
-    const totalBills = sumBillsInPeriod(bills, start, end, overrideMap, payments);
 
-    // Expenses in this period
-    const totalExpenses = await sumExpensesInPeriod(req.userId, start, end);
-
-    // Savings this period
+    // Savings + investments (informational response fields — not part of
+    // the spendable math because the engine handles that).
     const savingsGoals = await SavingsGoal.find({ userId: req.userId });
-    const savingsThisPeriod = savingsGoals.reduce(
-      (sum, goal) => sum + (Number(goal.perPaycheckAmount) || 0),
-      0
-    );
-    const goalsSaved = savingsGoals.reduce(
-      (sum, goal) => sum + (Number(goal.savedAmount) || 0),
-      0
-    );
-
-    // Investments this period
+    const savingsThisPeriod = savingsGoals.reduce((s, g) => s + (Number(g.perPaycheckAmount) || 0), 0);
+    const totalSaved = savingsGoals.reduce((s, g) => s + (Number(g.savedAmount) || 0), 0);
     const investments = await Investment.find({ userId: req.userId });
     let investmentsThisPeriod = 0;
     investments.forEach((inv) => {
@@ -80,41 +61,39 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    // ═══════════════════════════════════════════════════════════════
-    // "You Can Spend" — routed through the shared finance engine.
-    // computePeriodBalance handles the window math: starting balance is
-    // user.currentBalance, window is today→periodEnd (past activity is
-    // already baked into currentBalance), and recurringIncome=0 (any
-    // paycheck for this period already landed before "today" or is the
-    // "next" paycheck which belongs to the next-period row).
-    // ═══════════════════════════════════════════════════════════════
     const userDoc = await User.findById(req.userId).select("currentBalance");
-    const totalSaved = goalsSaved; // SavingsGoal rows only — see note in previous versions
-    const currentBalance = userDoc?.currentBalance;
-    const hasCurrentBalance = currentBalance != null;
-
+    const currentBalance = Number(userDoc?.currentBalance) || 0;
     const todayNorm = startOfDay(today);
 
-    let balance;
-    if (hasCurrentBalance) {
-      const currentPeriodResult = await computePeriodBalance({
-        userId: req.userId,
-        periodStart: start,
-        periodEnd: end,
-        startingBalance: currentBalance,
-        recurringIncome: 0,
-        bills,
-        overrideMap,
-        payments,
-        windowStart: todayNorm,
-      });
-      balance = currentPeriodResult.estimatedEnd;
-    } else {
-      // Legacy fallback for users without currentBalance set. Uses the
-      // full-period income/bills/expenses and subtracts savings/investments.
-      // Very few users hit this path post-onboarding revamp.
-      balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
-    }
+    // Engine call #1 — full-period totals (informational fields in the
+    // response: totalBills, totalExpenses, totalIncome, oneTimeIncome).
+    const periodTotals = await computePeriodBalance({
+      userId: req.userId,
+      periodStart: start,
+      periodEnd: end,
+      startingBalance: 0,
+      recurringIncome,
+      bills,
+      overrideMap,
+      payments,
+    });
+
+    // Engine call #2 — "You Can Spend". windowStart=today so past
+    // activity (already reflected in currentBalance) isn't double-counted.
+    // recurringIncome=0 because any paycheck for the current period
+    // either already deposited or lives in the next-period row.
+    const currentPeriodResult = await computePeriodBalance({
+      userId: req.userId,
+      periodStart: start,
+      periodEnd: end,
+      startingBalance: currentBalance,
+      recurringIncome: 0,
+      bills,
+      overrideMap,
+      payments,
+      windowStart: todayNorm,
+    });
+    const balance = currentPeriodResult.estimatedEnd;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -167,16 +146,16 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     res.json({
       period: { start, end },
-      recurringIncome: totalIncome,
-      oneTimeIncome: oneTimeTotal,
-      totalIncome: adjustedTotalIncome,
-      totalBills,
-      totalExpenses,
+      recurringIncome: periodTotals.recurringIncome,
+      oneTimeIncome: periodTotals.oneTimeIncome,
+      totalIncome: periodTotals.totalIncome,
+      totalBills: periodTotals.totalBills,
+      totalExpenses: periodTotals.totalExpenses,
       savingsThisPeriod,
       totalSaved,
       investmentsThisPeriod,
       balance,
-      currentBalance: currentBalance ?? 0,
+      currentBalance,
       nextPayDate,
       daysUntilNextPaycheck,
       nextPaycheckBalance,
@@ -477,7 +456,7 @@ router.get("/year-to-date", authRequired, async (req, res) => {
     let projectedIncome = 0;
     for (const source of sources) {
       const paydays = getPaydaysInRange(source.nextPayDate, source.frequency, yearStart, yearEnd);
-      projectedIncome += paydays.length * Number(source.amount);
+      projectedIncome += paydays.length * (Number(source.amount) || 0);
     }
 
     // 2. Active bills — projected annual cost, respecting lastPaymentDate
@@ -574,7 +553,7 @@ router.get("/monthly-breakdown", authRequired, async (req, res) => {
     let recurringIncome = 0;
     for (const source of sources) {
       const paydays = getPaydaysInRange(source.nextPayDate, source.frequency, monthStart, monthEnd);
-      recurringIncome += paydays.length * Number(source.amount);
+      recurringIncome += paydays.length * (Number(source.amount) || 0);
     }
 
     // 2. One-time income in this month

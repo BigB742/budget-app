@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authFetch } from "../apiClient";
+import { useSubscription } from "../hooks/useSubscription";
 import AdSlot from "../components/AdSlot";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-// TODO: Replace with real subscription check when paywall is built
-const isPremium = () => true;
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -31,6 +29,8 @@ const buildMonthGrid = (year, month) => {
 };
 
 const Calendar = () => {
+  const { isPremium, isTrialing } = useSubscription();
+  const hasPremiumAccess = isPremium || isTrialing;
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -126,9 +126,8 @@ const Calendar = () => {
   const expensesByDay = useMemo(() => {
     const map = {};
     expenses.forEach((e) => {
-      const d = e.date || e.createdAt;
-      if (!d) return;
-      const dt = new Date(d);
+      if (!e.date) return;
+      const dt = new Date(e.date);
       const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
       if (!map[key]) map[key] = [];
       map[key].push(e);
@@ -191,7 +190,7 @@ const Calendar = () => {
   };
 
   const isFutureMonth = viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth > today.getMonth());
-  const locked = isFutureMonth && !isPremium();
+  const locked = isFutureMonth && !hasPremiumAccess;
 
   // Load paycheck snapshot when clicking a payday
   const loadSnapshot = useCallback(async (dateKey) => {
@@ -292,7 +291,7 @@ const Calendar = () => {
         <button type="button" className="cal-nav-btn" onClick={goNext}>&rarr;</button>
       </div>
 
-      {!isPremium() && isFutureMonth && (
+      {!hasPremiumAccess && isFutureMonth && (
         <div className="cal-toolbar"><span className="premium-badge">Premium required for future months</span></div>
       )}
 

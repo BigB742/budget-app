@@ -153,7 +153,7 @@ const UsersSection = () => {
                 <>
                   <h5>Recent Expenses (last 20)</h5>
                   {selected.expenses.map((e) => (
-                    <div key={e._id} className="admin-detail-row"><span>{e.description || e.category} — {formatDate(e.date || e.createdAt)}</span><span>{currency.format(e.amount)}</span></div>
+                    <div key={e._id} className="admin-detail-row"><span>{e.description || e.category} — {formatDate(e.date)}</span><span>{currency.format(e.amount)}</span></div>
                   ))}
                 </>
               )}

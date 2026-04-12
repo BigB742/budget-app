@@ -1,8 +1,5 @@
 const nodemailer = require("nodemailer");
 
-// Log email config on module load
-console.log("[Email] EMAIL_USER configured:", !!process.env.EMAIL_USER);
-
 const sendEmail = async (to, subject, html, options = {}) => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;

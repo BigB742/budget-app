@@ -5,19 +5,6 @@ const { authRequired } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Dev-only: clear all expenses for the authenticated user
-router.delete("/dev-reset", authRequired, async (req, res) => {
-  try {
-    const result = await Expense.deleteMany({
-      $or: [{ user: req.userId }, { userId: req.userId }],
-    });
-    return res.json({ cleared: result.deletedCount || 0 });
-  } catch (err) {
-    console.error("Error clearing expenses for dev-reset:", err);
-    return res.status(500).json({ message: "Failed to reset expenses." });
-  }
-});
-
 router.get("/", authRequired, async (req, res) => {
   try {
     const { from, to, category, search, page, limit: limitStr } = req.query;
@@ -73,24 +60,26 @@ router.get("/day", authRequired, async (req, res) => {
   }
 });
 
-// TODO: This POST endpoint will be the entry point for future iOS/Android
-// quick-expense widgets (Widget 2 — two fields: description + amount, submits
-// without opening the app). When building the React Native or PWA version,
-// the widget should POST directly to this route with a valid auth token.
-// The same applies to a real-time balance widget (Widget 1) which would read
-// from GET /api/summary/paycheck-current.
+// Note: this is also the entry point iOS/Android quick-expense widgets will
+// post to (two-field expense: description + amount). The real-time balance
+// widget reads from GET /api/summary/paycheck-current.
 router.post("/", authRequired, async (req, res) => {
   try {
     const { date, amount, category, note, description } = req.body;
     const expenseDate = date ? new Date(date) : new Date();
-    const canonicalDate = expenseDate.toISOString().slice(0, 10);
+    if (Number.isNaN(expenseDate.getTime())) {
+      return res.status(400).json({ message: "Invalid date." });
+    }
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      return res.status(400).json({ message: "Invalid amount." });
+    }
 
     const expense = await Expense.create({
       user: req.userId,
       userId: req.userId,
       date: expenseDate,
-      dateString: canonicalDate,
-      amount: Number(amount),
+      amount: numericAmount,
       category: category || "Other",
       description: description || note,
     });
