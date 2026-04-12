@@ -6,9 +6,11 @@ import { useSubscription } from "../hooks/useSubscription";
 const Subscription = () => {
   const { status, isPremium, isTrialing, trialDaysLeft } = useSubscription();
   const [loading, setLoading] = useState(null); // "monthly" | "annual" | null
+  const [error, setError] = useState("");
 
   const handleSubscribe = async (plan) => {
     setLoading(plan);
+    setError("");
     try {
       const data = await authFetch("/api/stripe/create-checkout-session", {
         method: "POST",
@@ -16,7 +18,11 @@ const Subscription = () => {
       });
       if (data.url) window.location.href = data.url;
     } catch (err) {
-      alert("Something went wrong. Please try again.");
+      // Surface the backend error message instead of the generic fallback.
+      // authFetch throws an Error whose .message is the server's `error` field.
+      const msg = err?.message || "Something went wrong. Please try again.";
+      console.error("[Subscription] checkout failed:", err);
+      setError(msg);
     } finally {
       setLoading(null);
     }
@@ -43,6 +49,12 @@ const Subscription = () => {
       {isTrialing && (
         <div className="sub-trial-banner">
           You're on a free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left
+        </div>
+      )}
+
+      {error && (
+        <div className="sub-error-banner" role="alert">
+          {error}
         </div>
       )}
 

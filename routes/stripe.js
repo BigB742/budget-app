@@ -8,18 +8,21 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
 
-// Price IDs live in env vars so we can swap live/test without a code change.
-// The fallbacks below are the test-mode IDs from PayPulse's test Stripe
-// account — they only work when STRIPE_SECRET_KEY is a test key. In
-// production, STRIPE_PRICE_MONTHLY and STRIPE_PRICE_ANNUAL MUST be set to
-// live price IDs (price_xxx created in the live Stripe dashboard).
+// Price IDs come from env vars only — NO fallbacks. Price IDs are
+// environment-specific in Stripe: a test ID will never resolve against
+// a live secret key and vice versa. Keeping a hardcoded fallback causes
+// the exact failure we had on the live cutover: Stripe returns a cryptic
+// "No such price" error and the frontend shows "Something went wrong".
+//
+// If these are missing the route responds 503 with an explicit error
+// so the misconfiguration is visible in logs and in the UI.
 const PLANS = {
   monthly: {
-    priceId: process.env.STRIPE_PRICE_MONTHLY || "price_1TKXPzG0K5DOC4SQnXTMze8Q",
+    priceId: process.env.STRIPE_MONTHLY_PRICE_ID,
     trialDays: 3,
   },
   annual: {
-    priceId: process.env.STRIPE_PRICE_ANNUAL || "price_1TKXQGG0K5DOC4SQ2EzwQL3y",
+    priceId: process.env.STRIPE_ANNUAL_PRICE_ID,
     trialDays: 0,
   },
 };
@@ -66,6 +69,16 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     const planConfig = PLANS[plan];
     if (!planConfig) return res.status(400).json({ error: "Invalid plan. Use 'monthly' or 'annual'." });
 
+    // Fail fast with a clear error if the price IDs haven't been configured.
+    if (!planConfig.priceId) {
+      const envVar = plan === "annual" ? "STRIPE_ANNUAL_PRICE_ID" : "STRIPE_MONTHLY_PRICE_ID";
+      console.error(`[Stripe] ${envVar} is not set — cannot create checkout session.`);
+      return res.status(503).json({
+        error: `Stripe ${plan} plan is not configured. Contact support.`,
+        details: `Missing env var: ${envVar}`,
+      });
+    }
+
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "User not found." });
 
@@ -88,10 +101,26 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
+    console.log("[Stripe] Checkout session created:", session.id, "for user", user.email, "| plan:", plan);
     res.json({ url: session.url });
   } catch (error) {
-    console.error("Stripe checkout error:", error);
-    res.status(500).json({ error: "Failed to create checkout session." });
+    // Log full error for Vercel runtime logs
+    console.error("[Stripe] Checkout session error:", error?.type, "|", error?.code, "|", error?.message);
+    console.error("[Stripe] Full error:", error);
+
+    // Surface Stripe's error message to the frontend when possible. The old
+    // generic "Failed to create checkout session." swallowed details like
+    // "No such price: price_xxx" that would have pinpointed the live/test
+    // price-ID mismatch immediately.
+    const isStripeError = error?.type?.startsWith?.("Stripe");
+    const status = isStripeError ? 400 : 500;
+    res.status(status).json({
+      error: isStripeError
+        ? `Stripe error: ${error.message}`
+        : "Failed to create checkout session.",
+      code: error?.code,
+      type: error?.type,
+    });
   }
 });
 

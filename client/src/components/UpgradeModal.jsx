@@ -3,6 +3,7 @@ import { authFetch } from "../apiClient";
 
 const UpgradeModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const features = [
     "Calendar full year projections",
@@ -15,14 +16,16 @@ const UpgradeModal = ({ onClose }) => {
 
   const handleUpgrade = async () => {
     setLoading(true);
+    setError("");
     try {
       const data = await authFetch("/api/stripe/create-checkout-session", {
         method: "POST",
         body: JSON.stringify({ plan: "monthly" }),
       });
       if (data.url) window.location.href = data.url;
-    } catch {
-      alert("Something went wrong. Please try again.");
+    } catch (err) {
+      console.error("[UpgradeModal] checkout failed:", err);
+      setError(err?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -42,6 +45,9 @@ const UpgradeModal = ({ onClose }) => {
             </li>
           ))}
         </ul>
+        {error && (
+          <div className="inline-error" style={{ marginBottom: "0.5rem", textAlign: "left" }}>{error}</div>
+        )}
         <button
           type="button"
           className="primary-button"
