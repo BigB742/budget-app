@@ -40,7 +40,7 @@ const Dashboard = () => {
   const [showAllDays, setShowAllDays] = useState(false);
   const [billIdx, setBillIdx] = useState(0);
   const [spendingCats, setSpendingCats] = useState([]);
-  const [quickForm, setQuickForm] = useState({ description: "", amount: "", category: "Food" });
+  const [quickForm, setQuickForm] = useState({ description: "", amount: "", category: "Food", date: todayISO() });
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState("");
 
@@ -76,8 +76,12 @@ const Dashboard = () => {
     setQuickSaving(true);
     setQuickError("");
     try {
-      await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: todayISO(), amount: Number(quickForm.amount), category: quickForm.category, description: quickForm.description }) });
-      setQuickForm({ description: "", amount: "", category: "Food" });
+      // expense.date drives which pay period this expense belongs to. A
+      // future date won't affect the current "You Can Spend" — it'll roll
+      // into the period that contains that date instead.
+      const expenseDate = quickForm.date || todayISO();
+      await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: expenseDate, amount: Number(quickForm.amount), category: quickForm.category, description: quickForm.description }) });
+      setQuickForm({ description: "", amount: "", category: "Food", date: todayISO() });
       refreshAll();
     } catch { setQuickError("Couldn't save. Try again."); }
     finally { setQuickSaving(false); }
@@ -166,9 +170,13 @@ const Dashboard = () => {
             <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
               {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+            <input type="date" name="date" value={quickForm.date} onChange={(e) => setQuickForm((p) => ({ ...p, date: e.target.value }))} className="quick-input quick-date" title="Date of expense — pay period is determined by this date" />
             <button type="submit" className="quick-add-btn" disabled={quickSaving}>{quickSaving ? "..." : "+ Add"}</button>
           </form>
           {quickError && <p className="quick-error">{quickError}</p>}
+          {quickForm.date !== todayISO() && (
+            <p className="quick-future-note">Dated <strong>{formatReadableDate(quickForm.date)}</strong> — will apply to that pay period, not today's.</p>
+          )}
         </section>
       ) : (
         <section className="quick-add premium-locked-section">

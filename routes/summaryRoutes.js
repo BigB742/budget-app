@@ -8,149 +8,18 @@ const Bill = require("../models/Bill");
 const Expense = require("../models/Expense");
 const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
-const PaymentOverride = require("../models/PaymentOverride");
-const BillPayment = require("../models/BillPayment");
-const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange, clampDueDay } = require("../utils/paycheckUtils");
+const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange } = require("../utils/paycheckUtils");
+const {
+  startOfDay,
+  getEffectiveBillAmount,
+  sumBillsInPeriod,
+  sumExpensesInPeriod,
+  loadOverrideMap,
+  loadBillPayments,
+  computePeriodBalance,
+} = require("../utils/financeEngine");
 
 const router = express.Router();
-
-// Strip time component — return midnight local for a given Date
-function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/**
- * Determine the effective amount for a bill on a specific date.
- * Checks: (1) payment overrides, (2) lastPaymentDate/lastPaymentAmount, (3) regular amount.
- * Returns null if the bill should be excluded (past its lastPaymentDate).
- */
-function getEffectiveBillAmount(bill, dateLocal, overrideMap) {
-  // If bill has a startDate and we're before it, skip
-  const billStart = bill.startDate ? startOfDay(toLocalDate(bill.startDate)) : null;
-  if (billStart && dateLocal < billStart) return null;
-
-  const lastPay = bill.lastPaymentDate ? startOfDay(toLocalDate(bill.lastPaymentDate)) : null;
-
-  // If we're past the lastPaymentDate, skip this bill entirely
-  if (lastPay && dateLocal > lastPay) return null;
-
-  // Check for a one-time payment override
-  const key = `${bill._id}_${dateLocal.getFullYear()}-${String(dateLocal.getMonth() + 1).padStart(2, "0")}-${String(dateLocal.getDate()).padStart(2, "0")}`;
-  if (overrideMap.has(key)) return overrideMap.get(key);
-
-  // If this is the last payment date month/day, use lastPaymentAmount
-  if (
-    lastPay &&
-    dateLocal.getMonth() === lastPay.getMonth() &&
-    dateLocal.getDate() === lastPay.getDate() &&
-    dateLocal.getFullYear() === lastPay.getFullYear() &&
-    bill.lastPaymentAmount != null
-  ) {
-    return Number(bill.lastPaymentAmount);
-  }
-
-  return Number(bill.amount) || 0;
-}
-
-// Helper: sum bills that fall within a date range, respecting overrides, lastPayment rules, and bill payments
-function sumBillsInPeriod(bills, start, end, overrideMap = new Map(), billPayments = []) {
-  const pStart = startOfDay(start);
-  const pEnd = startOfDay(end);
-
-  // Build a lookup map for bill payments: "billId_YYYY-MM-DD" -> payment doc
-  const paymentMap = new Map();
-  billPayments.forEach((bp) => {
-    const dueLocal = startOfDay(toLocalDate(bp.dueDate));
-    const key = `${bp.bill}_${dueLocal.getFullYear()}-${String(dueLocal.getMonth() + 1).padStart(2, "0")}-${String(dueLocal.getDate()).padStart(2, "0")}`;
-    paymentMap.set(key, bp);
-  });
-
-  let total = 0;
-  bills.forEach((bill) => {
-    const dueDates = [];
-    const clampedStart = clampDueDay(bill.dueDayOfMonth, pStart.getFullYear(), pStart.getMonth());
-    dueDates.push(new Date(pStart.getFullYear(), pStart.getMonth(), clampedStart));
-    if (pStart.getMonth() !== pEnd.getMonth() || pStart.getFullYear() !== pEnd.getFullYear()) {
-      const clampedEnd = clampDueDay(bill.dueDayOfMonth, pEnd.getFullYear(), pEnd.getMonth());
-      dueDates.push(new Date(pEnd.getFullYear(), pEnd.getMonth(), clampedEnd));
-    }
-    const uniqueTimes = new Set(dueDates.map((d) => d.getTime()));
-    uniqueTimes.forEach((time) => {
-      const d = new Date(time);
-      if (d >= pStart && d <= pEnd) {
-        // Check if a bill payment exists for this bill + due date
-        const paymentKey = `${bill._id}_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        const payment = paymentMap.get(paymentKey);
-
-        if (payment) {
-          // Bill was paid — check if paidDate falls within this period
-          const paidDateLocal = startOfDay(toLocalDate(payment.paidDate));
-          if (paidDateLocal >= pStart && paidDateLocal <= pEnd) {
-            // Paid in this period — use the paid amount
-            total += Number(payment.paidAmount) || 0;
-          }
-          // If paidDate is outside this period, skip (it was counted in the paid-date period)
-        } else {
-          const amt = getEffectiveBillAmount(bill, d, overrideMap);
-          if (amt != null) total += amt;
-        }
-      }
-    });
-  });
-  return total;
-}
-
-// Build a Map of override keys ("billId_YYYY-MM-DD") to amounts
-async function loadOverrideMap(userId, start, end) {
-  const from = startOfDay(start);
-  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
-  const docs = await PaymentOverride.find({
-    user: userId,
-    date: { $gte: from, $lte: to },
-  });
-  const map = new Map();
-  docs.forEach((d) => {
-    const local = startOfDay(toLocalDate(d.date));
-    const key = `${d.bill}_${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}`;
-    map.set(key, Number(d.amount) || 0);
-  });
-  return map;
-}
-
-// Load bill payment records relevant to a period.
-// We fetch payments where the dueDate OR paidDate falls in the range,
-// so we can handle cross-period paid-date logic.
-async function loadBillPayments(userId, start, end) {
-  const from = startOfDay(start);
-  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
-  return BillPayment.find({
-    user: userId,
-    $or: [
-      { dueDate: { $gte: from, $lte: to } },
-      { paidDate: { $gte: from, $lte: to } },
-    ],
-  });
-}
-
-// Helper: sum expenses within a date range
-async function sumExpensesInPeriod(userId, start, end) {
-  // Normalize to full-day boundaries for the MongoDB query
-  const from = startOfDay(start);
-  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
-
-  const expenseDocs = await Expense.find({
-    $and: [
-      { $or: [{ user: userId }, { userId: userId }] },
-      {
-        $or: [
-          { date: { $gte: from, $lte: to } },
-          { date: { $exists: false }, createdAt: { $gte: from, $lte: to } },
-        ],
-      },
-    ],
-  });
-  return expenseDocs.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
-}
 
 // GET /paycheck-current — current budget period summary using income sources
 router.get("/paycheck-current", authRequired, async (req, res) => {
@@ -212,62 +81,38 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     });
 
     // ═══════════════════════════════════════════════════════════════
-    // DEFINITIVE BALANCE CALCULATION — "You Can Spend"
-    //
-    // currentBalance = user's ACTUAL bank balance right now (set during onboarding).
-    // It already reflects bills/expenses that have ALREADY been paid.
-    //
-    // We only deduct bills that are STILL UPCOMING (due date >= today AND <= periodEnd).
-    // Bills whose due date already passed are NOT deducted — they're already out of the bank.
-    //
-    // Formula: spendableBalance = currentBalance - upcomingBillsInPeriod - upcomingExpenses
-    //
-    // EXAMPLE: Apr 8, currentBalance=$10, nextPayday=Apr 10, bills: LA Fitness 9th ($39.99)
-    //   Window: Apr 8 → Apr 9 (day before next payday)
-    //   LA Fitness on 9th falls in window → deduct $39.99
-    //   spendableBalance = $10 - $39.99 = -$29.99 ✓
-    //
-    // ON PAYDAY (Apr 10): previous balance carries over + paycheck added
-    //   New window: Apr 10 → Apr 23
-    //   Only bills with dayOfMonth in 10-23 range are counted
+    // "You Can Spend" — routed through the shared finance engine.
+    // computePeriodBalance handles the window math: starting balance is
+    // user.currentBalance, window is today→periodEnd (past activity is
+    // already baked into currentBalance), and recurringIncome=0 (any
+    // paycheck for this period already landed before "today" or is the
+    // "next" paycheck which belongs to the next-period row).
     // ═══════════════════════════════════════════════════════════════
     const userDoc = await User.findById(req.userId).select("currentBalance");
-    // Dashboard Saved total is the sum of SavingsGoal.savedAmount rows only.
-    // user.totalSavings is a legacy field left over from pre-SavingsGoal
-    // onboarding; it's no longer load-bearing and adding it here would
-    // double-count the onboarding amount (also stored as a SavingsGoal).
-    const totalSaved = goalsSaved;
+    const totalSaved = goalsSaved; // SavingsGoal rows only — see note in previous versions
     const currentBalance = userDoc?.currentBalance;
     const hasCurrentBalance = currentBalance != null;
 
-    // Calculate bills/expenses/income due from TODAY through periodEnd (not periodStart)
-    // This avoids double-counting items that have already cleared the bank
     const todayNorm = startOfDay(today);
-    const upcomingBills = sumBillsInPeriod(bills, todayNorm, end, overrideMap, payments);
-    const upcomingExpenses = await sumExpensesInPeriod(req.userId, todayNorm, end);
-
-    // Upcoming one-time income (today through period end) — e.g. "Starting Balance"
-    // entries created during onboarding that aren't yet reflected in currentBalance.
-    const upcomingOneTimeIncomes = await OneTimeIncome.find({
-      user: req.userId,
-      date: { $gte: todayNorm, $lte: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999) },
-    });
-    const upcomingOneTimeTotal = upcomingOneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
 
     let balance;
     if (hasCurrentBalance) {
-      // Core PayPulse logic:
-      //   real bank balance
-      //   + any one-time income still arriving this period (e.g. "Starting Balance")
-      //   - upcoming bills
-      //   - upcoming expenses (includes "Overdrawn Balance" expense if set today)
-      //
-      // Formula: You Can Spend = currentBalance + upcomingOneTimeIncome - upcomingBills - upcomingExpenses
-      balance = currentBalance + upcomingOneTimeTotal - upcomingBills - upcomingExpenses;
+      const currentPeriodResult = await computePeriodBalance({
+        userId: req.userId,
+        periodStart: start,
+        periodEnd: end,
+        startingBalance: currentBalance,
+        recurringIncome: 0,
+        bills,
+        overrideMap,
+        payments,
+        windowStart: todayNorm,
+      });
+      balance = currentPeriodResult.estimatedEnd;
     } else {
-      // Fallback for users without currentBalance set (new "payday is today" path,
-      // or users who skipped balance entry).
-      // Formula: You Can Spend = totalIncome + oneTimeIncome - totalBills - totalExpenses
+      // Legacy fallback for users without currentBalance set. Uses the
+      // full-period income/bills/expenses and subtracts savings/investments.
+      // Very few users hit this path post-onboarding revamp.
       balance = adjustedTotalIncome - totalBills - totalExpenses - savingsThisPeriod - investmentsThisPeriod;
     }
 
@@ -287,38 +132,35 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       daysUntilNextPaycheck = diffDays;
     }
 
-    // ── Next Paycheck Balance ──────────────────────────────────
+    // ── Next Paycheck Balance (routed through the engine) ──────
     let nextPaycheckBalance = null;
     let nextPeriod = null;
     if (nextPayDate) {
       const nextBudget = getBudgetPeriod(sources, nextPayDate);
       if (nextBudget) {
-        const nextStart = nextBudget.start;
-        const nextEnd = nextBudget.end;
-        const nextTotalIncome = nextBudget.totalIncome;
-        const nextOverrideMap = await loadOverrideMap(req.userId, nextStart, nextEnd);
-        const nextPayments = await loadBillPayments(req.userId, nextStart, nextEnd);
-        const nextTotalBills = sumBillsInPeriod(bills, nextStart, nextEnd, nextOverrideMap, nextPayments);
-        const nextTotalExpenses = await sumExpensesInPeriod(req.userId, nextStart, nextEnd);
+        const nextOverrideMap = await loadOverrideMap(req.userId, nextBudget.start, nextBudget.end);
+        const nextPayments = await loadBillPayments(req.userId, nextBudget.start, nextBudget.end);
 
-        // Add one-time income falling in next period
-        const nextOneTimeIncomes = await OneTimeIncome.find({
-          user: req.userId,
-          date: { $gte: startOfDay(nextStart), $lte: new Date(nextEnd.getFullYear(), nextEnd.getMonth(), nextEnd.getDate(), 23, 59, 59, 999) },
+        const nextResult = await computePeriodBalance({
+          userId: req.userId,
+          periodStart: nextBudget.start,
+          periodEnd: nextBudget.end,
+          startingBalance: balance, // rollover from the current period's end
+          recurringIncome: nextBudget.totalIncome,
+          bills,
+          overrideMap: nextOverrideMap,
+          payments: nextPayments,
         });
-        const nextOneTimeTotal = nextOneTimeIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
-        const nextAdjustedTotalIncome = nextTotalIncome + nextOneTimeTotal;
 
-        // Current balance rolls over + next period income - next period bills - next period expenses
-        nextPaycheckBalance = balance + nextAdjustedTotalIncome - nextTotalBills - nextTotalExpenses;
+        nextPaycheckBalance = nextResult.estimatedEnd;
         nextPeriod = {
-          start: toDateString(nextStart),
-          end: toDateString(nextEnd),
-          recurringIncome: nextTotalIncome,
-          oneTimeIncome: nextOneTimeTotal,
-          totalIncome: nextAdjustedTotalIncome,
-          totalBills: nextTotalBills,
-          totalExpenses: nextTotalExpenses,
+          start: toDateString(nextBudget.start),
+          end: toDateString(nextBudget.end),
+          recurringIncome: nextResult.recurringIncome,
+          oneTimeIncome: nextResult.oneTimeIncome,
+          totalIncome: nextResult.totalIncome,
+          totalBills: nextResult.totalBills,
+          totalExpenses: nextResult.totalExpenses,
         };
       }
     }
@@ -413,19 +255,31 @@ router.get("/period-history", authRequired, async (req, res) => {
       const prev = getBudgetPeriod(sources, prevDate);
       if (!prev) break;
 
+      // Route historical period math through the shared engine so its
+      // totals (bills, expenses, one-time income) match the rest of the
+      // app. Note: period-history still reports per-period NET cash flow
+      // (startingBalance = 0), not a running spendable balance — it's a
+      // "how did I do this period" retrospective, not a rollover chain.
       const overrides = await loadOverrideMap(req.userId, prev.start, prev.end);
       const prevPayments = await loadBillPayments(req.userId, prev.start, prev.end);
-      const totalBills = sumBillsInPeriod(bills, prev.start, prev.end, overrides, prevPayments);
-      const totalExpenses = await sumExpensesInPeriod(req.userId, prev.start, prev.end);
-      const balance = prev.totalIncome - totalBills - totalExpenses;
+      const result = await computePeriodBalance({
+        userId: req.userId,
+        periodStart: prev.start,
+        periodEnd: prev.end,
+        startingBalance: 0,
+        recurringIncome: prev.totalIncome,
+        bills,
+        overrideMap: overrides,
+        payments: prevPayments,
+      });
 
       results.push({
         start: toDateString(prev.start),
         end: toDateString(prev.end),
-        totalIncome: prev.totalIncome,
-        totalBills,
-        totalExpenses,
-        balance,
+        totalIncome: result.totalIncome,
+        totalBills: result.totalBills,
+        totalExpenses: result.totalExpenses,
+        balance: result.estimatedEnd,
       });
       current = prev;
     }
@@ -543,43 +397,30 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const overrideMap = await loadOverrideMap(req.userId, start, end);
       const periodPayments = await loadBillPayments(req.userId, start, end);
 
-      let billsForPeriod;
-      let expensesForPeriod;
-      let paycheckForPeriod;
-      let periodBalance;
-
-      if (iteration === 0) {
-        // Iteration 0 = current period. Matches the dashboard engine:
-        //   - Starting balance = user.currentBalance (onboarding source of truth)
-        //   - Deduct ONLY bills/expenses from today forward — past activity
-        //     within this period is already reflected in currentBalance.
-        //   - Don't add the period's income. Any paycheck that already hit
-        //     before today is already in currentBalance; a paycheck still
-        //     scheduled for later in the current period lives in the NEXT
-        //     period's snapshot (the user joined mid-period with their
-        //     balance accounted for, so the "next payday" is the next
-        //     period's row).
-        billsForPeriod = sumBillsInPeriod(bills, todayNorm, end, overrideMap, periodPayments);
-        expensesForPeriod = await sumExpensesInPeriod(req.userId, todayNorm, end);
-        paycheckForPeriod = 0;
-        periodBalance = rollover - billsForPeriod - expensesForPeriod;
-      } else {
-        // Future periods: full-period totals. Rollover is the previous
-        // period's end balance (computed by this same loop).
-        billsForPeriod = sumBillsInPeriod(bills, start, end, overrideMap, periodPayments);
-        expensesForPeriod = await sumExpensesInPeriod(req.userId, start, end);
-        paycheckForPeriod = totalIncome;
-        periodBalance = rollover + paycheckForPeriod - billsForPeriod - expensesForPeriod;
-      }
+      // Route through the shared engine. Iteration 0 (current period)
+      // uses windowStart=todayNorm and recurringIncome=0 — matches the
+      // dashboard exactly. Future periods use full period + paycheck.
+      const isCurrent = iteration === 0;
+      const result = await computePeriodBalance({
+        userId: req.userId,
+        periodStart: start,
+        periodEnd: end,
+        startingBalance: rollover,
+        recurringIncome: isCurrent ? 0 : totalIncome,
+        bills,
+        overrideMap,
+        payments: periodPayments,
+        windowStart: isCurrent ? todayNorm : undefined,
+      });
 
       periods.push({
         start: toDateString(start),
         end: toDateString(end),
-        totalIncome: paycheckForPeriod,
-        totalBills: billsForPeriod,
-        totalExpenses: expensesForPeriod,
+        totalIncome: result.totalIncome,
+        totalBills: result.totalBills,
+        totalExpenses: result.totalExpenses,
         rollover,
-        balance: periodBalance,
+        balance: result.estimatedEnd,
       });
 
       // Check if target falls within this period
@@ -589,23 +430,23 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       if (pTarget >= pStart && pTarget <= pEnd) {
         return res.json({
           paydayDate,
-          paycheckAmount: paycheckForPeriod,
+          paycheckAmount: result.totalIncome,
           rollover,
-          totalAvailable: rollover + paycheckForPeriod,
-          billsThisPeriod: billsForPeriod,
-          expensesThisPeriod: expensesForPeriod,
-          estimatedBalance: periodBalance,
+          totalAvailable: rollover + result.totalIncome,
+          billsThisPeriod: result.totalBills,
+          expensesThisPeriod: result.totalExpenses,
+          estimatedBalance: result.estimatedEnd,
           periods,
           // Only show "Opening balance" when the selected payday is in the
           // user's onboarding period (iteration 0 AND they joined this period).
           // For any future-period snapshot the rollover is a real
           // carried-forward balance and gets the default label.
-          isFirstPeriod: iteration === 0 && isOnboardingPeriod,
+          isFirstPeriod: isCurrent && isOnboardingPeriod,
         });
       }
 
       // Advance to the next period
-      rollover = periodBalance;
+      rollover = result.estimatedEnd;
       const nextBudget = getBudgetPeriod(sources, nextPayDate);
       if (!nextBudget) {
         return res.status(400).json({ error: "Unable to compute next budget period." });

@@ -2,7 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 import { formatDate } from "../utils/dateUtils";
+import { useDataCache } from "../context/DataCache";
 import AddExpenseModal from "../components/AddExpenseModal";
+
+// Classify an expense date relative to the user's current pay period.
+// Returns "current" | "upcoming" | "past" | null (null if we don't have
+// the period yet, e.g. the dashboard hasn't loaded summary).
+const classifyPayPeriod = (expenseDate, currentPeriod) => {
+  if (!currentPeriod?.start || !currentPeriod?.end || !expenseDate) return null;
+  const d = new Date(expenseDate);
+  const s = new Date(currentPeriod.start);
+  const e = new Date(currentPeriod.end);
+  if (d < s) return "past";
+  if (d > e) return "upcoming";
+  return "current";
+};
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const COLORS = ["#00C896", "#FF6B35", "#0D1B2A", "#F6C90E", "#E53E3E", "#8B5CF6", "#3B82F6", "#F97316", "#8492A6", "#06B6D4", "#EC4899"];
@@ -33,6 +47,8 @@ const getQuickDates = (key) => {
 };
 
 const ExpenseHistory = () => {
+  const cache = useDataCache();
+  const currentPeriod = cache?.summary?.period || null;
   const [expenses, setExpenses] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -62,6 +78,9 @@ const ExpenseHistory = () => {
   }, [filters, page]);
 
   useEffect(() => { loadExpenses(); }, [loadExpenses]);
+  // Ensure the dashboard summary is loaded so we know the current pay
+  // period — needed by the per-row "This period / Upcoming / Past" pill.
+  useEffect(() => { cache?.fetchSummary?.(); }, [cache]);
 
   const handleDelete = async (id) => { try { await authFetch(`/api/expenses/${id}`, { method: "DELETE" }); loadExpenses(); } catch {} };
 
@@ -155,15 +174,25 @@ const ExpenseHistory = () => {
         <div className="empty-state"><p>No expenses yet. Start adding them from the dashboard.</p></div>
       ) : (
         <ul className="history-list">
-          {sortedExpenses.map((exp) => (
-            <li key={exp._id} className="history-row">
-              <span className="legend-dot-color" style={{ background: catColorMap[exp.category] || "var(--text-muted)", width: 8, height: 8, flexShrink: 0 }} />
-              <span className="history-date">{formatDate(exp.date)}</span>
-              <span className="history-desc">{exp.description || exp.category || "Expense"}</span>
-              <span className="history-amount">{currency.format(exp.amount)}</span>
-              <button type="button" className="ghost-button" onClick={() => handleDelete(exp._id)}>x</button>
-            </li>
-          ))}
+          {sortedExpenses.map((exp) => {
+            const periodClass = classifyPayPeriod(exp.date, currentPeriod);
+            return (
+              <li key={exp._id} className="history-row">
+                <span className="legend-dot-color" style={{ background: catColorMap[exp.category] || "var(--text-muted)", width: 8, height: 8, flexShrink: 0 }} />
+                <span className="history-date">{formatDate(exp.date)}</span>
+                <span className="history-desc">
+                  {exp.description || exp.category || "Expense"}
+                  {periodClass && (
+                    <span className={`period-pill period-pill-${periodClass}`}>
+                      {periodClass === "current" ? "This period" : periodClass === "upcoming" ? "Upcoming" : "Past period"}
+                    </span>
+                  )}
+                </span>
+                <span className="history-amount">{currency.format(exp.amount)}</span>
+                <button type="button" className="ghost-button" onClick={() => handleDelete(exp._id)}>x</button>
+              </li>
+            );
+          })}
         </ul>
       )}
 

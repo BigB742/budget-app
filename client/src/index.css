@@ -190,6 +190,8 @@ h1, h2, h3, h4, h5 { color: var(--text); }
 .quick-desc { flex: 2; min-width: 0; }
 .quick-amount { flex: 1; min-width: 0; max-width: 85px; }
 .quick-cat { flex: 1; min-width: 0; max-width: 125px; font-size: 0.78rem; }
+.quick-date { flex: 0 0 auto; min-width: 0; max-width: 140px; font-size: 0.78rem; }
+.quick-future-note { margin: 0.4rem 0 0; font-size: 0.72rem; color: var(--accent); }
 .quick-add-btn {
   height: var(--btn-h); padding: 0 0.85rem; border: none; border-radius: var(--radius);
   background: var(--cta); color: #fff; font-weight: 700; font-size: var(--font-base);
@@ -732,6 +734,10 @@ h1 { margin-top: 0; margin-bottom: 0.85rem; font-size: 1.75rem; text-align: cent
 .history-date { flex-shrink: 0; width: 75px; font-size: 0.75rem; color: var(--text-secondary); }
 .history-icon { flex-shrink: 0; width: 20px; text-align: center; }
 .history-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.period-pill { display: inline-block; margin-left: 0.5rem; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; vertical-align: middle; }
+.period-pill-current { background: rgba(0,200,150,0.12); color: var(--teal); }
+.period-pill-upcoming { background: rgba(249,115,22,0.12); color: var(--accent); }
+.period-pill-past { background: rgba(132,146,166,0.15); color: var(--text-muted); }
 .history-amount { flex-shrink: 0; font-weight: 700; }
 .history-row .ghost-button { height: 28px; padding: 0 0.4rem; font-size: 0.7rem; }
 .history-pagination { display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.75rem 0; font-size: 0.82rem; color: var(--text-secondary); }
