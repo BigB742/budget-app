@@ -231,8 +231,12 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     //   New window: Apr 10 → Apr 23
     //   Only bills with dayOfMonth in 10-23 range are counted
     // ═══════════════════════════════════════════════════════════════
-    const userDoc = await User.findById(req.userId).select("currentBalance totalSavings");
-    const totalSaved = goalsSaved + (Number(userDoc?.totalSavings) || 0);
+    const userDoc = await User.findById(req.userId).select("currentBalance");
+    // Dashboard Saved total is the sum of SavingsGoal.savedAmount rows only.
+    // user.totalSavings is a legacy field left over from pre-SavingsGoal
+    // onboarding; it's no longer load-bearing and adding it here would
+    // double-count the onboarding amount (also stored as a SavingsGoal).
+    const totalSaved = goalsSaved;
     const currentBalance = userDoc?.currentBalance;
     const hasCurrentBalance = currentBalance != null;
 

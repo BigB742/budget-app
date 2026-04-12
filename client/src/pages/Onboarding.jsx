@@ -438,17 +438,13 @@ const Onboarding = () => {
   // ── Step 6 — Savings ─────────────────────────────────────────────────────────
   if (step === 6) {
     const handleContinue = async () => {
+      if (saving) return; // guard against double-click racing past disabled
       setSaving(true);
       try {
         const amt = savings !== "" ? Math.max(0, Number(savings)) : 0;
-        // Save to user.totalSavings (used by dashboard summary card)
-        await authFetch("/api/user/me", {
-          method: "PUT",
-          body: JSON.stringify({ totalSavings: amt }),
-        });
-        // Also create a real SavingsGoal record so the onboarding amount shows
-        // in the Savings page (where add/withdraw lives). POST now honors
-        // savedAmount directly, so a single call is enough.
+        // Create the SavingsGoal record — single source of truth for savings.
+        // The dashboard and Savings page both read from SavingsGoal.savedAmount,
+        // so we no longer need a separate user.totalSavings write.
         if (amt > 0) {
           try {
             await authFetch("/api/savings-goals", {
