@@ -22,8 +22,17 @@ const Login = () => {
       const res = await fetch(`${API_URL}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) {
-        if (data.needsVerification) { setNeedsVerification(true); setError("Please verify your email first."); }
-        else throw new Error(data.error || "Login failed.");
+        if (data.needsVerification) {
+          setNeedsVerification(true);
+          setError("Please verify your email before logging in.");
+        } else {
+          // Humanize common backend messages.
+          const raw = (data.error || "").toLowerCase();
+          let friendly = "Something went wrong. Please try again.";
+          if (raw.includes("invalid credentials")) friendly = "That email and password don't match. Please try again.";
+          else if (raw.includes("too many")) friendly = "Too many attempts. Please wait a few minutes and try again.";
+          throw new Error(friendly);
+        }
         return;
       }
       // Handle 2FA challenge

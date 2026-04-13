@@ -1,0 +1,1046 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   PayPulse Design System v4 — mobile-first fintech
+   ═══════════════════════════════════════════════════════════════════════
+   This file is imported AFTER index.css and overrides the legacy tokens
+   with a refreshed palette (GitHub-ish navy + teal + orange) and proper
+   Inter typography. It also reimplements the most-broken mobile bits:
+   drawer, sticky header, bottom nav, hero, stat cards, quick-add, and
+   the ad slot.
+
+   Intentionally layered on top so we don't have to rewrite 1200 lines
+   of legacy CSS — the overrides cascade naturally.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+/* ─── Token refresh — dark-first, light stays unchanged ───────────── */
+:root,
+[data-theme="dark"] {
+  --navy:          #0D1117;
+  --navy-2:        #161B22;
+  --bg:            #0D1117;
+  --card:          #161B22;
+  --card-2:        #1F2530;
+  --card-border:   #21262D;
+  --card-border-2: #30363D;
+
+  --text:           #F0F6FC;
+  --text-secondary: #B1BAC4;
+  --text-muted:     #8B95A1;
+
+  --teal:     #14B8A6;
+  --teal-dim: rgba(20, 184, 166, 0.08);
+  --orange:   #F97316;
+  --orange-hover: #FB8C3A;
+  --red:      #EF4444;
+  --gold:     #F59E0B;
+
+  --accent:   #14B8A6;
+  --cta:      #F97316;
+  --cta-hover: #FB8C3A;
+  --positive: #14B8A6;
+  --negative: #EF4444;
+
+  --radius:     12px;
+  --radius-lg:  16px;
+  --radius-pill: 999px;
+}
+
+/* ─── Global resets ───────────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+html, body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01";
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+#root {
+  padding: 0;
+  min-height: 100vh;
+  display: block;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* ─── Letter-spacing normalization (ITEM 7) ───────────────────────
+   Remove the legacy wide tracking on uppercase label classes so they
+   look like a real product, not a template. Keep 0.02em max. */
+.hero-label,
+.stat-label,
+.section-title,
+.quick-add-label,
+.admin-detail h5,
+.admin-billing-label,
+.admin-badge,
+.legend-label,
+.admin-table th,
+.bi-sub-label,
+.cal-weekday {
+  letter-spacing: 0.02em !important;
+}
+
+/* ═══════════════════════════════════════
+   APP SHELL — sticky header + drawer + content
+   ═══════════════════════════════════════ */
+
+.app-shell {
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+}
+
+.shell-main {
+  padding-top: 56px;        /* reserve space for the sticky header */
+  padding-bottom: 84px;      /* reserve space for the bottom nav */
+  padding-left: 0;
+  padding-right: 0;
+  min-height: 100vh;
+  animation: pp-fade-in 150ms ease-out both;
+}
+
+@keyframes pp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ─── Sticky top header (ITEM 2) ──────────────────────────────────── */
+.pp-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 100;
+  background: var(--navy);
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-left:  max(16px, env(safe-area-inset-left));
+}
+
+.pp-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--text);
+}
+.pp-header-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--teal);
+  flex-shrink: 0;
+}
+.pp-header-brand-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.pp-header-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+  padding: 0;
+}
+.pp-header-btn:hover,
+.pp-header-btn:focus-visible {
+  background: var(--card);
+  border-color: var(--card-border);
+  outline: none;
+}
+.pp-header-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Hide the legacy floating hamburger — we now render it inside the header */
+.hamburger-btn { display: none !important; }
+
+/* ─── Slide-out drawer (ITEM 1) ───────────────────────────────────── */
+.pp-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 110;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.pp-drawer-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pp-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(82vw, 300px);
+  background: var(--navy-2);
+  border-right: 1px solid var(--card-border);
+  z-index: 120;
+  transform: translateX(-105%);
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0.26, 1);
+  display: flex;
+  flex-direction: column;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: 20px;
+}
+.pp-drawer.open { transform: translateX(0); }
+
+.pp-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 24px;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 16px;
+}
+.pp-drawer-brand-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.pp-drawer-close {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp-drawer-close:hover { background: var(--card); color: var(--text); }
+
+.pp-drawer-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.pp-drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background 120ms, color 120ms;
+}
+.pp-drawer-link:hover { background: var(--card); color: var(--text); }
+.pp-drawer-link.active {
+  background: rgba(20, 184, 166, 0.08);
+  color: var(--teal);
+  font-weight: 600;
+}
+.pp-drawer-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+.pp-drawer-footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+  margin-top: 16px;
+}
+.pp-drawer-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.pp-drawer-status .pp-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.pp-status-pill.premium { background: rgba(20, 184, 166, 0.15); color: var(--teal); }
+.pp-status-pill.trial   { background: rgba(245, 158, 11, 0.15); color: var(--gold); }
+.pp-status-pill.free    { background: rgba(139, 149, 161, 0.15); color: var(--text-muted); }
+
+.pp-drawer-logout {
+  margin-top: 12px;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--card-border-2);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.pp-drawer-logout:hover { background: var(--card); border-color: var(--card-border-2); }
+
+/* Kill the legacy sidebar completely on mobile — the drawer replaces it */
+.sidebar,
+.sidebar-overlay,
+.sidebar-bottom { display: none !important; }
+
+/* ═══════════════════════════════════════
+   PAGE CONTAINER — consistent padding (ITEM 11)
+   ═══════════════════════════════════════ */
+.pp-page {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+/* Every top-level "page" wrapper gets the same treatment */
+.dashboard-page,
+.calendar-page,
+.bills-income-page,
+.history-page,
+.manage-income-page,
+.settings-page,
+.admin-page,
+.sub-page {
+  width: 100% !important;
+  max-width: 480px !important;
+  margin: 0 auto !important;
+  padding: 16px !important;
+}
+
+/* Zero out legacy inner horizontal padding now that the outer .page
+   container owns the 16px gutter — otherwise we'd double-pad and
+   overflow at 390px viewport width. Vertical padding preserved. */
+.dashboard-page .stat-grid,
+.dashboard-page .quick-add,
+.dashboard-page .planner-section,
+.dashboard-page .dash-columns,
+.dashboard-page .upgrade-banner,
+.dashboard-page .dash-setup-banner,
+.dashboard-page .dash-variable-banner {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+.dashboard-page .dash-columns { gap: 20px; padding-top: 4px; padding-bottom: 24px; }
+.dashboard-page .planner-section { padding-top: 0; padding-bottom: 0; }
+
+.pp-page-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 8px 0 20px;
+  letter-spacing: -0.02em;
+  padding: 0;
+}
+
+/* Some legacy headings — normalize */
+.dashboard-page > h1,
+.calendar-page > h1,
+.bills-income-page > h1,
+.history-page > h1,
+.settings-page > h1,
+.sub-heading,
+.cal-month-label {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text) !important;
+  margin: 8px 0 20px !important;
+}
+
+/* ═══════════════════════════════════════
+   DASHBOARD — hero upgrade
+   ═══════════════════════════════════════ */
+
+.dashboard-page .hero {
+  background:
+    radial-gradient(ellipse at top, rgba(20, 184, 166, 0.10) 0%, transparent 60%),
+    var(--navy-2) !important;
+  padding: 32px 20px 36px !important;
+  text-align: center !important;
+  border-radius: var(--radius-lg) !important;
+  margin-bottom: 16px !important;
+  border: 1px solid var(--card-border) !important;
+  overflow: hidden;
+}
+
+.dashboard-page .hero-label {
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+  margin: 0 0 12px !important;
+}
+
+.dashboard-page .hero-balance {
+  margin: 0 !important;
+  font-size: clamp(44px, 13vw, 64px) !important;
+  font-weight: 800 !important;
+  color: var(--text) !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.05 !important;
+}
+.dashboard-page .hero-balance.healthy { text-shadow: 0 0 40px rgba(20,184,166,0.22) !important; }
+.dashboard-page .hero-balance.warning { text-shadow: 0 0 40px rgba(239,68,68,0.28) !important; }
+
+.dashboard-page .hero-sub {
+  margin: 12px 0 0 !important;
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  letter-spacing: 0 !important;
+}
+
+.dashboard-page .hero-next-pill {
+  display: inline-block;
+  margin-top: 16px !important;
+  padding: 8px 14px !important;
+  background: rgba(20, 184, 166, 0.08) !important;
+  border: 1px solid rgba(20, 184, 166, 0.22) !important;
+  border-radius: 999px !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+}
+.dashboard-page .hero-next-pill strong {
+  color: var(--teal) !important;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════
+   STAT CARDS — refined
+   ═══════════════════════════════════════ */
+.stat-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+  padding: 0 !important;
+  margin: 0 0 20px !important;
+}
+.stat-card {
+  background: var(--card) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 16px !important;
+  height: auto !important;
+  min-height: 84px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  transition: border-color 150ms ease;
+}
+.stat-card:hover { border-color: var(--card-border-2); }
+.stat-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+}
+.stat-value {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  letter-spacing: -0.01em !important;
+}
+.stat-value.bills { color: var(--red) !important; }
+.stat-value.teal  { color: var(--teal) !important; }
+
+/* ═══════════════════════════════════════
+   QUICK ADD — vertical layout with chips (ITEM 3)
+   ═══════════════════════════════════════ */
+.quick-add {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 20px !important;
+  margin: 0 0 20px !important;
+}
+
+.quick-add-label {
+  margin: 0 0 4px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+}
+.quick-add-sub {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.quick-add-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.qa-field { display: flex; flex-direction: column; gap: 6px; }
+.qa-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.qa-input {
+  width: 100%;
+  padding: 14px 16px !important;
+  height: auto !important;
+  font-size: 16px !important; /* prevents iOS auto-zoom */
+  background: var(--card-2) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 10px !important;
+  color: var(--text) !important;
+  font-family: inherit !important;
+  max-width: none !important;
+  transition: border-color 120ms;
+}
+.qa-input:focus { outline: none; border-color: var(--teal) !important; }
+.qa-input.error { border-color: var(--red) !important; }
+
+/* Category chips — horizontally scrollable */
+.qa-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  margin: 0 -4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.qa-chips::-webkit-scrollbar { display: none; }
+.qa-chip {
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 120ms ease;
+}
+.qa-chip:hover { border-color: var(--card-border-2); color: var(--text); }
+.qa-chip.active {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.qa-submit {
+  width: 100%;
+  padding: 14px 24px;
+  background: var(--cta);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 48px;
+  transition: background 150ms;
+}
+.qa-submit:hover { background: var(--cta-hover); }
+.qa-submit:disabled { opacity: 0.5; cursor: default; }
+
+.qa-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.qa-future-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--cta);
+}
+
+/* Floating Action Button — opens the quick add bottom sheet */
+.pp-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(84px + max(8px, env(safe-area-inset-bottom)));
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--cta);
+  color: #fff;
+  border: none;
+  box-shadow: 0 6px 24px rgba(249, 115, 22, 0.35);
+  cursor: pointer;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 400;
+  transition: transform 150ms ease, background 150ms;
+}
+.pp-fab:hover { background: var(--cta-hover); transform: translateY(-1px); }
+.pp-fab:active { transform: translateY(0); }
+
+/* Bottom sheet container for quick add */
+.pp-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 130;
+  display: flex;
+  align-items: flex-end;
+  animation: pp-fade-in 160ms ease-out;
+}
+.pp-sheet {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  background: var(--card);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 16px 20px max(24px, env(safe-area-inset-bottom));
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: pp-sheet-up 260ms cubic-bezier(0.32, 0.72, 0.26, 1);
+}
+@keyframes pp-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.pp-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--card-border-2);
+  border-radius: 999px;
+  margin: 4px auto 14px;
+}
+.pp-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pp-sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pp-sheet-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp-sheet-close:hover { background: var(--card-2); color: var(--text); }
+
+/* Hide the old inline quick-add on mobile when the FAB is in use */
+.quick-add.is-inline-hidden {
+  display: none;
+}
+
+/* ═══════════════════════════════════════
+   BOTTOM NAV — redesign (ITEM 6 + addendum)
+   ═══════════════════════════════════════ */
+.bottom-tabs {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 68px !important;
+  padding-bottom: env(safe-area-inset-bottom) !important;
+  background: var(--navy) !important;
+  border-top: 1px solid var(--card-border) !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: space-around !important;
+  z-index: 40;
+}
+.tab-item {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 8px 4px !important;
+  min-width: 44px;
+  min-height: 56px;
+  text-decoration: none !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  position: relative;
+  transition: color 120ms;
+  background: transparent;
+  border: none;
+}
+.tab-item:hover { color: var(--text-secondary) !important; }
+.tab-item.active { color: var(--teal) !important; }
+.tab-item svg { width: 22px; height: 22px; }
+.tab-label { font-size: 12px !important; letter-spacing: 0 !important; }
+.tab-item.active::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--teal);
+}
+
+/* ═══════════════════════════════════════
+   BILLS PAGE — tag wrap + button hierarchy (ITEM 4 + 10)
+   ═══════════════════════════════════════ */
+
+.recurring-card .pill,
+.recurring-card .ends-pill,
+.recurring-card .primary-pill,
+.pill,
+.entry-title .pill {
+  white-space: nowrap !important;
+  display: inline-block;
+}
+.recurring-card .entry-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  row-gap: 6px;
+}
+
+/* Edit/delete button hierarchy */
+.bill-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bill-icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border-2);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all 120ms;
+}
+.bill-icon-btn:hover { border-color: var(--teal); color: var(--teal); }
+.bill-icon-btn.bill-icon-del {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  font-size: 18px;
+}
+.bill-icon-btn.bill-icon-del:hover {
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ═══════════════════════════════════════
+   AD SLOT — mobile 320x50, hidden under 768px
+   ═══════════════════════════════════════ */
+.ad-slot {
+  display: none !important;
+}
+@media (min-width: 768px) {
+  .ad-slot {
+    display: flex !important;
+    justify-content: center;
+    margin: 16px auto;
+    max-width: 728px;
+  }
+  .ad-placeholder {
+    width: 320px;
+    height: 50px;
+    border: 1px dashed var(--card-border-2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    background: var(--card);
+  }
+  .ad-dims { display: none; }
+}
+
+/* ═══════════════════════════════════════
+   SETTINGS — section subheaders (ITEM 8)
+   ═══════════════════════════════════════ */
+.settings-section {
+  background: var(--card) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 20px !important;
+  margin-bottom: 16px;
+}
+.settings-section .section-title {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  margin: 0 0 16px !important;
+  letter-spacing: -0.01em !important;
+}
+.settings-section .pp-subheader {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 20px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--card-border);
+}
+.settings-section .pp-subheader:first-of-type { margin-top: 4px; }
+
+.s-field-label {
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+}
+.s-field input,
+.s-field input[type="date"] {
+  font-size: 15px !important;
+  color: var(--text) !important;
+  font-weight: 400 !important;
+}
+
+/* ═══════════════════════════════════════
+   BUTTONS — refined
+   ═══════════════════════════════════════ */
+.primary-button {
+  padding: 14px 24px !important;
+  height: auto !important;
+  min-height: 48px !important;
+  background: var(--cta) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 150ms;
+}
+.primary-button:hover { background: var(--cta-hover) !important; }
+
+.ghost-button {
+  padding: 14px 24px !important;
+  height: auto !important;
+  min-height: 48px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  border: 1px solid var(--card-border-2) !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms;
+}
+.ghost-button:hover { border-color: var(--text-muted) !important; }
+
+.delete-button {
+  padding: 14px 24px !important;
+  min-height: 48px !important;
+  background: var(--red) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Small buttons — keep them small but consistent */
+.upgrade-banner .primary-button {
+  padding: 8px 14px !important;
+  min-height: 36px !important;
+  font-size: 13px !important;
+  height: auto !important;
+}
+
+/* ═══════════════════════════════════════
+   FORM INPUTS — Lighthouse style
+   ═══════════════════════════════════════ */
+.modal-form label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  margin-bottom: 12px;
+}
+.modal-form input,
+.modal-form select,
+.modal-form textarea {
+  padding: 14px 16px !important;
+  font-size: 16px !important;
+  background: var(--card-2) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 10px !important;
+  color: var(--text) !important;
+  font-family: inherit !important;
+  height: auto !important;
+  transition: border-color 120ms;
+}
+.modal-form input:focus,
+.modal-form select:focus,
+.modal-form textarea:focus {
+  outline: none;
+  border-color: var(--teal) !important;
+}
+
+/* ═══════════════════════════════════════
+   INLINE ERROR MESSAGES (ITEM 9)
+   ═══════════════════════════════════════ */
+.pp-field-error,
+.inline-error {
+  display: block;
+  margin: 6px 0 0 !important;
+  font-size: 12px !important;
+  color: var(--red) !important;
+  font-weight: 500;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.pp-field-error::before { content: "⚠ "; }
+
+/* ═══════════════════════════════════════
+   SUMMARY BAR + SECTIONS
+   ═══════════════════════════════════════ */
+.bi-summary-bar {
+  background: var(--card) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 16px !important;
+  margin: 0 0 20px !important;
+}
+.bi-section {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.bi-section-head h2 {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE OVERRIDES — desktop (≥768px)
+   ═══════════════════════════════════════ */
+@media (min-width: 768px) {
+  /* Desktop could show sidebar-style drawer always, but we keep it
+     toggle-on-demand for simplicity. Wider container. */
+  .dashboard-page,
+  .calendar-page,
+  .bills-income-page,
+  .history-page,
+  .manage-income-page,
+  .settings-page,
+  .admin-page {
+    max-width: 720px !important;
+    padding: 24px !important;
+  }
+  .pp-header { padding: 0 24px; }
+  .dashboard-page .hero { padding: 40px 24px 44px !important; }
+  .dashboard-page .hero-balance { font-size: clamp(52px, 6vw, 72px) !important; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+}
+
+/* ═══════════════════════════════════════
+   HOTFIXES for legacy pixel-width overflows (ITEM 11)
+   ═══════════════════════════════════════ */
+img, video, iframe, canvas, svg { max-width: 100%; }
+.admin-table-wrap { overflow-x: auto !important; }
+.admin-table { min-width: auto !important; }
+
+/* Give focus rings a11y visibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}

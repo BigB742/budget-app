@@ -205,10 +205,16 @@ const Settings = () => {
             {loading ? <p className="status">Loading...</p> : user && (
               <>
                 <div className="s-avatar">{initials}</div>
+
+                <h3 className="pp-subheader">Personal Information</h3>
                 <div className="s-field-list">
                   <div className="s-field"><span className="s-field-label">First name</span><input value={form.firstName} onChange={(e) => handleField("firstName", e.target.value)} /></div>
                   <div className="s-field"><span className="s-field-label">Last name</span><input value={form.lastName} onChange={(e) => handleField("lastName", e.target.value)} /></div>
                   <div className="s-field"><span className="s-field-label">Date of birth</span><input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} /></div>
+                </div>
+
+                <h3 className="pp-subheader">Login & Security</h3>
+                <div className="s-field-list">
                   <div className="s-field"><span className="s-field-label">Email</span><input value={form.email} onChange={(e) => handleField("email", e.target.value)} /></div>
                   <div className="s-field"><span className="s-field-label">Password</span><div className="s-pw-row"><span className="s-pw-dots">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span><button type="button" className="link-button s-change-pw" onClick={() => setShowPwModal(true)}>Change</button></div></div>
                   <div className="s-field"><span className="s-field-label">Two-factor auth</span><div className="s-pw-row">
@@ -220,7 +226,7 @@ const Settings = () => {
                 </div>
                 {dirty && <div className="s-save-bar"><button type="button" className="primary-button" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>{saveMsg && <span className="s-save-msg">{saveMsg}</span>}</div>}
 
-                {/* Subscription status + cancel */}
+                <h3 className="pp-subheader">Subscription</h3>
                 <div className="s-sub-block">
                   {(isTrialing || status === "premium" || status === "premium_monthly" || status === "premium_annual") && !isCanceled && (
                     <>
@@ -236,6 +242,9 @@ const Settings = () => {
                     <p className="s-sub-status s-sub-canceled">
                       Subscription canceled — access until {new Date(subscriptionEndDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                     </p>
+                  )}
+                  {!isTrialing && !isCanceled && status !== "premium" && status !== "premium_monthly" && status !== "premium_annual" && (
+                    <p className="s-sub-status" style={{ color: "var(--text-muted)" }}>Free plan</p>
                   )}
                 </div>
               </>

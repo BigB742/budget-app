@@ -9,8 +9,18 @@ import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
+import { IconPlus, IconClose } from "../components/AppIcons";
+
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+// Primary chip categories for the quick-add sheet — the ones 95% of
+// expenses fall into. "Other" is always present as a fallback and forces
+// the user to type a description so the entry is still meaningful.
+const QUICK_CHIPS = ["Food", "Bills", "Savings", "Shopping", "Other"];
+
+// Full category list shown in the legacy dropdown (for users who want
+// more granular options). Kept for backwards compatibility with the
+// ExpenseHistory filters.
 const CATEGORY_OPTIONS = [
   "Dining Out", "Entertainment", "Food", "Gas", "Groceries",
   "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other",
@@ -43,6 +53,7 @@ const Dashboard = () => {
   const [quickForm, setQuickForm] = useState({ description: "", amount: "", category: "Food", date: todayISO() });
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Use the cache-provided summary; also keep the hook for day-level data
   const { days: payPeriodDays, loading: payPeriodLoading, refresh: refreshPayPeriod } = useCurrentPayPeriodDays();
@@ -70,8 +81,14 @@ const Dashboard = () => {
 
   const handleQuickExpense = async (e) => {
     e.preventDefault();
-    if (!quickForm.amount || Number(quickForm.amount) <= 0) return;
-    if (quickForm.category === "Other" && !quickForm.description.trim()) { setQuickError("Description required for Other category."); return; }
+    if (!quickForm.amount || Number(quickForm.amount) <= 0) {
+      setQuickError("Please enter a valid amount.");
+      return;
+    }
+    if (quickForm.category === "Other" && !quickForm.description.trim()) {
+      setQuickError("Add a short description for this expense.");
+      return;
+    }
     setQuickSaving(true);
     setQuickError("");
     try {
@@ -79,10 +96,19 @@ const Dashboard = () => {
       // future date won't affect the current "You Can Spend" — it'll roll
       // into the period that contains that date instead.
       const expenseDate = quickForm.date || todayISO();
-      await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: expenseDate, amount: Number(quickForm.amount), category: quickForm.category, description: quickForm.description }) });
+      await authFetch("/api/expenses", {
+        method: "POST",
+        body: JSON.stringify({
+          date: expenseDate,
+          amount: Number(quickForm.amount),
+          category: quickForm.category,
+          description: quickForm.description,
+        }),
+      });
       setQuickForm({ description: "", amount: "", category: "Food", date: todayISO() });
+      setSheetOpen(false);
       refreshAll();
-    } catch { setQuickError("Couldn't save. Try again."); }
+    } catch { setQuickError("That didn't save. Please try again."); }
     finally { setQuickSaving(false); }
   };
 
@@ -147,25 +173,9 @@ const Dashboard = () => {
 
       <AdSlot placement="banner" isPremium={!isFree && !isTrialing} />
 
-      {/* Quick add */}
-      {!isFree ? (
-        <section className="quick-add">
-          <p className="quick-add-label">Quick add</p>
-          <form className="quick-add-form" onSubmit={handleQuickExpense}>
-            <input type="text" name="description" placeholder={quickForm.category === "Other" ? "What is this for? (required)" : "Description"} value={quickForm.description} onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))} required={quickForm.category === "Other"} className="quick-input quick-desc" />
-            <input type="number" name="amount" placeholder="$0.00" step="0.01" min="0.01" value={quickForm.amount} onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))} required className="quick-input quick-amount" />
-            <select name="category" value={quickForm.category} onChange={(e) => setQuickForm((p) => ({ ...p, category: e.target.value }))} className="quick-input quick-cat">
-              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <input type="date" name="date" value={quickForm.date} onChange={(e) => setQuickForm((p) => ({ ...p, date: e.target.value }))} className="quick-input quick-date" title="Date of expense — pay period is determined by this date" />
-            <button type="submit" className="quick-add-btn" disabled={quickSaving}>{quickSaving ? "..." : "+ Add"}</button>
-          </form>
-          {quickError && <p className="quick-error">{quickError}</p>}
-          {quickForm.date !== todayISO() && (
-            <p className="quick-future-note">Dated <strong>{formatReadableDate(quickForm.date)}</strong> — will apply to that pay period, not today's.</p>
-          )}
-        </section>
-      ) : (
+      {/* Free-tier quick add is locked to a banner; premium users get the
+          FAB + bottom sheet below. */}
+      {isFree && (
         <section className="quick-add premium-locked-section">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -246,6 +256,107 @@ const Dashboard = () => {
       {selectedDay && (
         <DayExpensesModal isOpen date={selectedDay.date} items={selectedDay.expenses} total={selectedDay.expensesTotal}
           onClose={() => setSelectedDay(null)} onExpenseSaved={() => { setSelectedDay(null); refreshAll(); }} />
+      )}
+
+      {/* Quick-add floating action button — premium only */}
+      {!isFree && (
+        <button
+          type="button"
+          className="pp-fab"
+          aria-label="Add expense"
+          onClick={() => setSheetOpen(true)}
+        >
+          <IconPlus width="26" height="26" strokeWidth="2.5" />
+        </button>
+      )}
+
+      {/* Quick-add bottom sheet */}
+      {!isFree && sheetOpen && (
+        <div
+          className="pp-sheet-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setSheetOpen(false); }}
+        >
+          <div className="pp-sheet" role="dialog" aria-label="Add expense">
+            <div className="pp-sheet-handle" />
+            <div className="pp-sheet-header">
+              <h3 className="pp-sheet-title">Add expense</h3>
+              <button
+                type="button"
+                className="pp-sheet-close"
+                aria-label="Close"
+                onClick={() => setSheetOpen(false)}
+              >
+                <IconClose width="18" height="18" />
+              </button>
+            </div>
+            <form className="quick-add-form" onSubmit={handleQuickExpense}>
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="qa-desc">Description</label>
+                <input
+                  id="qa-desc"
+                  type="text"
+                  className={`qa-input${quickError && quickForm.category === "Other" && !quickForm.description.trim() ? " error" : ""}`}
+                  placeholder={quickForm.category === "Other" ? "What is this for?" : "Optional"}
+                  value={quickForm.description}
+                  onChange={(e) => setQuickForm((p) => ({ ...p, description: e.target.value }))}
+                  required={quickForm.category === "Other"}
+                />
+              </div>
+
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="qa-amount">Amount</label>
+                <input
+                  id="qa-amount"
+                  type="number"
+                  inputMode="decimal"
+                  className={`qa-input${quickError && (!quickForm.amount || Number(quickForm.amount) <= 0) ? " error" : ""}`}
+                  placeholder="$0.00"
+                  step="0.01"
+                  min="0.01"
+                  value={quickForm.amount}
+                  onChange={(e) => setQuickForm((p) => ({ ...p, amount: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="qa-field">
+                <label className="qa-label">Category</label>
+                <div className="qa-chips" role="group" aria-label="Category">
+                  {QUICK_CHIPS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`qa-chip${quickForm.category === c ? " active" : ""}`}
+                      onClick={() => setQuickForm((p) => ({ ...p, category: c }))}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="qa-date">Date</label>
+                <input
+                  id="qa-date"
+                  type="date"
+                  className="qa-input"
+                  value={quickForm.date}
+                  onChange={(e) => setQuickForm((p) => ({ ...p, date: e.target.value }))}
+                />
+                {quickForm.date !== todayISO() && (
+                  <p className="qa-future-note">Applies to the pay period containing <strong>{formatReadableDate(quickForm.date)}</strong>.</p>
+                )}
+              </div>
+
+              {quickError && <p className="qa-error">{quickError}</p>}
+
+              <button type="submit" className="qa-submit" disabled={quickSaving}>
+                {quickSaving ? "Saving…" : "Add expense"}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

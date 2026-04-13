@@ -1,28 +1,19 @@
 /**
- * TODO: Replace with Google AdSense or direct ad partner SDK.
- * Pass userBalance and topCategories as targeting signals to serve
- * contextually relevant ads. Users with $200+ spendable balance are
- * premium targets for retail/entertainment advertisers.
+ * Placeholder ad slot. Hidden under 768px via CSS (.ad-slot { display: none }
+ * in design-system.css) so it doesn't break the mobile layout. At ≥768px
+ * it renders a centered 320x50 mobile-banner rectangle with a dashed
+ * border and a small "Ad" label — the standard non-intrusive format until
+ * a real ad SDK is wired in.
+ *
+ * Premium and trialing users never see this.
  */
-
-const AD_SIZES = {
-  banner: { width: 728, height: 90, mobileWidth: 320, mobileHeight: 50 },
-  sidebar: { width: 300, height: 250 },
-  inline: { width: 468, height: 60, mobileWidth: 320, mobileHeight: 50 },
-};
-
 const AdSlot = ({ placement = "banner", isPremium = false }) => {
   if (isPremium) return null;
 
-  const size = AD_SIZES[placement] || AD_SIZES.banner;
-
   return (
-    <div className={`ad-slot ad-${placement}`}>
+    <div className={`ad-slot ad-${placement}`} aria-hidden="true">
       <div className="ad-placeholder">
-        <span className="ad-label">Ad space</span>
-        <span className="ad-dims">
-          {size.width}x{size.height}
-        </span>
+        <span className="ad-label">Ad</span>
       </div>
     </div>
   );
