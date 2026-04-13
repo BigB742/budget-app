@@ -4,21 +4,21 @@ const sendEmail = async (to, subject, html, options = {}) => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
   if (!user || !pass) {
-    console.log("[Email] No credentials configured, skipping send to:", to);
+    // Email credentials missing — silently skip in dev. Production will
+    // have these set via Vercel env vars.
     return;
   }
-
-  console.log("[Email] Attempting to send to:", to, "subject:", subject);
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: { user, pass },
   });
 
-  // Verify SMTP connection before sending
+  // Verify SMTP connection before sending. Surface failures to the
+  // caller so the route can decide how to respond; we still log to
+  // the error stream for monitoring.
   try {
     await transporter.verify();
-    console.log("[Email] SMTP server verified OK");
   } catch (verifyErr) {
     console.error("[Email] SMTP verification failed:", verifyErr.message);
     throw verifyErr;
@@ -32,13 +32,10 @@ const sendEmail = async (to, subject, html, options = {}) => {
   // the alias is configured in the Google Workspace settings. Use a real
   // transactional provider (SendGrid, Postmark, Resend) for true custom senders.
   const fromAddress = options.from || process.env.EMAIL_FROM || `"PayPulse" <${user}>`;
-  const result = await transporter.sendMail({
+  return transporter.sendMail({
     from: fromAddress,
     to, subject, html,
   });
-
-  console.log("[Email] Sent successfully, messageId:", result.messageId);
-  return result;
 };
 
 module.exports = { sendEmail };

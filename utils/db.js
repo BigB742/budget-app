@@ -32,10 +32,7 @@ async function connectDB() {
         // the middleware can return a 503 instead of hanging for 10 s.
         bufferCommands: false,
       })
-      .then((m) => {
-        console.log("[DB] MongoDB connected (new connection)");
-        return m;
-      })
+      .then((m) => m)
       .catch((err) => {
         console.error("[DB] MongoDB connection failed:", err.message);
         // Clear promise so the next request can retry rather than re-throwing

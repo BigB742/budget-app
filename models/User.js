@@ -50,6 +50,11 @@ const UserSchema = new mongoose.Schema(
       userAgent: { type: String },
     }],
     isAdmin: { type: Boolean, default: false },
+    // Bumped on password change / suspicious-activity sign-out to invalidate
+    // all existing JWTs for this user. The middleware embeds this in the
+    // signed token and rejects requests where the embedded version is older
+    // than the current value.
+    tokenVersion: { type: Number, default: 0 },
     currentBalance: { type: Number, default: 0 },
     initialSavings: { type: Number, default: 0 },
     verificationCode: { type: String },

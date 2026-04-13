@@ -40,15 +40,16 @@ const PLANS = {
 // The checkout session always receives `customer: <id>`, never
 // `customer_email`, so Stripe has no opportunity to mint a second customer.
 async function resolveStripeCustomer(user) {
+  // Audit-trail logging removed per security audit. Re-enable via a real
+  // logger (pino/winston) when one is wired up — payment customer
+  // resolution is operationally important to trace.
   if (user.stripeCustomerId) {
-    console.log("[Stripe] Reusing cached customer", user.stripeCustomerId, "for", user.email);
     return user.stripeCustomerId;
   }
 
   const existing = await stripe.customers.list({ email: user.email, limit: 1 });
   if (existing.data && existing.data.length > 0) {
     const found = existing.data[0];
-    console.log("[Stripe] Adopted existing Stripe customer", found.id, "for", user.email);
     user.stripeCustomerId = found.id;
     await user.save();
     return found.id;
@@ -59,7 +60,6 @@ async function resolveStripeCustomer(user) {
     name: [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined,
     metadata: { userId: String(user._id) },
   });
-  console.log("[Stripe] Created new Stripe customer", created.id, "for", user.email);
   user.stripeCustomerId = created.id;
   await user.save();
   return created.id;
@@ -105,25 +105,15 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
-    console.log("[Stripe] Checkout session created:", session.id, "for user", user.email, "| plan:", plan);
     res.json({ url: session.url });
   } catch (error) {
-    // Log full error for Vercel runtime logs
+    // Log full error server-side for monitoring; never expose details
+    // (type, code, raw message) to the client. The error code can leak
+    // info about backend configuration to attackers.
     console.error("[Stripe] Checkout session error:", error?.type, "|", error?.code, "|", error?.message);
-    console.error("[Stripe] Full error:", error);
-
-    // Surface Stripe's error message to the frontend when possible. The old
-    // generic "Failed to create checkout session." swallowed details like
-    // "No such price: price_xxx" that would have pinpointed the live/test
-    // price-ID mismatch immediately.
-    const isStripeError = error?.type?.startsWith?.("Stripe");
-    const status = isStripeError ? 400 : 500;
-    res.status(status).json({
-      error: isStripeError
-        ? `Stripe error: ${error.message}`
-        : "Failed to create checkout session.",
-      code: error?.code,
-      type: error?.type,
+    res.status(500).json({
+      success: false,
+      error: "We couldn't start your checkout. Please try again or contact support.",
     });
   }
 });
@@ -147,7 +137,8 @@ router.delete("/subscription", authRequired, async (req, res) => {
       try {
         sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
       } catch (e) {
-        console.warn("[Stripe] stripeSubscriptionId on user didn't resolve:", e.message);
+        // Stale subscription ID on user — fall through to list-by-customer.
+        console.error("[Stripe] stripeSubscriptionId on user didn't resolve:", e.message);
       }
     }
     if (!sub || (sub.status !== "active" && sub.status !== "trialing")) {
@@ -159,7 +150,6 @@ router.delete("/subscription", authRequired, async (req, res) => {
       // a 404. The UI should never show a raw error when the user clicks
       // cancel and there simply isn't an active sub (e.g. already canceled,
       // or state drift between Mongo and Stripe).
-      console.log("[Stripe] cancel-subscription: no active sub for", user.email);
       return res.json({
         success: true,
         wasTrialing: false,
@@ -172,7 +162,6 @@ router.delete("/subscription", authRequired, async (req, res) => {
     // now (we'll mark the user canceled) and customer.subscription.deleted
     // later when the period actually ends (we'll clear isPremium + delete bill).
     const canceled = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
-    console.log("[Stripe] cancel_at_period_end=true for sub", sub.id, "| status:", canceled.status);
 
     const wasTrialing = sub.status === "trialing";
     // For trialing subs the access end is the trial end; for active it's the current period end.
@@ -200,10 +189,10 @@ router.delete("/subscription", authRequired, async (req, res) => {
         : "Subscription canceled — access continues until the end of the billing period.",
     });
   } catch (error) {
-    console.error("[Stripe] Cancel subscription error:", error);
-    const isStripeError = error?.type?.startsWith?.("Stripe");
-    res.status(isStripeError ? 400 : 500).json({
-      error: isStripeError ? `Stripe error: ${error.message}` : "Failed to cancel subscription.",
+    console.error("[Stripe] Cancel subscription error:", error?.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to cancel subscription. Please try again or contact support.",
     });
   }
 });
@@ -221,7 +210,6 @@ router.post("/webhook", async (req, res) => {
       : Buffer.from(JSON.stringify(req.body));
 
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log("[Stripe Webhook] Event received:", event.type, "| Event ID:", event.id);
   } catch (err) {
     console.error("[Stripe Webhook] Signature verification FAILED:", err.message);
     console.error("[Stripe Webhook] Body type:", typeof req.body, "| isBuffer:", Buffer.isBuffer(req.body));
@@ -270,7 +258,7 @@ router.post("/webhook", async (req, res) => {
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
         await user.save();
-        console.log(`[Stripe Webhook] Upgraded ${user.email} → ${subStatus}`);
+        // Operational audit-trail logging removed per security audit.
 
         try {
           await upsertPremiumBill(user._id, trialEnd || new Date());
@@ -302,7 +290,6 @@ router.post("/webhook", async (req, res) => {
           user.subscriptionStatus = "free";
         }
         await user.save();
-        console.log(`[Stripe Webhook] subscription.updated ${user.email} → ${user.subscriptionStatus} (Stripe: ${subscription.status})`);
         break;
       }
 
@@ -318,7 +305,6 @@ router.post("/webhook", async (req, res) => {
         user.subscriptionEndDate = undefined;
         await user.save();
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
-        console.log(`[Stripe Webhook] subscription.deleted ${user.email} → free`);
         break;
       }
 
@@ -330,7 +316,6 @@ router.post("/webhook", async (req, res) => {
         user.subscriptionStatus = "expired";
         user.isPremium = false;
         await user.save();
-        console.log(`[Stripe Webhook] invoice.payment_failed ${user.email} → expired`);
         break;
       }
     }

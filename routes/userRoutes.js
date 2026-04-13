@@ -29,6 +29,8 @@ const userResponse = (user) => ({
   loginHistory: (user.loginHistory || []).slice(0, 5),
   twoFactorEnabled: !!user.twoFactorEnabled,
   incomeType: user.incomeType || "fixed",
+  isAdmin: !!user.isAdmin,
+  currentBalance: user.currentBalance || 0,
   createdAt: user.createdAt,
 });
 
@@ -112,9 +114,15 @@ router.put("/me", authRequired, async (req, res) => {
       const { currentPassword, newPassword, confirmNewPassword } = passwordChange;
       if (!currentPassword || !newPassword || !confirmNewPassword) return res.status(400).json({ message: "All password fields required." });
       if (newPassword !== confirmNewPassword) return res.status(400).json({ message: "Passwords don't match." });
+      if (typeof newPassword !== "string" || newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters." });
+      }
       const valid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!valid) return res.status(401).json({ message: "Current password incorrect." });
       user.passwordHash = await bcrypt.hash(newPassword, 12);
+      // Bump tokenVersion so all existing JWTs for this user become
+      // invalid — anyone who was holding a stolen token loses access.
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
     }
 
     await user.save();

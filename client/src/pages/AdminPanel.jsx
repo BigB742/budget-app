@@ -9,7 +9,9 @@ const AdminPanel = () => {
   const user = (() => { try { return JSON.parse(localStorage.getItem("user")); } catch { return null; } })();
   const [tab, setTab] = useState("users");
 
-  if (!user?.isAdmin && user?.email !== "admin@productoslaloma.com") return <Navigate to="/app" replace />;
+  // Server enforces this too (router.use middleware in adminRoutes.js).
+  // The frontend check is just to avoid a wasted API call.
+  if (!user?.isAdmin) return <Navigate to="/app" replace />;
 
   return (
     <div className="admin-page">

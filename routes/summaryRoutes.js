@@ -356,6 +356,18 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       return res.status(400).json({ error: "Unable to compute current budget period." });
     }
 
+    // Premium gate: future-period projections (any payday after the
+    // current period's end) require an active subscription. Free users
+    // can only see snapshots for the period they're already in. The UI
+    // hides future months for free users, but the API enforces it too
+    // so a determined caller can't bypass via direct fetch.
+    if (startOfDay(targetDate) > startOfDay(currentPeriod.end) && !req.isPremium) {
+      return res.status(403).json({
+        error: "Future-period projections are a Premium feature.",
+        upgradeRequired: true,
+      });
+    }
+
     // True when the user was created during the current (onboarding) pay
     // period. Only the snapshot for the current period uses the "Opening
     // balance" label — future-period snapshots get "Rollover from previous"

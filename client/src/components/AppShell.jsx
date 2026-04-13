@@ -67,7 +67,7 @@ const AppShell = () => {
                 </NavLink>
               </li>
             ))}
-            {(() => { try { const u = JSON.parse(localStorage.getItem("user")); return u?.isAdmin || u?.email === "admin@productoslaloma.com"; } catch { return false; } })() && (
+            {(() => { try { const u = JSON.parse(localStorage.getItem("user")); return !!u?.isAdmin; } catch { return false; } })() && (
               <li>
                 <NavLink to="/admin" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`} onClick={closeSidebar}>
                   Admin

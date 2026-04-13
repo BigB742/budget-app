@@ -73,7 +73,6 @@ module.exports = async (req, res) => {
       rawBody = await readRawBody(req);
     }
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log(`[Stripe Webhook] Received ${event.type} (${event.id})`);
   } catch (err) {
     console.error("[Stripe Webhook] Signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -122,7 +121,7 @@ module.exports = async (req, res) => {
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
         await user.save();
-        console.log(`[Stripe Webhook] Upgraded ${user.email} → ${subStatus}`);
+        // Operational audit-trail logging removed per security audit.
 
         try {
           await upsertPremiumBill(user._id, trialEnd || new Date());
@@ -153,7 +152,6 @@ module.exports = async (req, res) => {
           user.subscriptionStatus = "free";
         }
         await user.save();
-        console.log(`[Stripe Webhook] subscription.updated ${user.email} → ${user.subscriptionStatus} (Stripe: ${subscription.status})`);
         break;
       }
 
@@ -168,7 +166,6 @@ module.exports = async (req, res) => {
         user.subscriptionEndDate = undefined;
         await user.save();
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
-        console.log(`[Stripe Webhook] subscription.deleted ${user.email} → free`);
         break;
       }
 
@@ -179,7 +176,6 @@ module.exports = async (req, res) => {
         user.isPremium = false;
         user.subscriptionStatus = "free";
         await user.save();
-        console.log(`[Stripe Webhook] invoice.payment_failed ${user.email} → free`);
         break;
       }
     }

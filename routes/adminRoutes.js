@@ -25,10 +25,16 @@ const {
 
 const router = express.Router();
 
-// All admin routes require auth + admin role
+// All admin routes require auth + admin role. The check uses ONLY the
+// isAdmin DB flag — that field is not in any client-writable route's
+// whitelist, so it can only be set via direct DB write. Previously this
+// also accepted user.email === "admin@productoslaloma.com" as a fallback
+// for the bootstrap admin, which created an email-spoofing risk: if a
+// malicious user could change their email to that address (via PUT /me
+// when no existing user holds it), they'd be promoted to admin.
 router.use(authRequired, async (req, res, next) => {
-  const user = await User.findById(req.userId).select("isAdmin email");
-  if (!user?.isAdmin && user?.email !== "admin@productoslaloma.com") {
+  const user = await User.findById(req.userId).select("isAdmin");
+  if (!user?.isAdmin) {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
@@ -118,7 +124,9 @@ router.post("/reset-password", async (req, res) => {
     if (!userId) return res.status(400).json({ error: "userId required." });
     const tempPassword = crypto.randomBytes(4).toString("hex");
     const hash = await bcrypt.hash(tempPassword, 12);
-    await User.findByIdAndUpdate(userId, { passwordHash: hash });
+    // Bump tokenVersion so any existing JWTs for the target user become
+    // invalid. The user has to log in again with the new temp password.
+    await User.findByIdAndUpdate(userId, { passwordHash: hash, $inc: { tokenVersion: 1 } });
     res.json({ tempPassword });
   } catch (error) {
     res.status(500).json({ error: "Failed to reset password." });
@@ -295,14 +303,10 @@ router.post("/sync-stripe/:userId", async (req, res) => {
     }
 
     const saved = await user.save();
-    console.log("[Admin] sync-stripe", user.email, "before:", before, "after:", {
-      subscriptionStatus: saved.subscriptionStatus,
-      isPremium: saved.isPremium,
-      trialEndDate: saved.trialEndDate,
-    });
     res.json({
       success: true,
       stripeSubscriptionStatus: sub.status,
+      before,
       user: {
         _id: saved._id,
         email: saved.email,
@@ -314,8 +318,8 @@ router.post("/sync-stripe/:userId", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[Admin] sync-stripe error:", error);
-    res.status(500).json({ error: error.message || "Failed to sync" });
+    console.error("[Admin] sync-stripe error:", error?.message);
+    res.status(500).json({ success: false, error: "Failed to sync subscription state." });
   }
 });
 

@@ -23,8 +23,35 @@ const adminRoutes = require("./routes/adminRoutes");
 const { authRequired } = require("./middleware/auth");
 const { checkSubscriptionStatus } = require("./middleware/subscription");
 const { sanitizeRequest } = require("./middleware/sanitize");
-const { authLimiter, passwordResetLimiter, apiLimiter } = require("./middleware/rateLimit");
+const {
+  loginLimiter,
+  signupLimiter,
+  verifyEmailLimiter,
+  passwordResetLimiter,
+  apiLimiter,
+} = require("./middleware/rateLimit");
 const stripeRoutes = require("./routes/stripe");
+
+// ── Startup config validation ──────────────────────────────────────────
+// JWTs are signed with HMAC-SHA256, which requires the secret to be at
+// least 256 bits (32 chars of high-entropy random data) to be brute-force
+// resistant. A short or guessable secret means an attacker can forge
+// admin tokens once they observe one valid token.
+//
+// We WARN loudly here but do NOT process.exit() — that would break
+// existing deployments mid-rotation. Bryan must rotate JWT_SECRET in
+// Vercel before launch. The warning is intentionally hard to miss in
+// the cold-start logs.
+if (!process.env.JWT_SECRET) {
+  console.error("\n[SECURITY ★★★★★] JWT_SECRET is NOT SET. Auth will not work.\n");
+} else if (process.env.JWT_SECRET.length < 32) {
+  console.error(
+    "\n[SECURITY ★★★★★] JWT_SECRET is only " + process.env.JWT_SECRET.length +
+    " characters. Required: at least 32 chars of high-entropy random data.\n" +
+    "Rotate immediately: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"\n" +
+    "Then set the new value in Vercel env vars and redeploy. All existing JWTs will be invalidated.\n"
+  );
+}
 
 const app = express();
 
@@ -34,15 +61,18 @@ const app = express();
 app.set("trust proxy", 1);
 
 // CORS allowlist: APP_URL (production frontend), localhost dev, and any
-// vercel.app preview deploy. Configure CORS_ALLOWED_ORIGINS as a
-// comma-separated list to override. A wide-open `cors()` would let any
-// website embed this API and probe the user's authenticated state.
-const corsAllowList = (process.env.CORS_ALLOWED_ORIGINS || "")
+// vercel.app preview deploy. Configure ALLOWED_ORIGINS (or the legacy
+// CORS_ALLOWED_ORIGINS) as a comma-separated list to override. A
+// wide-open `cors()` would let any website embed this API and probe
+// the user's authenticated state.
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.CORS_ALLOWED_ORIGINS || "";
+const corsAllowList = allowedOriginsEnv
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 const defaultCorsAllowList = [
   process.env.APP_URL,
+  "https://paypulse-frontend.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
 ].filter(Boolean);
@@ -58,6 +88,11 @@ app.use(
       if (/^https:\/\/paypulse-[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
+    // We use Bearer tokens in the Authorization header (not cookies),
+    // so credentials mode is not required. The browser sends headers
+    // explicitly via fetch — no cookie auto-attach behavior to worry
+    // about. Setting credentials: false keeps preflight permissive.
+    credentials: false,
   })
 );
 
@@ -134,13 +169,14 @@ app.get("/api/feature-flags", async (req, res) => {
 });
 
 // Rate limiting on auth endpoints — applied BEFORE the route handlers so
-// abusive callers are blocked before they hit Mongo or bcrypt.
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/signup", authLimiter);
-app.use("/api/auth/verify-email", authLimiter);
-app.use("/api/auth/resend-verification", authLimiter);
-app.use("/api/auth/send-2fa", authLimiter);
-app.use("/api/auth/verify-2fa", authLimiter);
+// abusive callers are blocked before they hit Mongo or bcrypt. See
+// middleware/rateLimit.js for the rationale on each tier.
+app.use("/api/auth/login", loginLimiter);
+app.use("/api/auth/signup", signupLimiter);
+app.use("/api/auth/verify-email", verifyEmailLimiter);
+app.use("/api/auth/resend-verification", verifyEmailLimiter);
+app.use("/api/auth/send-2fa", loginLimiter);
+app.use("/api/auth/verify-2fa", loginLimiter);
 app.use("/api/auth/forgot-password", passwordResetLimiter);
 app.use("/api/auth/reset-password", passwordResetLimiter);
 
@@ -170,6 +206,37 @@ protectedRouter.use("/debts", debtRoutes);
 protectedRouter.use("/export", exportRoutes);
 protectedRouter.use("/one-time-income", oneTimeIncomeRoutes);
 app.use("/api", protectedRouter);
+
+// ─── Global error handler ──────────────────────────────────────────────
+// Safety net for any uncaught error that escapes a route handler. NEVER
+// leak err.message, err.stack, or any internal detail to the client —
+// stack traces reveal file paths and tech stack, mongoose CastError
+// reveals collection/field names, etc. Log the full error server-side
+// and return a generic message.
+app.use((err, _req, res, _next) => {
+  console.error("[GlobalErrorHandler]", err?.name, err?.message, err?.stack);
+
+  // Mongoose-specific error normalization for slightly better client UX,
+  // but still WITHOUT echoing the raw error string.
+  let status = err?.status || err?.statusCode || 500;
+  let userMessage = "Something went wrong. Please try again.";
+
+  if (err?.name === "ValidationError") {
+    status = 400;
+    userMessage = "Some of the fields you entered are invalid.";
+  } else if (err?.name === "CastError") {
+    status = 400;
+    userMessage = "One of the values you sent had the wrong format.";
+  } else if (err?.code === 11000) {
+    status = 409;
+    userMessage = "That value is already in use.";
+  } else if (err?.message === `Origin ${err?.origin} not allowed by CORS` || err?.message?.startsWith?.("Origin ")) {
+    status = 403;
+    userMessage = "Origin not allowed.";
+  }
+
+  res.status(status).json({ success: false, error: userMessage });
+});
 
 // Cron jobs
 require("./jobs/billReminders");

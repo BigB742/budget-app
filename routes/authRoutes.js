@@ -23,7 +23,14 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const createTokenResponse = (user) => {
-  const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
+  // `tv` (token version) lets us invalidate all of a user's existing JWTs
+  // by bumping User.tokenVersion. The auth middleware compares the JWT's
+  // tv to the user's current version and rejects mismatches.
+  const token = jwt.sign(
+    { userId: user._id, tv: user.tokenVersion || 0 },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
   return {
     token,
     user: {
@@ -291,6 +298,8 @@ router.post("/reset-password", async (req, res) => {
     user.passwordHash = await bcrypt.hash(newPassword, 12);
     user.resetCode = undefined;
     user.resetCodeExpiry = undefined;
+    // Bump tokenVersion so all existing JWTs for this user become invalid.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     res.json({ success: true, message: "Password reset successful." });

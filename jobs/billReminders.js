@@ -21,9 +21,9 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       pass: process.env.EMAIL_PASS,
     },
   });
-} else {
-  console.log("[billReminders] EMAIL_USER not configured — email reminders will be skipped.");
 }
+// If EMAIL_USER/EMAIL_PASS are missing, transporter stays null and the
+// sendEmail() helper below silently no-ops. Reminders are best-effort.
 
 // Use EMAIL_FROM env var if set (e.g. no-reply@productoslaloma.com with a
 // provider that supports custom senders). Gmail SMTP requires the address
