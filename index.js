@@ -22,15 +22,53 @@ const adminRoutes = require("./routes/adminRoutes");
 
 const { authRequired } = require("./middleware/auth");
 const { checkSubscriptionStatus } = require("./middleware/subscription");
+const { sanitizeRequest } = require("./middleware/sanitize");
+const { authLimiter, passwordResetLimiter, apiLimiter } = require("./middleware/rateLimit");
 const stripeRoutes = require("./routes/stripe");
 
 const app = express();
 
-app.use(cors());
+// Trust the first proxy hop (Vercel) so req.ip reflects the real client IP
+// instead of the load-balancer's. Required for express-rate-limit to key
+// per-user instead of bucketing all traffic into one IP.
+app.set("trust proxy", 1);
+
+// CORS allowlist: APP_URL (production frontend), localhost dev, and any
+// vercel.app preview deploy. Configure CORS_ALLOWED_ORIGINS as a
+// comma-separated list to override. A wide-open `cors()` would let any
+// website embed this API and probe the user's authenticated state.
+const corsAllowList = (process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const defaultCorsAllowList = [
+  process.env.APP_URL,
+  "http://localhost:5173",
+  "http://localhost:3000",
+].filter(Boolean);
+const allowedOrigins = corsAllowList.length ? corsAllowList : defaultCorsAllowList;
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow tools without an Origin header (curl, Postman, server-to-server,
+      // and Stripe webhook deliveries which post to /api/stripe/webhook).
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow Vercel preview deploys (paypulse-*.vercel.app).
+      if (/^https:\/\/paypulse-[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+  })
+);
 
 // Stripe webhook needs raw body — MUST come before express.json()
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
+
+// Strip MongoDB operators ($gt, $ne, etc.) and dotted-path keys from
+// req.body and req.params before any route handler runs. Defense against
+// NoSQL injection on auth and write endpoints.
+app.use(sanitizeRequest);
 
 // ── DB connection middleware (Vercel serverless safe) ──────────────────────
 // Ensures a cached Mongoose connection exists before every request.
@@ -95,12 +133,28 @@ app.get("/api/feature-flags", async (req, res) => {
   } catch { res.json({}); }
 });
 
+// Rate limiting on auth endpoints — applied BEFORE the route handlers so
+// abusive callers are blocked before they hit Mongo or bcrypt.
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/signup", authLimiter);
+app.use("/api/auth/verify-email", authLimiter);
+app.use("/api/auth/resend-verification", authLimiter);
+app.use("/api/auth/send-2fa", authLimiter);
+app.use("/api/auth/verify-2fa", authLimiter);
+app.use("/api/auth/forgot-password", passwordResetLimiter);
+app.use("/api/auth/reset-password", passwordResetLimiter);
+
 app.use("/api/auth", authRoutes);
+// Stripe webhook intentionally NOT rate-limited — Stripe handles retries
+// and their own back-pressure.
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/admin", adminRoutes);
 
-// Protected routes: auth + subscription status sync on every request
+// Protected routes: auth + subscription status sync on every request,
+// plus a general 100-per-15min rate limit per IP. Applied AFTER auth
+// so unauthenticated probes hit the auth limiter first.
 const protectedRouter = express.Router();
+protectedRouter.use(apiLimiter);
 protectedRouter.use(authRequired, checkSubscriptionStatus);
 protectedRouter.use("/bills", billRoutes);
 protectedRouter.use("/pay-schedule", payScheduleRoutes);

@@ -19,8 +19,13 @@ router.get("/", authRequired, async (req, res) => {
 router.post("/", authRequired, async (req, res) => {
   try {
     const { name, targetAmount, perPaycheckAmount, category, savedAmount } = req.body || {};
-    if (!name || targetAmount == null) {
-      return res.status(400).json({ message: "Name and target amount are required." });
+
+    if (typeof name !== "string" || !name.trim() || name.length > 100) {
+      return res.status(400).json({ message: "Name is required (max 100 characters)." });
+    }
+    const target = Number(targetAmount);
+    if (!Number.isFinite(target) || target < 0 || target > 100_000_000) {
+      return res.status(400).json({ message: "Target amount must be a positive number." });
     }
 
     if (req.subscriptionStatus === "free") {
@@ -32,10 +37,10 @@ router.post("/", authRequired, async (req, res) => {
 
     const goal = await SavingsGoal.create({
       userId: req.userId,
-      name,
-      targetAmount: Number(targetAmount),
-      perPaycheckAmount: Number(perPaycheckAmount) || 0,
-      category: category || "Other",
+      name: name.trim(),
+      targetAmount: target,
+      perPaycheckAmount: Math.max(0, Number(perPaycheckAmount) || 0),
+      category: typeof category === "string" ? category : "Other",
       savedAmount: Math.max(0, Number(savedAmount) || 0),
     });
     res.status(201).json(goal);

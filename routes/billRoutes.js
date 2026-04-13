@@ -26,8 +26,17 @@ router.post("/", authRequired, async (req, res) => {
   try {
     const { name, amount, category, startDate, lastPaymentDate, lastPaymentAmount } = req.body;
     const dueDayOfMonth = req.body?.dueDayOfMonth ?? req.body?.dueDay;
-    if (!name || amount == null || !dueDayOfMonth) {
-      return res.status(400).json({ error: "Name, amount, and due day of month are required." });
+
+    if (typeof name !== "string" || !name.trim() || name.length > 100) {
+      return res.status(400).json({ error: "Name is required (max 100 characters)." });
+    }
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 0 || numericAmount > 1_000_000) {
+      return res.status(400).json({ error: "Amount must be a positive number." });
+    }
+    const day = Number(dueDayOfMonth);
+    if (!Number.isInteger(day) || day < 1 || day > 31) {
+      return res.status(400).json({ error: "Due day must be an integer between 1 and 31." });
     }
 
     if (req.subscriptionStatus === "free") {
@@ -39,10 +48,10 @@ router.post("/", authRequired, async (req, res) => {
 
     const bill = await Bill.create({
       user: req.userId,
-      name,
-      amount,
-      dueDayOfMonth,
-      category,
+      name: name.trim(),
+      amount: numericAmount,
+      dueDayOfMonth: day,
+      category: typeof category === "string" ? category : undefined,
       startDate: startDate ? new Date(startDate + "T12:00:00") : null,
       lastPaymentDate: lastPaymentDate || null,
       lastPaymentAmount: lastPaymentAmount != null ? Number(lastPaymentAmount) : null,

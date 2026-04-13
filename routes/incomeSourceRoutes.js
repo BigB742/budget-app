@@ -20,11 +20,24 @@ router.get("/", authRequired, async (req, res) => {
 });
 
 // POST create income source
+const VALID_FREQUENCIES = ["weekly", "biweekly", "twicemonthly", "monthly"];
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { name, amount, frequency, nextPayDate, isPrimary } = req.body;
-    if (!name || !amount || !frequency || !nextPayDate) {
-      return res.status(400).json({ message: "Missing required fields" });
+    const { name, amount, frequency, nextPayDate } = req.body;
+
+    if (typeof name !== "string" || !name.trim() || name.length > 100) {
+      return res.status(400).json({ message: "Name is required (max 100 characters)." });
+    }
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 1_000_000) {
+      return res.status(400).json({ message: "Amount must be a positive number." });
+    }
+    if (!VALID_FREQUENCIES.includes(frequency)) {
+      return res.status(400).json({ message: "Frequency must be one of: " + VALID_FREQUENCIES.join(", ") });
+    }
+    const parsedDate = new Date(nextPayDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ message: "Invalid nextPayDate." });
     }
 
     const count = await IncomeSource.countDocuments({ user: req.userId, isActive: true });
@@ -32,17 +45,12 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(403).json({ message: "You already have a primary income source. Edit your existing income source to change the amount or schedule." });
     }
 
-    // If this is marked primary, unmark others
-    if (isPrimary) {
-      await IncomeSource.updateMany({ user: req.userId }, { isPrimary: false });
-    }
-
     const source = await IncomeSource.create({
       user: req.userId,
-      name,
-      amount,
+      name: name.trim(),
+      amount: numericAmount,
       frequency,
-      nextPayDate: new Date(nextPayDate),
+      nextPayDate: parsedDate,
       isPrimary: true, // always primary since only 1 allowed
     });
 

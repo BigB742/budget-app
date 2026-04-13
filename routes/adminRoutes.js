@@ -117,7 +117,7 @@ router.post("/reset-password", async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: "userId required." });
     const tempPassword = crypto.randomBytes(4).toString("hex");
-    const hash = await bcrypt.hash(tempPassword, 10);
+    const hash = await bcrypt.hash(tempPassword, 12);
     await User.findByIdAndUpdate(userId, { passwordHash: hash });
     res.json({ tempPassword });
   } catch (error) {

@@ -56,8 +56,11 @@ router.post("/signup", async (req, res) => {
   try {
     const { firstName, lastName, dateOfBirth, email, password, phone } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
       return res.status(400).json({ error: "Email and password are required." });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
@@ -65,7 +68,7 @@ router.post("/signup", async (req, res) => {
       return res.status(400).json({ error: "Email already in use." });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     // No auto-trial — trial only starts when user completes Stripe checkout
     const user = await User.create({
       name: `${firstName || ""} ${lastName || ""}`.trim() || email.split("@")[0],
@@ -103,17 +106,22 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
       return res.status(400).json({ error: "Email and password are required." });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
-      return res.status(400).json({ error: "Invalid credentials." });
-    }
 
-    const passwordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordValid) {
+    // Constant-time-ish login: always run a bcrypt compare even if the
+    // user doesn't exist, against a dummy hash. Without this, attackers
+    // could enumerate valid emails by measuring response time
+    // (existing-email + wrong-password = ~250ms, missing email = ~5ms).
+    const dummyHash = "$2b$12$00000000000000000000000000000000000000000000000000000";
+    const passwordValid = user
+      ? await bcrypt.compare(password, user.passwordHash)
+      : (await bcrypt.compare(password, dummyHash), false);
+
+    if (!user || !passwordValid) {
       return res.status(400).json({ error: "Invalid credentials." });
     }
 
@@ -139,7 +147,7 @@ router.post("/login", async (req, res) => {
       // Don't issue JWT yet — require 2FA
       // Generate and send OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.twoFactorOTP = await bcrypt.hash(otp, 10);
+      user.twoFactorOTP = await bcrypt.hash(otp, 12);
       user.twoFactorOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
       // Send OTP email
@@ -171,7 +179,7 @@ router.post("/login", async (req, res) => {
 router.post("/verify-email", async (req, res) => {
   try {
     const { email, code } = req.body;
-    if (!email || !code) {
+    if (typeof email !== "string" || typeof code !== "string" || !email || !code) {
       return res.status(400).json({ error: "Email and code are required." });
     }
 
@@ -198,7 +206,7 @@ router.post("/verify-email", async (req, res) => {
 router.post("/resend-verification", async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) {
+    if (typeof email !== "string" || !email) {
       return res.status(400).json({ error: "Email is required." });
     }
 
@@ -226,7 +234,7 @@ router.post("/resend-verification", async (req, res) => {
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required." });
+    if (typeof email !== "string" || !email) return res.status(400).json({ error: "Email is required." });
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
@@ -260,8 +268,16 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
-    if (!email || !code || !newPassword) {
+    if (
+      typeof email !== "string" ||
+      typeof code !== "string" ||
+      typeof newPassword !== "string" ||
+      !email || !code || !newPassword
+    ) {
       return res.status(400).json({ error: "Email, code, and new password are required." });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
@@ -272,7 +288,7 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).json({ error: "Code expired, please request a new one." });
     }
 
-    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
     user.resetCode = undefined;
     user.resetCodeExpiry = undefined;
     await user.save();
@@ -288,7 +304,7 @@ router.post("/reset-password", async (req, res) => {
 router.post("/send-2fa", async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required." });
+    if (typeof email !== "string" || !email) return res.status(400).json({ error: "Email is required." });
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
@@ -297,7 +313,7 @@ router.post("/send-2fa", async (req, res) => {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.twoFactorOTP = await bcrypt.hash(otp, 10);
+    user.twoFactorOTP = await bcrypt.hash(otp, 12);
     user.twoFactorOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
@@ -317,7 +333,9 @@ router.post("/send-2fa", async (req, res) => {
 router.post("/verify-2fa", async (req, res) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: "Email and OTP are required." });
+    if (typeof email !== "string" || typeof otp !== "string" || !email || !otp) {
+      return res.status(400).json({ error: "Email and OTP are required." });
+    }
 
     const user = await User.findOne({
       email: email.toLowerCase().trim(),

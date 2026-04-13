@@ -47,10 +47,16 @@ router.get("/me", authRequired, async (req, res) => {
 router.put("/me", authRequired, async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id || req.userId;
+    // EXPLICIT WHITELIST. Do NOT add isPremium, subscriptionStatus,
+    // onboardingComplete, isAdmin, stripeCustomerId, stripeSubscriptionId,
+    // trialEndDate, subscriptionEndDate, emailVerified, or any other
+    // privilege/credential field here. Those are set by the webhook,
+    // dedicated routes, or the auth flow only — exposing them on this
+    // endpoint is a paywall / privilege-escalation bypass.
     const {
       firstName, lastName, email, dateOfBirth, phone,
       incomeSettings, passwordChange, notificationPrefs,
-      locale, onboardingComplete, isPremium, twoFactorEnabled, currentBalance,
+      locale, twoFactorEnabled, currentBalance, incomeType, totalSavings,
     } = req.body || {};
 
     const user = await User.findById(userId);
@@ -64,12 +70,18 @@ router.put("/me", authRequired, async (req, res) => {
     if (phone !== undefined) user.phone = phone;
     if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth;
     if (locale !== undefined) user.locale = locale;
-    if (onboardingComplete !== undefined) user.onboardingComplete = onboardingComplete;
-    if (isPremium !== undefined) { user.isPremium = isPremium; if (isPremium && !user.premiumSince) user.premiumSince = new Date(); }
-    if (twoFactorEnabled !== undefined) user.twoFactorEnabled = twoFactorEnabled;
-    if (currentBalance !== undefined) user.currentBalance = Number(currentBalance);
-    if (req.body.incomeType !== undefined) user.incomeType = req.body.incomeType;
-    if (req.body.totalSavings !== undefined) user.totalSavings = Number(req.body.totalSavings);
+    if (twoFactorEnabled !== undefined) user.twoFactorEnabled = !!twoFactorEnabled;
+    if (currentBalance !== undefined) {
+      const n = Number(currentBalance);
+      if (Number.isFinite(n)) user.currentBalance = n;
+    }
+    if (incomeType !== undefined && (incomeType === "fixed" || incomeType === "variable")) {
+      user.incomeType = incomeType;
+    }
+    if (totalSavings !== undefined) {
+      const n = Number(totalSavings);
+      if (Number.isFinite(n) && n >= 0) user.totalSavings = n;
+    }
 
     if (notificationPrefs) {
       const p = user.notificationPrefs || {};
@@ -102,7 +114,7 @@ router.put("/me", authRequired, async (req, res) => {
       if (newPassword !== confirmNewPassword) return res.status(400).json({ message: "Passwords don't match." });
       const valid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!valid) return res.status(401).json({ message: "Current password incorrect." });
-      user.passwordHash = await bcrypt.hash(newPassword, 10);
+      user.passwordHash = await bcrypt.hash(newPassword, 12);
     }
 
     await user.save();
