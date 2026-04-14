@@ -43,7 +43,7 @@ const getStoredUser = () => { try { return JSON.parse(localStorage.getItem("user
 const Dashboard = () => {
   const cache = useDataCache();
   const summary = cache?.summary;
-  const { isFree, isTrialing, trialDaysLeft } = useSubscription();
+  const { isFree, isTrialing, isPremium, trialDaysLeft } = useSubscription();
   const storedUser = getStoredUser();
 
   const [selectedDay, setSelectedDay] = useState(null);
