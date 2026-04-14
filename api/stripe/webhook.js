@@ -58,19 +58,26 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Missing signature" });
   }
 
+  // Stripe signs the exact raw byte sequence. If Vercel has already
+  // JSON-parsed req.body we cannot reconstruct those bytes via
+  // JSON.stringify — so we refuse to fall back to that path and instead
+  // fail loudly, which surfaces a misconfiguration (bodyParser:false not
+  // applying) instead of silently rejecting every webhook.
   let event;
   try {
-    // Prefer the raw stream. Vercel may pre-parse the body in some cases
-    // (if config.api.bodyParser=false fails to apply) — we tolerate that
-    // by re-serializing, though signature verification usually fails in
-    // that path since Stripe signs the original byte sequence.
     let rawBody;
     if (Buffer.isBuffer(req.body)) {
       rawBody = req.body;
-    } else if (req.body && typeof req.body === "object") {
-      rawBody = Buffer.from(JSON.stringify(req.body));
+    } else if (req.body == null || typeof req.body === "string") {
+      // Body hasn't been consumed — read the raw stream.
+      rawBody = typeof req.body === "string" ? Buffer.from(req.body) : await readRawBody(req);
     } else {
-      rawBody = await readRawBody(req);
+      // req.body is already a parsed object. We cannot recover the
+      // exact signed bytes. Fail loudly so the config issue is visible
+      // in logs instead of rejecting every webhook with a cryptic
+      // signature error.
+      console.error("[Stripe Webhook] req.body was pre-parsed into an object — bodyParser:false is not applying. Signature verification cannot proceed.");
+      return res.status(500).send("Webhook Error: raw body unavailable");
     }
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
@@ -137,7 +144,6 @@ module.exports = async (req, res) => {
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) break;
 
-        const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
         if (subscription.status === "trialing") {
           user.isPremium = true;
           user.subscriptionStatus = "trialing";
@@ -147,7 +153,10 @@ module.exports = async (req, res) => {
           user.isPremium = true;
           user.subscriptionStatus = "premium";
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
-        } else if (downgradeStatuses.includes(subscription.status)) {
+        } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
+          user.isPremium = false;
+          user.subscriptionStatus = "past_due";
+        } else if (["canceled", "incomplete_expired", "incomplete", "paused"].includes(subscription.status)) {
           user.isPremium = false;
           user.subscriptionStatus = "free";
         }
@@ -157,14 +166,19 @@ module.exports = async (req, res) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
+        console.log("[Stripe Webhook] customer.subscription.deleted received — sub:", subscription.id, "customer:", subscription.customer);
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
-        if (!user) break;
+        if (!user) {
+          console.log("[Stripe Webhook] customer.subscription.deleted — no matching user for sub/customer");
+          break;
+        }
         user.isPremium = false;
-        user.subscriptionStatus = "free";
+        user.subscriptionStatus = "canceled";
         user.stripeSubscriptionId = null;
         user.subscriptionEndDate = undefined;
         await user.save();
+        console.log("[Stripe Webhook] customer.subscription.deleted — user", String(user._id), "canceled, isPremium=false, stripeSubscriptionId cleared");
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
         break;
       }
@@ -174,7 +188,7 @@ module.exports = async (req, res) => {
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
         if (!user) break;
         user.isPremium = false;
-        user.subscriptionStatus = "free";
+        user.subscriptionStatus = "past_due";
         await user.save();
         break;
       }

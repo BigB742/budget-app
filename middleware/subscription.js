@@ -25,23 +25,38 @@ const checkSubscriptionStatus = async (req, res, next) => {
       user.isPremium = false;
       await user.save();
     }
-    // Canceled subscription past its end date → downgrade to free.
-    if (user.subscriptionStatus === "canceled" && user.subscriptionEndDate && now > user.subscriptionEndDate) {
-      user.subscriptionStatus = "free";
-      user.isPremium = false;
-      user.stripeSubscriptionId = null;
-      user.subscriptionEndDate = undefined;
-      await user.save();
+    // Canceled subscription past its access end → downgrade to free.
+    // Access end is either subscriptionEndDate (post-trial plan cancelled
+    // mid-period) OR trialEndDate (trial cancelled before it converted).
+    // We take the later of the two so cancelling a trial doesn't kick
+    // the user out early.
+    if (user.subscriptionStatus === "canceled") {
+      const sEnd = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
+      const tEnd = user.trialEndDate ? new Date(user.trialEndDate) : null;
+      const accessEnd = sEnd && tEnd ? (sEnd > tEnd ? sEnd : tEnd) : (sEnd || tEnd);
+      if (accessEnd && now > accessEnd) {
+        user.subscriptionStatus = "free";
+        user.isPremium = false;
+        user.stripeSubscriptionId = null;
+        user.subscriptionEndDate = undefined;
+        await user.save();
+      }
     }
 
     const status = user.subscriptionStatus || "free";
     req.subscriptionStatus = status;
+
+    const trialStillActive = user.trialEndDate && new Date(user.trialEndDate) > now;
+    const canceledStillActive = (
+      (user.subscriptionEndDate && new Date(user.subscriptionEndDate) > now) ||
+      trialStillActive
+    );
     req.isPremium = (
       status === "premium" ||
       status === "premium_monthly" ||
       status === "premium_annual" ||
-      (status === "trialing" && user.trialEndDate && new Date(user.trialEndDate) > now) ||
-      (status === "canceled" && user.subscriptionEndDate && new Date(user.subscriptionEndDate) > now)
+      (status === "trialing" && trialStillActive) ||
+      (status === "canceled" && canceledStillActive)
     );
     next();
   } catch {

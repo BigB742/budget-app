@@ -161,17 +161,18 @@ const Dashboard = () => {
         </Link>
       )}
 
-      {/* Upgrade banner for free/trialing users */}
-      {(isFree || isTrialing) && (
+      {/* Upgrade banner — only for genuinely free users. Trialing users
+          have full premium access, so they don't see an upsell. */}
+      {isFree && !isTrialing && (
         <div className="upgrade-banner">
           <span className="upgrade-banner-text">
-            {isTrialing ? <><strong>Trial:</strong> {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</> : <><strong>Free plan</strong> — unlock unlimited bills and projections</>}
+            <strong>Free plan</strong> — unlock unlimited bills and projections
           </span>
           <Link to="/subscription" className="primary-button">Upgrade</Link>
         </div>
       )}
 
-      <AdSlot placement="banner" isPremium={!isFree && !isTrialing} />
+      <AdSlot placement="banner" isPremium={isPremium} />
 
       {/* Free-tier quick add is locked to a banner; premium users get the
           FAB + bottom sheet below. */}
@@ -250,6 +251,34 @@ const Dashboard = () => {
 
         <section className="dash-chart-col">
           <SpendingBreakdown expensesByCategory={spendingCats} summary={summary} />
+
+          {/* Compact "This Paycheck" mini card — stays after the main
+              breakdown so the user always has a quick look at the current
+              pay period without having to toggle. */}
+          {summary && !summary.empty && (
+            <section className="sb-mini-card">
+              <h3 className="sb-mini-title">This Paycheck</h3>
+              <ul className="sb-mini-list">
+                <li className="sb-mini-row">
+                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "#EF4444" }} />Bills</span>
+                  <span className="sb-mini-amount">{currency.format(summary.totalBills || 0)}</span>
+                </li>
+                {(spendingCats || []).slice(0, 2).map((c) => (
+                  <li key={c.category} className="sb-mini-row">
+                    <span className="sb-mini-name">
+                      <span className="sb-mini-dot" style={{ background: c.category === "Food" ? "#F59E0B" : "#14B8A6" }} />
+                      {c.category}
+                    </span>
+                    <span className="sb-mini-amount">{currency.format(c.total || 0)}</span>
+                  </li>
+                ))}
+                <li className="sb-mini-row sb-mini-row-total">
+                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "#14B8A6" }} />Available</span>
+                  <span className="sb-mini-amount sb-mini-available">{currency.format(summary.balance || 0)}</span>
+                </li>
+              </ul>
+            </section>
+          )}
         </section>
       </div>
 

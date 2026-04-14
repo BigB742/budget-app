@@ -92,6 +92,11 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: planConfig.priceId, quantity: 1 }],
+      // Force card capture up front even on trial sign-ups. Without this
+      // Stripe allows "collect later" for subscriptions with a trial, so a
+      // user could start a trial, never enter a card, and the conversion
+      // on day 3 would just silently fail with no billing attempt.
+      payment_method_collection: "always",
       success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${FRONTEND_URL}/subscription/cancel`,
       client_reference_id: String(user._id),
@@ -203,16 +208,22 @@ router.post("/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
 
-  try {
-    // Handle both raw Buffer (local dev) and pre-parsed body (Vercel serverless)
-    const rawBody = Buffer.isBuffer(req.body)
-      ? req.body
-      : Buffer.from(JSON.stringify(req.body));
+  // Stripe signs the exact raw byte sequence. If body-parser has already
+  // JSON-parsed it, we cannot reconstruct those bytes via JSON.stringify
+  // (key order and whitespace differ), so HMAC verification will always
+  // fail. We rely on `app.use("/api/stripe/webhook", express.raw(...))`
+  // being mounted in index.js BEFORE express.json(). If req.body isn't a
+  // Buffer here, that mount order is broken — fail loudly instead of
+  // silently producing a bad signature.
+  if (!Buffer.isBuffer(req.body)) {
+    console.error("[Stripe Webhook] req.body is not a raw Buffer — express.raw() mount missing or ordered after express.json(). Signature verification cannot proceed.");
+    return res.status(500).send("Webhook Error: raw body unavailable");
+  }
 
-    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("[Stripe Webhook] Signature verification FAILED:", err.message);
-    console.error("[Stripe Webhook] Body type:", typeof req.body, "| isBuffer:", Buffer.isBuffer(req.body));
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -274,8 +285,11 @@ router.post("/webhook", async (req, res) => {
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) break;
 
-        // trialing → trialing, active → premium, canceled/incomplete_expired/unpaid/past_due → free.
-        const downgradeStatuses = ["canceled", "incomplete_expired", "unpaid", "past_due", "incomplete", "paused"];
+        // Map Stripe status → internal subscriptionStatus. "active" maps to
+        // the existing "premium" enum value so the frontend useSubscription
+        // hook continues to recognize paid users. past_due/unpaid preserve
+        // that information (instead of collapsing to "free") so the user
+        // sees an actionable "payment failed — update card" state.
         if (subscription.status === "trialing") {
           user.isPremium = true;
           user.subscriptionStatus = "trialing";
@@ -285,7 +299,10 @@ router.post("/webhook", async (req, res) => {
           user.isPremium = true;
           user.subscriptionStatus = "premium";
           if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
-        } else if (downgradeStatuses.includes(subscription.status)) {
+        } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
+          user.isPremium = false;
+          user.subscriptionStatus = "past_due";
+        } else if (["canceled", "incomplete_expired", "incomplete", "paused"].includes(subscription.status)) {
           user.isPremium = false;
           user.subscriptionStatus = "free";
         }
@@ -295,15 +312,20 @@ router.post("/webhook", async (req, res) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
+        console.log("[Stripe Webhook] customer.subscription.deleted received — sub:", subscription.id, "customer:", subscription.customer);
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
-        if (!user) break;
+        if (!user) {
+          console.log("[Stripe Webhook] customer.subscription.deleted — no matching user for sub/customer");
+          break;
+        }
 
-        user.subscriptionStatus = "free";
+        user.subscriptionStatus = "canceled";
         user.isPremium = false;
         user.stripeSubscriptionId = null;
         user.subscriptionEndDate = undefined;
         await user.save();
+        console.log("[Stripe Webhook] customer.subscription.deleted — user", String(user._id), "canceled, isPremium=false, stripeSubscriptionId cleared");
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
         break;
       }
@@ -313,7 +335,7 @@ router.post("/webhook", async (req, res) => {
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
         if (!user) break;
 
-        user.subscriptionStatus = "expired";
+        user.subscriptionStatus = "past_due";
         user.isPremium = false;
         await user.save();
         break;

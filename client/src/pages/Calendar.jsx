@@ -12,6 +12,8 @@ const CATEGORY_OPTIONS = [
   "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other",
 ];
 
+const QUICK_CHIPS = ["Food", "Bills", "Savings", "Shopping", "Other"];
+
 const toKey = (y, m, d) =>
   `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
@@ -34,6 +36,18 @@ const Calendar = () => {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+  // Week vs Month toggle — persisted so the user's choice sticks across
+  // sessions. Default: Week on narrow screens, Month on desktop.
+  const [calView, setCalView] = useState(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("calendarView") : null;
+    if (saved === "week" || saved === "month") return saved;
+    return typeof window !== "undefined" && window.innerWidth < 768 ? "week" : "month";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("calendarView", calView); } catch { /* ignore */ }
+  }, [calView]);
+  // Which row of the monthly grid to show in week view
+  const [weekIndex, setWeekIndex] = useState(0);
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [overrides, setOverrides] = useState([]);
@@ -179,6 +193,22 @@ const Calendar = () => {
 
   const weeks = buildMonthGrid(viewYear, viewMonth);
 
+  // Whenever the user switches into week view or navigates the month,
+  // pick a sensible default week: the one containing today if we're on
+  // the current month, otherwise the first row with a real day in it.
+  useEffect(() => {
+    if (calView !== "week") return;
+    const isCurrent = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+    if (isCurrent) {
+      const t = today.getDate();
+      const idx = weeks.findIndex((w) => w.includes(t));
+      if (idx >= 0) { setWeekIndex(idx); return; }
+    }
+    const firstReal = weeks.findIndex((w) => w.some((d) => d !== null));
+    setWeekIndex(Math.max(0, firstReal));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calView, viewYear, viewMonth]);
+
   const getEffectiveAmount = (bill, dateKey) => {
     const oKey = `${bill._id}_${dateKey}`;
     if (overrideMap[oKey]) return overrideMap[oKey].amount;
@@ -285,6 +315,31 @@ const Calendar = () => {
 
   return (
     <div className="calendar-page">
+      {/* View toggle — lives at the very top of the page so the user can
+          switch between Week and Month before touching anything else. */}
+      <div className="cal-view-toggle-row">
+        <div className="cal-view-toggle" role="tablist" aria-label="Calendar view">
+          <button
+            type="button"
+            className={calView === "week" ? "active" : ""}
+            onClick={() => setCalView("week")}
+            role="tab"
+            aria-selected={calView === "week"}
+          >
+            Week
+          </button>
+          <button
+            type="button"
+            className={calView === "month" ? "active" : ""}
+            onClick={() => setCalView("month")}
+            role="tab"
+            aria-selected={calView === "month"}
+          >
+            Month
+          </button>
+        </div>
+      </div>
+
       <div className="cal-header">
         <button type="button" className="cal-nav-btn" onClick={goPrev}>&larr;</button>
         <h2 className="cal-month-label">{monthLabel}</h2>
@@ -307,7 +362,7 @@ const Calendar = () => {
           <div className="cal-weekdays">
             {WEEKDAYS.map((d) => (<div key={d} className="cal-weekday">{d}</div>))}
           </div>
-          {weeks.map((week, wi) => (
+          {(calView === "week" ? [weeks[weekIndex] || weeks[0] || []] : weeks).map((week, wi) => (
             <div key={wi} className="cal-week">
               {week.map((day, di) => {
                 if (day === null) return <div key={di} className="cal-cell empty" />;
@@ -316,7 +371,6 @@ const Calendar = () => {
                 const de = expensesByDay[key] || [];
                 const isPayday = paydaySet.has(key);
                 const isToday = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-                const billTotal = db.reduce((s, b) => s + getEffectiveAmount(b, key), 0);
                 const expTotal = de.reduce((s, x) => s + Number(x.amount || 0), 0);
 
                 return (
@@ -345,6 +399,29 @@ const Calendar = () => {
               })}
             </div>
           ))}
+
+          {calView === "week" && (
+            <div className="cal-week-nav" style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={weekIndex <= 0}
+                onClick={() => setWeekIndex((i) => Math.max(0, i - 1))}
+                style={{ flex: 1 }}
+              >
+                &larr; Prev week
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={weekIndex >= weeks.length - 1}
+                onClick={() => setWeekIndex((i) => Math.min(weeks.length - 1, i + 1))}
+                style={{ flex: 1 }}
+              >
+                Next week &rarr;
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -485,26 +562,89 @@ const Calendar = () => {
               </div>
             )}
 
-            {/* Add income form */}
-            <form className="cal-add-exp" onSubmit={handleAddIncome} style={{ borderTop: dayIncomes.length > 0 ? "none" : undefined }}>
+            {/* Add income form — vertical stack */}
+            <form className="cal-add-exp day-modal-form" onSubmit={handleAddIncome} style={{ borderTop: dayIncomes.length > 0 ? "none" : undefined }}>
               <h5>+ Add income</h5>
-              <div className="cal-add-row">
-                <input type="text" placeholder="Source" value={incForm.name} onChange={(e) => setIncForm((p) => ({ ...p, name: e.target.value }))} required />
-                <input type="number" step="0.01" min="0.01" placeholder="$0.00" value={incForm.amount} onChange={(e) => setIncForm((p) => ({ ...p, amount: e.target.value }))} required />
-                <button type="submit" className="primary-button" disabled={incSaving}>{incSaving ? "..." : "Add"}</button>
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="cal-inc-source">Source</label>
+                <input
+                  id="cal-inc-source"
+                  type="text"
+                  className="qa-input"
+                  placeholder="Where did this come from?"
+                  value={incForm.name}
+                  onChange={(e) => setIncForm((p) => ({ ...p, name: e.target.value }))}
+                  required
+                />
               </div>
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="cal-inc-amount">Amount</label>
+                <input
+                  id="cal-inc-amount"
+                  type="number"
+                  inputMode="decimal"
+                  className="qa-input"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="$0.00"
+                  value={incForm.amount}
+                  onChange={(e) => setIncForm((p) => ({ ...p, amount: e.target.value }))}
+                  required
+                />
+              </div>
+              <button type="submit" className="qa-submit" disabled={incSaving}>
+                {incSaving ? "Saving…" : "Add income"}
+              </button>
             </form>
 
-            <form className="cal-add-exp" onSubmit={handleAddDayExpense}>
+            {/* Add expense form — vertical stack with category chips */}
+            <form className="cal-add-exp day-modal-form" onSubmit={handleAddDayExpense}>
               <h5>+ Add expense</h5>
-              <div className="cal-add-row">
-                <input type="text" placeholder="Description" value={expForm.description} onChange={(e) => setExpForm((p) => ({ ...p, description: e.target.value }))} />
-                <input type="number" step="0.01" min="0.01" placeholder="$0.00" value={expForm.amount} onChange={(e) => setExpForm((p) => ({ ...p, amount: e.target.value }))} required />
-                <select value={expForm.category} onChange={(e) => setExpForm((p) => ({ ...p, category: e.target.value }))}>
-                  {CATEGORY_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
-                </select>
-                <button type="submit" className="primary-button" disabled={expSaving}>{expSaving ? "..." : "Add"}</button>
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="cal-exp-desc">Description</label>
+                <input
+                  id="cal-exp-desc"
+                  type="text"
+                  className="qa-input"
+                  placeholder={expForm.category === "Other" ? "What is this for?" : "Optional"}
+                  value={expForm.description}
+                  onChange={(e) => setExpForm((p) => ({ ...p, description: e.target.value }))}
+                  required={expForm.category === "Other"}
+                />
               </div>
+              <div className="qa-field">
+                <label className="qa-label" htmlFor="cal-exp-amount">Amount</label>
+                <input
+                  id="cal-exp-amount"
+                  type="number"
+                  inputMode="decimal"
+                  className="qa-input"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="$0.00"
+                  value={expForm.amount}
+                  onChange={(e) => setExpForm((p) => ({ ...p, amount: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="qa-field">
+                <label className="qa-label">Category</label>
+                <div className="qa-chips" role="group" aria-label="Category">
+                  {QUICK_CHIPS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`qa-chip${expForm.category === c ? " active" : ""}`}
+                      onClick={() => setExpForm((p) => ({ ...p, category: c }))}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button type="submit" className="qa-submit" disabled={expSaving}>
+                {expSaving ? "Saving…" : "Add expense"}
+              </button>
             </form>
           </div>
         </div>

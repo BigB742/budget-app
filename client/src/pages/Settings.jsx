@@ -266,15 +266,15 @@ const Settings = () => {
                 <div>
                   <span className="s-toggle-label">Low balance warning</span>
                   {lowBalanceWarning && !editingThreshold && (
-                    <span className="s-toggle-sub">
-                      Alert me when balance drops below <strong>${lowBalanceThreshold}</strong>{" "}
-                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={() => { setThresholdDraft(String(lowBalanceThreshold)); setEditingThreshold(true); }}>Edit</button>
+                    <span className="s-toggle-sub" style={{ color: "#8B95A1" }}>
+                      Alert me when balance drops below <strong style={{ color: "#8B95A1" }}>${lowBalanceThreshold}</strong>{" "}
+                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B95A1" }} onClick={() => { setThresholdDraft(String(lowBalanceThreshold)); setEditingThreshold(true); }}>Edit</button>
                     </span>
                   )}
                   {lowBalanceWarning && editingThreshold && (
-                    <span className="s-toggle-sub s-threshold-edit">
+                    <span className="s-toggle-sub s-threshold-edit" style={{ color: "#8B95A1" }}>
                       Alert below: $<input type="number" min="0" value={thresholdDraft} onChange={(e) => setThresholdDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleThresholdSave()} className="s-threshold-input" />
-                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--accent)" }} onClick={handleThresholdSave}>Save</button>
+                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B95A1" }} onClick={handleThresholdSave}>Save</button>
                     </span>
                   )}
                 </div>
@@ -284,7 +284,7 @@ const Settings = () => {
               <div className="s-toggle-row premium-locked-row">
                 <div>
                   <span className="s-toggle-label" style={{ opacity: 0.5 }}>Low balance warning</span>
-                  <span className="s-toggle-sub" style={{ color: "var(--accent)" }}>Low balance alerts are a Premium feature. Upgrade to get notified before you overdraft.</span>
+                  <span className="s-toggle-sub" style={{ color: "#8B95A1" }}>Low balance alerts are a Premium feature. Upgrade to get notified before you overdraft.</span>
                 </div>
                 <Link to="/subscription" className="premium-lock-badge">Premium <span style={{ fontSize: "0.65rem" }}>Upgrade</span></Link>
               </div>
