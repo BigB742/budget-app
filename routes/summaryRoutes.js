@@ -11,7 +11,9 @@ const Investment = require("../models/Investment");
 const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange } = require("../utils/paycheckUtils");
 const {
   startOfDay,
+  endOfDay,
   getEffectiveBillAmount,
+  sumBillsInPeriod,
   sumExpensesInPeriod,
   loadOverrideMap,
   loadBillPayments,
@@ -23,20 +25,32 @@ const router = express.Router();
 // GET /paycheck-current — current budget period summary using income sources
 router.get("/paycheck-current", authRequired, async (req, res) => {
   try {
-    const emptyResponse = {
-      period: null, totalIncome: 0, recurringIncome: 0, oneTimeIncome: 0,
-      totalBills: 0, totalExpenses: 0, savingsThisPeriod: 0, investmentsThisPeriod: 0,
-      balance: 0, leftToSpend: 0, nextPayDate: null, daysUntilNextPaycheck: null,
-      nextPaycheckBalance: null, nextPeriod: null, sources: [],
-      periodLabel: { start: null, end: null }, nextPayDateLabel: null, empty: true,
+    // Brand-new accounts (no income sources yet) still need a real
+    // balance number. We show the onboarding balance minus any expenses
+    // they've logged so far — they can't have bills in this state
+    // without going through onboarding, so totalBillsDue is 0.
+    const buildEmptyResponse = async () => {
+      const u = await User.findById(req.userId).select("currentBalance createdAt");
+      const cb = Number(u?.currentBalance) || 0;
+      const createdAt = u?.createdAt ? new Date(u.createdAt) : new Date(0);
+      const spent = await sumExpensesInPeriod(req.userId, createdAt, new Date());
+      return {
+        period: null, totalIncome: 0, recurringIncome: 0, oneTimeIncome: 0,
+        totalBills: 0, totalExpenses: 0, totalBillsDue: 0, totalExpensesSpent: spent,
+        savingsThisPeriod: 0, investmentsThisPeriod: 0,
+        balance: cb - spent, currentBalance: cb, leftToSpend: cb - spent,
+        nextPayDate: null, daysUntilNextPaycheck: null,
+        nextPaycheckBalance: null, nextPeriod: null, sources: [],
+        periodLabel: { start: null, end: null }, nextPayDateLabel: null, empty: true,
+      };
     };
 
     const sources = await IncomeSource.find({ user: req.userId, isActive: true });
-    if (!sources.length) return res.json(emptyResponse);
+    if (!sources.length) return res.json(await buildEmptyResponse());
 
     const today = new Date();
     const budget = getBudgetPeriod(sources, today);
-    if (!budget) return res.json(emptyResponse);
+    if (!budget) return res.json(await buildEmptyResponse());
 
     const { start, end, nextPayDate, totalIncome: recurringIncome, sources: sourceBreakdown } = budget;
 
@@ -61,19 +75,13 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    const userDoc = await User.findById(req.userId).select("currentBalance");
+    const userDoc = await User.findById(req.userId).select("currentBalance createdAt");
     const currentBalance = Number(userDoc?.currentBalance) || 0;
+    const userCreatedAt = userDoc?.createdAt ? new Date(userDoc.createdAt) : new Date(0);
 
-    // Full-period totals AND the "You Can Spend" value come from the same
-    // engine call. The formula the dashboard shows is:
-    //   You Can Spend = Income this pay period
-    //                 − Bills due this pay period
-    //                 − Expenses dated this pay period
-    // This runs against the FULL [periodStart, periodEnd] window so
-    // expenses logged earlier in the period (yesterday's lunch, Monday's
-    // coffee) are deducted just like upcoming bills. The old code used
-    // a windowStart=today narrowing which silently hid past-but-in-period
-    // expenses from the deduction.
+    // Informational full-period totals used by the dashboard stat cards
+    // (totalIncome, totalBills, totalExpenses for the current pay period).
+    // This is NOT the balance source of truth anymore — see below.
     const periodTotals = await computePeriodBalance({
       userId: req.userId,
       periodStart: start,
@@ -84,7 +92,29 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       overrideMap,
       payments,
     });
-    const balance = periodTotals.estimatedEnd;
+
+    // ───────────────────────────────────────────────────────────────────
+    // "You Can Spend" — SOURCE OF TRUTH
+    //
+    //   balance = user.currentBalance
+    //           − SUM(expenses where createdAt ≤ date ≤ today)
+    //           − SUM(bills due from today through next paycheck)
+    //
+    // Income/paycheck projections deliberately DO NOT feed this number.
+    // The user enters their real bank balance during onboarding; that is
+    // the seed, and every expense they log decrements from it. Expenses
+    // dated BEFORE signup are historical stats only and are excluded
+    // from the sum by the date >= createdAt filter.
+    //
+    // Bills are recurring (dueDayOfMonth), so we reuse sumBillsInPeriod
+    // with a window of [today, end-of-current-pay-period]. That helper
+    // respects payment overrides and already-paid bills, matching the
+    // "bills due before next paycheck" intent without double-counting a
+    // bill the user already marked paid.
+    // ───────────────────────────────────────────────────────────────────
+    const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
+    const totalBillsDue = sumBillsInPeriod(bills, today, end, overrideMap, payments);
+    const balance = currentBalance - totalExpensesSpent - totalBillsDue;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -142,6 +172,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       totalIncome: periodTotals.totalIncome,
       totalBills: periodTotals.totalBills,
       totalExpenses: periodTotals.totalExpenses,
+      // Fields that drive the balance-of-truth formula. The dashboard
+      // can display these directly or recompute locally if it wants.
+      totalBillsDue,
+      totalExpensesSpent,
       savingsThisPeriod,
       totalSaved,
       investmentsThisPeriod,

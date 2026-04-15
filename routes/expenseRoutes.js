@@ -90,6 +90,60 @@ router.post("/", authRequired, async (req, res) => {
   }
 });
 
+// Update an existing expense. Validation mirrors POST: date must parse,
+// amount must be a finite non-negative number. The lookup is scoped to
+// the authenticated user via $or on both the legacy `user` field and
+// the newer `userId` field, so there is no way to edit another user's
+// row — a mismatching id returns 404 (intentionally indistinguishable
+// from "doesn't exist" so we don't leak ownership metadata).
+router.put("/:id", authRequired, async (req, res) => {
+  try {
+    const { date, amount, category, description, note } = req.body;
+    const updates = {};
+
+    if (date !== undefined) {
+      const d = new Date(date);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ message: "Invalid date." });
+      }
+      updates.date = d;
+    }
+
+    if (amount !== undefined) {
+      const n = Number(amount);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ message: "Invalid amount." });
+      }
+      updates.amount = n;
+    }
+
+    if (category !== undefined) updates.category = category || "Other";
+    if (description !== undefined) updates.description = description;
+    else if (note !== undefined) updates.description = note;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No fields to update." });
+    }
+
+    const updated = await Expense.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        $or: [{ user: req.userId }, { userId: req.userId }],
+      },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating expense", error);
+    res.status(500).json({ message: "Failed to update expense" });
+  }
+});
+
 router.delete("/:id", authRequired, async (req, res) => {
   try {
     const deleted = await Expense.findOneAndDelete({

@@ -1074,6 +1074,31 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap !important;
 }
 
+/* Edit pencil button on each history row — sits next to the delete X.
+   Matches .ghost-button sizing so the two sit flush on the same row. */
+.history-edit-btn {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--card-border-2);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.history-edit-btn:hover {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: rgba(20, 184, 166, 0.08);
+}
+
 /* ═══════════════════════════════════════
    CALENDAR — Week/Month segmented toggle (FIX 4)
    ═══════════════════════════════════════ */

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node --check routes/summaryRoutes.js)"
+      "Bash(node --check routes/summaryRoutes.js)",
+      "Bash(node --check routes/expenseRoutes.js)"
     ]
   }
 }

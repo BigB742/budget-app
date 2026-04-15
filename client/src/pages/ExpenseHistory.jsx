@@ -4,6 +4,7 @@ import { authFetch } from "../apiClient";
 import { formatDate } from "../utils/dateUtils";
 import { useDataCache } from "../context/DataCache";
 import AddExpenseModal from "../components/AddExpenseModal";
+import EditExpenseModal from "../components/EditExpenseModal";
 
 // Classify an expense date relative to the user's current pay period.
 // Returns "current" | "upcoming" | "past" | null (null if we don't have
@@ -54,6 +55,8 @@ const ExpenseHistory = () => {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  // When non-null, the edit modal is open for this expense.
+  const [editingExpense, setEditingExpense] = useState(null);
 
   const [quickRange, setQuickRange] = useState("All time");
   const [filters, setFilters] = useState({ from: "", to: "", category: "All categories", search: "" });
@@ -189,7 +192,24 @@ const ExpenseHistory = () => {
                   )}
                 </span>
                 <span className="history-amount">{currency.format(exp.amount)}</span>
-                <button type="button" className="ghost-button" onClick={() => handleDelete(exp._id)}>x</button>
+                <button
+                  type="button"
+                  className="history-edit-btn"
+                  aria-label="Edit expense"
+                  title="Edit"
+                  onClick={() => setEditingExpense(exp)}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  aria-label="Delete expense"
+                  title="Delete"
+                  onClick={() => handleDelete(exp._id)}
+                >
+                  x
+                </button>
               </li>
             );
           })}
@@ -205,6 +225,21 @@ const ExpenseHistory = () => {
       )}
 
       {showAddModal && <AddExpenseModal onClose={() => setShowAddModal(false)} onSaved={() => { setShowAddModal(false); loadExpenses(); cache?.fetchSummary?.(true); }} />}
+
+      {editingExpense && (
+        <EditExpenseModal
+          expense={editingExpense}
+          onClose={() => setEditingExpense(null)}
+          onSaved={() => {
+            // Close, refetch the list so the row shows new values, and
+            // force-refresh the dashboard summary so "You Can Spend"
+            // recalculates immediately with the edited amount/date.
+            setEditingExpense(null);
+            loadExpenses();
+            cache?.fetchSummary?.(true);
+          }}
+        />
+      )}
     </div>
   );
 };
