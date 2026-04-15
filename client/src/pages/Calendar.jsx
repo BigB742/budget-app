@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
+import { useDataCache } from "../context/DataCache";
 import AdSlot from "../components/AdSlot";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -32,6 +33,7 @@ const buildMonthGrid = (year, month) => {
 
 const Calendar = () => {
   const { isPremium, isTrialing } = useSubscription();
+  const cache = useDataCache();
   const hasPremiumAccess = isPremium || isTrialing;
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -252,6 +254,10 @@ const Calendar = () => {
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: selectedDay, amount: Number(expForm.amount), category: expForm.category, description: expForm.description }) });
       setExpForm({ description: "", amount: "", category: "Food" });
       loadData();
+      // Force a summary refresh so the dashboard "You Can Spend" number
+      // reflects this expense immediately — same data source as the
+      // Expenses page, so both entry points stay in sync.
+      cache?.fetchSummary?.(true);
     } catch (err) { console.error(err); }
     finally { setExpSaving(false); }
   };
@@ -265,6 +271,7 @@ const Calendar = () => {
       setEditBill(null);
       setOverrideForm({ amount: "", note: "" });
       loadData();
+      cache?.fetchSummary?.(true);
     } catch (err) { console.error(err); }
     finally { setOverrideSaving(false); }
   };
@@ -292,6 +299,7 @@ const Calendar = () => {
       setMarkingPaid(null);
       setPaidForm({ paidDate: "", note: "" });
       loadData();
+      cache?.fetchSummary?.(true);
     } catch (err) { console.error(err); }
     finally { setPaidSaving(false); }
   };
@@ -304,6 +312,7 @@ const Calendar = () => {
       await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: incForm.name, amount: Number(incForm.amount), date: selectedDay }) });
       setIncForm({ name: "", amount: "" });
       loadData();
+      cache?.fetchSummary?.(true);
     } catch { /* ignore */ }
     finally { setIncSaving(false); }
   };
@@ -513,6 +522,7 @@ const Calendar = () => {
                   setPayingEarly(null);
                   setPaidForm({ paidDate: "", note: "", amount: "" });
                   loadData();
+                  cache?.fetchSummary?.(true);
                 } catch { /* ignore */ }
                 finally { setPaidSaving(false); }
               }}>

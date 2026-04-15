@@ -82,7 +82,7 @@ const ExpenseHistory = () => {
   // period — needed by the per-row "This period / Upcoming / Past" pill.
   useEffect(() => { cache?.fetchSummary?.(); }, [cache]);
 
-  const handleDelete = async (id) => { try { await authFetch(`/api/expenses/${id}`, { method: "DELETE" }); loadExpenses(); } catch {} };
+  const handleDelete = async (id) => { try { await authFetch(`/api/expenses/${id}`, { method: "DELETE" }); loadExpenses(); cache?.fetchSummary?.(true); } catch {} };
 
   const handleQuickRange = (label) => {
     setQuickRange(label);
@@ -204,7 +204,7 @@ const ExpenseHistory = () => {
         </div>
       )}
 
-      {showAddModal && <AddExpenseModal onClose={() => setShowAddModal(false)} onSaved={() => { setShowAddModal(false); loadExpenses(); }} />}
+      {showAddModal && <AddExpenseModal onClose={() => setShowAddModal(false)} onSaved={() => { setShowAddModal(false); loadExpenses(); cache?.fetchSummary?.(true); }} />}
     </div>
   );
 };

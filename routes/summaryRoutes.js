@@ -63,10 +63,17 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     const userDoc = await User.findById(req.userId).select("currentBalance");
     const currentBalance = Number(userDoc?.currentBalance) || 0;
-    const todayNorm = startOfDay(today);
 
-    // Engine call #1 — full-period totals (informational fields in the
-    // response: totalBills, totalExpenses, totalIncome, oneTimeIncome).
+    // Full-period totals AND the "You Can Spend" value come from the same
+    // engine call. The formula the dashboard shows is:
+    //   You Can Spend = Income this pay period
+    //                 − Bills due this pay period
+    //                 − Expenses dated this pay period
+    // This runs against the FULL [periodStart, periodEnd] window so
+    // expenses logged earlier in the period (yesterday's lunch, Monday's
+    // coffee) are deducted just like upcoming bills. The old code used
+    // a windowStart=today narrowing which silently hid past-but-in-period
+    // expenses from the deduction.
     const periodTotals = await computePeriodBalance({
       userId: req.userId,
       periodStart: start,
@@ -77,23 +84,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       overrideMap,
       payments,
     });
-
-    // Engine call #2 — "You Can Spend". windowStart=today so past
-    // activity (already reflected in currentBalance) isn't double-counted.
-    // recurringIncome=0 because any paycheck for the current period
-    // either already deposited or lives in the next-period row.
-    const currentPeriodResult = await computePeriodBalance({
-      userId: req.userId,
-      periodStart: start,
-      periodEnd: end,
-      startingBalance: currentBalance,
-      recurringIncome: 0,
-      bills,
-      overrideMap,
-      payments,
-      windowStart: todayNorm,
-    });
-    const balance = currentPeriodResult.estimatedEnd;
+    const balance = periodTotals.estimatedEnd;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;

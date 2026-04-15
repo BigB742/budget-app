@@ -51,7 +51,11 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     authFetch("/api/summary/year-to-date").then(setYtd).catch(() => {});
   }, []);
 
-  // Year to date — build slices from bills + expenses + extra income
+  // Year to date — SPENDING only (bills + expenses). One-time income
+  // from `ytd.oneTimeIncome` is intentionally excluded because this is a
+  // Spending Breakdown; income belongs in an income view, not a donut
+  // that represents money going out. Total shown at the center is just
+  // bills + expenses for the same reason.
   const ytdSlices = useMemo(() => {
     if (!ytd) return [];
     const slices = [];
@@ -61,7 +65,6 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     (ytd.expenseBreakdown || []).forEach((e) => {
       if (e.total > 0) slices.push({ name: e.category, value: e.total, color: getColor(e.category) });
     });
-    if (ytd.oneTimeIncome > 0) slices.push({ name: "Extra income", value: ytd.oneTimeIncome, color: "#8B5CF6" });
     return slices.sort((a, b) => b.value - a.value);
   }, [ytd]);
 
