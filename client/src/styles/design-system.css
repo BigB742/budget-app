@@ -103,12 +103,12 @@ h1, h2, h3, h4, h5, h6 {
   display: block !important; /* override legacy flex that caused layout oddities */
 }
 
-/* Mobile: reserve exact 56px under the fixed header and 84px above
-   the bottom nav. Pages themselves add their own 16px horizontal
-   padding; NO extra top padding, so content starts immediately under
-   the header with zero blank gap. */
+/* Reserve exactly the height of the fixed top nav (64px) so content
+   starts immediately below it with zero blank gap. No bottom tab bar
+   anymore, so no bottom reservation. Horizontal padding is owned by
+   the per-page wrappers. */
 .shell-main {
-  padding: 56px 0 84px;
+  padding: 64px 0 24px;
   min-height: 100vh;
   animation: pp-fade-in 150ms ease-out both;
   box-sizing: border-box;
@@ -1044,47 +1044,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ═══════════════════════════════════════
    RESPONSIVE OVERRIDES — desktop (≥768px)
-   On desktop we hide the mobile header, the bottom tabs, and the FAB.
-   The SideDrawer component becomes a permanent 220px left rail, and
-   the main content is pushed over by margin-left: 220px. This is how
-   we also eliminate the 56px "blank band" that used to appear on
-   desktop when the mobile header's padding reserved space for a
-   header we no longer render.
+   Top nav spans the full width on all breakpoints; main content uses
+   the full viewport width (no sidebar offset). We just widen the page
+   container and expand the stat grid on desktop.
    ═══════════════════════════════════════ */
 @media (min-width: 768px) {
-  /* 1) Hide mobile-only chrome */
-  .pp-header { display: none !important; }
-  .bottom-tabs { display: none !important; }
-  .pp-fab { display: none !important; }
-  .pp-drawer-close { display: none !important; }
-  .pp-drawer-overlay { display: none !important; }
-
-  /* 2) Permanent left sidebar (reusing .pp-drawer markup) */
-  .pp-drawer {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    bottom: 0 !important;
-    width: 220px !important;
-    transform: none !important;
-    background: #0D1117 !important;
-    border-right: 1px solid #21262D !important;
-    padding: 24px 16px !important;
-    z-index: 30 !important;
-  }
-  .pp-drawer-brand {
-    padding-bottom: 20px;
-    margin-bottom: 12px;
-  }
-
-  /* 3) Main content is offset and gets its own top padding (no header) */
-  .shell-main {
-    margin-left: 220px !important;
-    padding: 0 !important;
-    min-height: 100vh;
-  }
-
-  /* 4) Pages: wider, comfortable max, real top padding */
   .dashboard-page,
   .calendar-page,
   .bills-income-page,
@@ -1093,7 +1057,7 @@ h1, h2, h3, h4, h5, h6 {
   .settings-page,
   .admin-page,
   .sub-page {
-    max-width: 900px !important;
+    max-width: 1100px !important;
     padding: 32px 32px 48px !important;
     margin: 0 auto !important;
   }
@@ -1393,4 +1357,342 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TOP NAV (replaces sidebar + bottom tabs)
+   64px dark navy bar across the full width on every breakpoint.
+   Desktop: links live inline next to the brand. Mobile: links collapse
+   into a slide-down dropdown triggered by a hamburger button.
+   ═══════════════════════════════════════════════════════════════════════ */
+.pp-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: #0D1117;
+  border-bottom: 1px solid #21262D;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top);
+}
+.pp-top-inner {
+  height: 64px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 20px;
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Brand */
+.pp-top-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.pp-top-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--teal);
+  flex-shrink: 0;
+}
+.pp-top-brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+/* Nav links — desktop */
+.pp-top-nav {
+  display: none; /* hidden on mobile; shown at ≥900px below */
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+.pp-top-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 120ms, color 120ms;
+  white-space: nowrap;
+}
+.pp-top-link svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.pp-top-link:hover {
+  background: #161B22;
+  color: var(--text);
+}
+.pp-top-link.active {
+  background: rgba(20, 184, 166, 0.12);
+  color: var(--teal);
+  font-weight: 600;
+}
+
+/* Right cluster — subscription badge, avatar, hamburger */
+.pp-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.pp-top-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pp-top-badge.premium {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--teal);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+}
+.pp-top-badge.trial {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--gold);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Avatar */
+.pp-top-avatar-wrap {
+  position: relative;
+}
+.pp-top-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid #21262D;
+  background: #161B22;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all 120ms;
+}
+.pp-top-avatar:hover {
+  background: #1F2530;
+  border-color: #30363D;
+}
+.pp-top-avatar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+  padding: 6px;
+  z-index: 120;
+  animation: pp-fade-in 140ms ease-out both;
+}
+.pp-top-avatar-header {
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid #21262D;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pp-top-avatar-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pp-top-avatar-email {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.pp-top-avatar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pp-top-avatar-item svg {
+  width: 16px;
+  height: 16px;
+}
+.pp-top-avatar-item:hover {
+  background: #1F2530;
+  color: var(--text);
+}
+.pp-top-avatar-logout {
+  color: #FCA5A5;
+}
+.pp-top-avatar-logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+}
+
+/* Hamburger — mobile only */
+.pp-top-hamburger {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #21262D;
+  background: #161B22;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+.pp-top-hamburger svg { width: 20px; height: 20px; }
+.pp-top-hamburger:hover { background: #1F2530; }
+
+/* Mobile slide-down menu */
+.pp-top-mobile-overlay {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 98;
+  animation: pp-fade-in 160ms ease-out both;
+}
+.pp-top-mobile {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: #0D1117;
+  border-bottom: 1px solid #21262D;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 260ms cubic-bezier(0.32, 0.72, 0.26, 1);
+  z-index: 99;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.pp-top-mobile.open {
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+.pp-top-mobile ul {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pp-top-mobile-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-top-mobile-link svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.pp-top-mobile-link:hover { background: #161B22; color: var(--text); }
+.pp-top-mobile-link.active {
+  background: rgba(20, 184, 166, 0.12);
+  color: var(--teal);
+  font-weight: 600;
+}
+.pp-top-mobile-logout { color: #FCA5A5; }
+
+/* Desktop vs mobile toggling for the top nav */
+@media (min-width: 900px) {
+  .pp-top-nav { display: flex; }
+  .pp-top-hamburger { display: none; }
+  .pp-top-mobile { display: none; }
+  .pp-top-mobile-overlay { display: none; }
+}
+@media (max-width: 899px) {
+  /* Shrink the badge on mobile so the right cluster fits in 360px */
+  .pp-top-badge { padding: 3px 8px; font-size: 10px; }
+  .pp-top-avatar { width: 36px; height: 36px; font-size: 12px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE MODAL SCROLL FIX
+   On small screens the Add Bill / Add Expense / Add Income modals were
+   overflowing the viewport with no way to scroll. Cap the card to 90vh
+   and scroll its contents vertically. Desktop behavior (centered card,
+   natural height) is unchanged because max-height still lets shorter
+   cards render at their natural size.
+   ═══════════════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  /* Allow the overlay itself to scroll as a fallback for very tall
+     modals on tiny viewports where even 90vh isn't enough. */
+  overflow-y: auto !important;
+  padding: 16px !important;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  /* Smooth the edge where content meets the rounded corners during scroll */
+  overscroll-behavior: contain;
+}
+@media (max-width: 767px) {
+  .modal-card {
+    width: 100% !important;
+    max-width: 420px !important;
+    max-height: 90vh !important;
+  }
 }
