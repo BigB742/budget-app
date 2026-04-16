@@ -86,6 +86,7 @@ router.post("/signup", async (req, res) => {
       email: email.toLowerCase().trim(),
       passwordHash,
       onboardingComplete: false,
+      tourCompleted: false,
       subscriptionStatus: "free",
     });
 

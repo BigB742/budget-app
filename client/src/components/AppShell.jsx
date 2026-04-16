@@ -10,11 +10,17 @@ const AppShell = () => {
   const location = useLocation();
   const [showTour, setShowTour] = useState(false);
 
-  // Auto-launch the tour on first visit after onboarding (tourCompleted === false)
+  // Auto-launch the tour ONCE on first visit after onboarding.
+  // tourCompleted starts as `false` for new accounts. Once the tour is
+  // completed or skipped, the TourOverlay saves tourCompleted: true to
+  // both the backend and localStorage, preventing relaunch on refresh.
+  // Existing accounts (where tourCompleted is undefined) do NOT see the
+  // auto-launch — only accounts that went through onboarding (which
+  // explicitly sets tourCompleted: false) trigger it.
   useEffect(() => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "{}");
-      if (!u.tourCompleted && u.onboardingComplete && location.pathname === "/app") {
+      if (u.tourCompleted === false && u.onboardingComplete && location.pathname === "/app") {
         setShowTour(true);
       }
     } catch { /* ignore */ }

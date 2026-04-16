@@ -705,4 +705,46 @@ router.get("/monthly-breakdown", authRequired, async (req, res) => {
   }
 });
 
+// GET /projected-annual-income — projected income for the current calendar year
+router.get("/projected-annual-income", authRequired, async (req, res) => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+    const tomorrow = new Date(year, now.getMonth(), now.getDate() + 1);
+
+    const sources = await IncomeSource.find({ user: req.userId, isActive: true });
+
+    // One-time income (past + future for the year)
+    const onetimeAll = await OneTimeIncome.find({
+      user: req.userId,
+      date: { $gte: yearStart, $lte: yearEnd },
+    });
+    const onetimeTotal = onetimeAll.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+    // Recurring paycheck income: count paydays from Jan 1 to Dec 31
+    let recurringTotal = 0;
+    let remainingPaychecks = 0;
+    if (sources.length > 0) {
+      const allPaydays = getPaydaysInRange(sources, yearStart, yearEnd);
+      const futurePaydays = allPaydays.filter((d) => d >= tomorrow);
+      remainingPaychecks = futurePaydays.length;
+      // Each payday has the income from the source that generated it.
+      // Simplification: sum all sources' per-paycheck amount × their paydays.
+      sources.forEach((src) => {
+        const srcPaydays = getPaydaysInRange([src], yearStart, yearEnd);
+        recurringTotal += srcPaydays.length * (Number(src.amount) || 0);
+      });
+    }
+
+    const projected = recurringTotal + onetimeTotal;
+
+    res.json({ projected, recurringTotal, onetimeTotal, remainingPaychecks });
+  } catch (err) {
+    console.error("Error computing projected annual income:", err.message);
+    res.status(500).json({ error: "Unable to compute projected annual income." });
+  }
+});
+
 module.exports = router;

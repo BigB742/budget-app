@@ -4,10 +4,12 @@ import { useDataCache } from "../context/DataCache";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+// Format dates using UTC components so a date stored as noon UTC doesn't
+// shift when the browser is behind UTC (US timezones).
 const fmtDate = (d) => {
   if (!d) return "";
   const dt = new Date(d);
-  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 };
 
 const todayISO = () => {
@@ -52,7 +54,7 @@ const PaymentPlans = () => {
       totalAmount: plan.totalAmount != null ? String(plan.totalAmount) : "",
       payments: plan.payments.map((p) => ({
         id: p.id,
-        date: p.date ? new Date(p.date).toISOString().slice(0, 10) : "",
+        date: p.date ? (() => { const dt = new Date(p.date); return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`; })() : "",
         amount: String(p.amount),
         paid: p.paid,
         paidDate: p.paidDate,
@@ -127,6 +129,14 @@ const PaymentPlans = () => {
     } catch { /* ignore */ }
   };
 
+  const handleUnmarkPaid = async (planId, paymentId) => {
+    try {
+      await authFetch(`/api/payment-plans/${planId}/payments/${paymentId}`, { method: "PATCH", body: JSON.stringify({ paid: false }) });
+      loadPlans();
+      cache?.fetchSummary?.(true);
+    } catch { /* ignore */ }
+  };
+
   return (
     <div className="history-page">
       <div className="history-header">
@@ -184,7 +194,7 @@ const PaymentPlans = () => {
                         </span>
                         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{currency.format(p.amount)}</span>
-                          {!p.paid && (
+                          {!p.paid ? (
                             <button
                               type="button"
                               className="link-button"
@@ -192,6 +202,15 @@ const PaymentPlans = () => {
                               onClick={() => handleMarkPaid(plan._id, p.id)}
                             >
                               Mark paid
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="link-button"
+                              style={{ fontSize: 11, color: "var(--text-muted)" }}
+                              onClick={() => handleUnmarkPaid(plan._id, p.id)}
+                            >
+                              Undo
                             </button>
                           )}
                         </span>

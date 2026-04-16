@@ -4,6 +4,21 @@ const { authRequired } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Parse a YYYY-MM-DD string as LOCAL noon so it never shifts day when
+// stored as UTC. Using noon instead of midnight gives a 12-hour buffer
+// in any timezone worldwide.
+function parseLocalDate(str) {
+  if (!str) return null;
+  const [y, m, d] = String(str).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 12, 0, 0);
+}
+
+function todayLocalStart() {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
 // GET / — all plans for the authenticated user
 router.get("/", authRequired, async (req, res) => {
   try {
@@ -31,15 +46,21 @@ router.post("/", authRequired, async (req, res) => {
       }
     }
 
+    const todayStart = todayLocalStart();
     const plan = await PaymentPlan.create({
       userId: req.userId,
       name: name.trim(),
       totalAmount: totalAmount != null ? Number(totalAmount) : undefined,
-      payments: payments.map((p) => ({
-        date: new Date(p.date),
-        amount: Number(p.amount),
-        paid: false,
-      })),
+      payments: payments.map((p) => {
+        const d = parseLocalDate(p.date);
+        const isPast = d && d < todayStart;
+        return {
+          date: d,
+          amount: Number(p.amount),
+          paid: isPast,
+          paidDate: isPast ? new Date() : undefined,
+        };
+      }),
     });
     res.status(201).json(plan);
   } catch (err) {
@@ -62,14 +83,20 @@ router.put("/:id", authRequired, async (req, res) => {
       // existing list that the caller omitted. Unpaid entries are fully
       // replaceable (the caller sends the new list of unpaid entries).
       const existingPaid = plan.payments.filter((p) => p.paid);
+      const ts = todayLocalStart();
       const newUnpaid = payments
         .filter((p) => !p.paid)
-        .map((p) => ({
-          id: p.id || undefined, // preserve id if resending
-          date: new Date(p.date),
-          amount: Number(p.amount),
-          paid: false,
-        }));
+        .map((p) => {
+          const d = parseLocalDate(p.date);
+          const isPast = d && d < ts;
+          return {
+            id: p.id || undefined,
+            date: d,
+            amount: Number(p.amount),
+            paid: isPast,
+            paidDate: isPast ? new Date() : undefined,
+          };
+        });
       plan.payments = [...existingPaid, ...newUnpaid];
     }
     await plan.save();
@@ -92,7 +119,7 @@ router.delete("/:id", authRequired, async (req, res) => {
   }
 });
 
-// PATCH /:id/payments/:paymentId — mark individual payment as paid
+// PATCH /:id/payments/:paymentId — toggle paid status
 router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
   try {
     const plan = await PaymentPlan.findOne({ _id: req.params.id, userId: req.userId });
@@ -101,13 +128,19 @@ router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
     const entry = plan.payments.find((p) => p.id === req.params.paymentId);
     if (!entry) return res.status(404).json({ message: "Payment entry not found." });
 
-    entry.paid = true;
-    entry.paidDate = new Date();
+    // Support explicit paid: false to unmark
+    if (req.body?.paid === false) {
+      entry.paid = false;
+      entry.paidDate = undefined;
+    } else {
+      entry.paid = true;
+      entry.paidDate = new Date();
+    }
     await plan.save();
     res.json(plan);
   } catch (err) {
-    console.error("Error marking payment as paid:", err.message);
-    res.status(500).json({ message: "Failed to mark payment as paid." });
+    console.error("Error updating payment status:", err.message);
+    res.status(500).json({ message: "Failed to update payment status." });
   }
 });
 

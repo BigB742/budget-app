@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
+import { useDataCache } from "../context/DataCache";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -13,6 +14,7 @@ const FREQ_OPTIONS = [
 const formatFreq = (f) => FREQ_OPTIONS.find((o) => o.value === f)?.label || f;
 
 const ManageIncome = () => {
+  const cache = useDataCache();
   const [sources, setSources] = useState([]);
   const [oneTime, setOneTime] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ const ManageIncome = () => {
   const [otForm, setOtForm] = useState({ name: "", amount: "", date: "", note: "" });
   const [editingSource, setEditingSource] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [projected, setProjected] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,7 +39,11 @@ const ManageIncome = () => {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    cache?.fetchSummary?.();
+    authFetch("/api/summary/projected-annual-income").then(setProjected).catch(() => {});
+  }, [load]);
 
   const handleAddRecurring = async (e) => {
     e.preventDefault();
@@ -92,13 +99,40 @@ const ManageIncome = () => {
     try { await authFetch(`/api/one-time-income/${id}`, { method: "DELETE" }); load(); } catch { /* ignore */ }
   };
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  // Use UTC components so dates stored at midnight/noon UTC don't shift
+  // back a day in US timezones (same fix the Dashboard uses).
+  const formatDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
 
   return (
     <div className="manage-income-page">
       <div className="history-header">
         <h1>Manage Income</h1>
         <button type="button" className="primary-button" onClick={() => { setEditingSource(null); setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" }); setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        {cache?.summary?.nextPayDate && (
+          <div className="bi-summary-bar" style={{ flex: 1, minWidth: 180, marginBottom: 0 }}>
+            <span>Next payday</span>
+            <strong style={{ color: "var(--teal)" }}>{formatDate(cache.summary.nextPayDate)}</strong>
+          </div>
+        )}
+        {projected && (
+          <div className="bi-summary-bar" style={{ flex: 1, minWidth: 180, marginBottom: 0 }}>
+            <div>
+              <span>Projected This Year</span>
+              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                Based on {projected.remainingPaychecks} paycheck{projected.remainingPaychecks !== 1 ? "s" : ""} remaining
+              </span>
+            </div>
+            <strong style={{ color: "var(--teal)" }}>{currency.format(projected.projected)}</strong>
+          </div>
+        )}
       </div>
 
       {loading ? <p className="status">Loading...</p> : (

@@ -59,6 +59,7 @@ const Calendar = () => {
   const [billPayments, setBillPayments] = useState([]);
   const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [paydayDates, setPaydayDates] = useState([]);
+  const [paymentPlans, setPaymentPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
@@ -91,18 +92,20 @@ const Calendar = () => {
       const from = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-01`;
       const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
       const to = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-      const [b, e, o, bp, oti] = await Promise.all([
+      const [b, e, o, bp, oti, pp] = await Promise.all([
         authFetch("/api/bills"),
         authFetch(`/api/expenses?from=${from}&to=${to}`),
         authFetch(`/api/payment-overrides?from=${from}&to=${to}`),
         authFetch(`/api/bill-payments?from=${from}&to=${to}`).catch(() => []),
         authFetch(`/api/one-time-income?from=${from}&to=${to}`).catch(() => []),
+        authFetch("/api/payment-plans").catch(() => []),
       ]);
       setBills(Array.isArray(b) ? b : []);
       setExpenses(Array.isArray(e) ? e : []);
       setOverrides(Array.isArray(o) ? o : []);
       setBillPayments(Array.isArray(bp) ? bp : []);
       setOneTimeIncomes(Array.isArray(oti) ? oti : []);
+      setPaymentPlans(Array.isArray(pp) ? pp : []);
       // Load paydays from backend
       authFetch(`/api/summary/paydays?from=${from}&to=${to}`).then((d) => setPaydayDates(d?.paydays || [])).catch(() => setPaydayDates([]));
     } catch (err) { console.error(err); }
@@ -174,6 +177,20 @@ const Calendar = () => {
     });
     return map;
   }, [oneTimeIncomes]);
+
+  // Payment plans flattened by day
+  const ppByDay = useMemo(() => {
+    const map = {};
+    paymentPlans.forEach((plan) => {
+      (plan.payments || []).forEach((p) => {
+        const dt = new Date(p.date);
+        const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+        if (!map[key]) map[key] = [];
+        map[key].push({ planName: plan.name, amount: p.amount, paid: p.paid });
+      });
+    });
+    return map;
+  }, [paymentPlans]);
 
   // Bill payments lookup: "billId_YYYY-MM-DD" => payment object
   const paidMap = useMemo(() => {
@@ -438,6 +455,11 @@ const Calendar = () => {
                     {(incomeByDay[key] || []).length > 0 && (
                       <span className="cal-income-tag"><span className="cal-income-dot" />+{currency.format((incomeByDay[key] || []).reduce((s, i) => s + Number(i.amount || 0), 0))}</span>
                     )}
+                    {(ppByDay[key] || []).map((pp, pi) => (
+                      pp.paid
+                        ? <span key={pi} className="cal-paid-tag">Paid</span>
+                        : <span key={pi} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(pp.amount)}</span>
+                    ))}
                   </button>
                 );
               })}
@@ -524,6 +546,15 @@ const Calendar = () => {
                         )}
                         {hasOverride && <span className="pill">Edited</span>}
                       </div>
+                      {isPaid && payment && (
+                        <button type="button" className="link-button" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }} onClick={async () => {
+                          try {
+                            await authFetch(`/api/bill-payments/${payment._id}`, { method: "DELETE" });
+                            loadData();
+                            cache?.fetchSummary?.(true);
+                          } catch { /* ignore */ }
+                        }}>Undo</button>
+                      )}
                       {!isPaid && (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit</button>

@@ -249,6 +249,7 @@ router.post("/reset-account", authRequired, async (req, res) => {
 
     // Reset financial fields but keep user account
     user.onboardingComplete = false;
+    user.tourCompleted = false;
     user.currentBalance = 0;
     user.totalSavings = 0;
     user.extraIncomeCount = 0;
