@@ -514,6 +514,9 @@ const Calendar = () => {
                     <div className="snapshot-row"><span>{snapshot.isFirstPeriod ? "Opening balance" : "Rollover from previous"}</span><span>{currency.format(snapshot.rollover || 0)}</span></div>
                     <div className="snapshot-row"><span>Total available</span><span className="positive">{currency.format(snapshot.totalAvailable || 0)}</span></div>
                     <div className="snapshot-row"><span>Bills this period</span><span className="negative">&minus;{currency.format(snapshot.billsThisPeriod || 0)}</span></div>
+                    {(snapshot.plansDueThisPeriod || 0) > 0 && (
+                      <div className="snapshot-row"><span>Payment plans this period</span><span className="negative">&minus;{currency.format(snapshot.plansDueThisPeriod)}</span></div>
+                    )}
                     <div className="snapshot-row"><span>Expenses this period</span><span className="negative">&minus;{currency.format(snapshot.expensesThisPeriod || 0)}</span></div>
                     <div className="snapshot-row total"><span>Estimated balance</span><span className={snapshot.estimatedBalance >= 0 ? "positive" : "negative"}>{currency.format(snapshot.estimatedBalance || 0)}</span></div>
                   </>

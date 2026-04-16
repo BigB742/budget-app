@@ -127,7 +127,9 @@ const ManageIncome = () => {
             <div>
               <span>Projected This Year</span>
               <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                Based on {projected.remainingPaychecks} paycheck{projected.remainingPaychecks !== 1 ? "s" : ""} remaining
+                {projected.remainingPaychecks > 0
+                  ? `Based on ${projected.remainingPaychecks} paycheck${projected.remainingPaychecks !== 1 ? "s" : ""} remaining this year`
+                  : "All paychecks received this year"}
               </span>
             </div>
             <strong style={{ color: "var(--teal)" }}>{currency.format(projected.projected)}</strong>

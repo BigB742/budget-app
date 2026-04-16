@@ -116,17 +116,19 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
     const totalBillsDue = sumBillsInPeriod(bills, today, end, overrideMap, payments);
 
-    // Payment Plans: sum unpaid entries whose date falls within [today, end].
-    // Behaves just like bills — unpaid future obligations reduce spendable.
+    // Payment Plans: sum unpaid entries whose date falls within the current
+    // pay period. Dates are stored as noon UTC from the parseLocalDate fix,
+    // so we compare date-only (year/month/day) to avoid time-component drift.
     const allPlans = await PaymentPlan.find({ userId: req.userId });
-    const todayStart = startOfDay(today);
-    const periodEnd = endOfDay(end);
+    const toYMD = (d) => { const dt = new Date(d); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); };
+    const periodStartYMD = toYMD(start);
+    const periodEndYMD = toYMD(end);
     let totalPaymentPlansDue = 0;
     allPlans.forEach((plan) => {
       (plan.payments || []).forEach((p) => {
         if (p.paid) return;
-        const d = new Date(p.date);
-        if (d >= todayStart && d <= periodEnd) {
+        const ymd = toYMD(p.date);
+        if (ymd >= periodStartYMD && ymd <= periodEndYMD) {
           totalPaymentPlansDue += Number(p.amount) || 0;
         }
       });
@@ -399,6 +401,8 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     }
 
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
+    const allPlansForProjection = await PaymentPlan.find({ userId: req.userId });
+    const toYMDp = (d) => { const dt = new Date(d); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); };
 
     // Seed the chain with the user's current bank balance — the same starting
     // point the dashboard uses. Previously this loop started with rollover = 0
@@ -479,19 +483,28 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const pEnd = startOfDay(end);
       const pTarget = startOfDay(targetDate);
       if (pTarget >= pStart && pTarget <= pEnd) {
+        // Sum unpaid payment plan payments for this period
+        const sYMD = toYMDp(start);
+        const eYMD = toYMDp(end);
+        let plansDueThisPeriod = 0;
+        allPlansForProjection.forEach((plan) => {
+          (plan.payments || []).forEach((pp) => {
+            if (pp.paid) return;
+            const ymd = toYMDp(pp.date);
+            if (ymd >= sYMD && ymd <= eYMD) plansDueThisPeriod += Number(pp.amount) || 0;
+          });
+        });
+
         return res.json({
           paydayDate,
           paycheckAmount: result.totalIncome,
           rollover,
           totalAvailable: rollover + result.totalIncome,
           billsThisPeriod: result.totalBills,
+          plansDueThisPeriod,
           expensesThisPeriod: result.totalExpenses,
-          estimatedBalance: result.estimatedEnd,
+          estimatedBalance: result.estimatedEnd - plansDueThisPeriod,
           periods,
-          // Only show "Opening balance" when the selected payday is in the
-          // user's onboarding period (iteration 0 AND they joined this period).
-          // For any future-period snapshot the rollover is a real
-          // carried-forward balance and gets the default label.
           isFirstPeriod: isCurrent && isOnboardingPeriod,
         });
       }
@@ -706,13 +719,17 @@ router.get("/monthly-breakdown", authRequired, async (req, res) => {
 });
 
 // GET /projected-annual-income — projected income for the current calendar year
+//
+// Generates ALL payday dates for the calendar year per income source using
+// getPaydaysInRange(anchorDate, frequency, rangeStart, rangeEnd), multiplies
+// by per-paycheck amount, and adds one-time income.
 router.get("/projected-annual-income", authRequired, async (req, res) => {
   try {
     const now = new Date();
     const year = now.getFullYear();
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-    const tomorrow = new Date(year, now.getMonth(), now.getDate() + 1);
+    const tomorrowStart = new Date(year, now.getMonth(), now.getDate() + 1);
 
     const sources = await IncomeSource.find({ user: req.userId, isActive: true });
 
@@ -723,24 +740,25 @@ router.get("/projected-annual-income", authRequired, async (req, res) => {
     });
     const onetimeTotal = onetimeAll.reduce((s, i) => s + (Number(i.amount) || 0), 0);
 
-    // Recurring paycheck income: count paydays from Jan 1 to Dec 31
+    // Recurring paycheck income: for each source, generate all paydays in the
+    // year using the source's anchor date (nextPayDate) + frequency.
     let recurringTotal = 0;
+    let totalPaychecks = 0;
     let remainingPaychecks = 0;
-    if (sources.length > 0) {
-      const allPaydays = getPaydaysInRange(sources, yearStart, yearEnd);
-      const futurePaydays = allPaydays.filter((d) => d >= tomorrow);
-      remainingPaychecks = futurePaydays.length;
-      // Each payday has the income from the source that generated it.
-      // Simplification: sum all sources' per-paycheck amount × their paydays.
-      sources.forEach((src) => {
-        const srcPaydays = getPaydaysInRange([src], yearStart, yearEnd);
-        recurringTotal += srcPaydays.length * (Number(src.amount) || 0);
-      });
-    }
+    sources.forEach((src) => {
+      const anchor = src.nextPayDate || src.lastPaycheckDate;
+      if (!anchor || !src.frequency) return;
+      const srcPaydays = getPaydaysInRange(anchor, src.frequency, yearStart, yearEnd);
+      const count = srcPaydays.length;
+      const future = srcPaydays.filter((d) => d >= tomorrowStart).length;
+      recurringTotal += count * (Number(src.amount) || 0);
+      totalPaychecks += count;
+      remainingPaychecks += future;
+    });
 
     const projected = recurringTotal + onetimeTotal;
 
-    res.json({ projected, recurringTotal, onetimeTotal, remainingPaychecks });
+    res.json({ projected, recurringTotal, onetimeTotal, totalPaychecks, remainingPaychecks });
   } catch (err) {
     console.error("Error computing projected annual income:", err.message);
     res.status(500).json({ error: "Unable to compute projected annual income." });
