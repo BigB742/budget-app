@@ -184,7 +184,23 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
           payments: nextPayments,
         });
 
-        nextPaycheckBalance = nextResult.estimatedEnd;
+        // Payment plans due in the next period — same date-only comparison
+        // used by the current period and the calendar snapshot so all three
+        // numbers agree.
+        const nextStartYMD = toYMD(nextBudget.start);
+        const nextEndYMD = toYMD(nextBudget.end);
+        let nextPlansDue = 0;
+        allPlans.forEach((plan) => {
+          (plan.payments || []).forEach((p) => {
+            if (p.paid) return;
+            const ymd = toYMD(p.date);
+            if (ymd >= nextStartYMD && ymd <= nextEndYMD) {
+              nextPlansDue += Number(p.amount) || 0;
+            }
+          });
+        });
+
+        nextPaycheckBalance = nextResult.estimatedEnd - nextPlansDue;
         nextPeriod = {
           start: toDateString(nextBudget.start),
           end: toDateString(nextBudget.end),
@@ -193,6 +209,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
           totalIncome: nextResult.totalIncome,
           totalBills: nextResult.totalBills,
           totalExpenses: nextResult.totalExpenses,
+          totalPaymentPlansDue: nextPlansDue,
         };
       }
     }
@@ -441,6 +458,21 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       new Date(userDoc.createdAt) >= startOfDay(currentPeriod.start)
     );
 
+    // Helper: sum unpaid payment plan payments whose date falls within a period.
+    const sumPlansDue = (periodStart, periodEnd) => {
+      const sYMD = toYMDp(periodStart);
+      const eYMD = toYMDp(periodEnd);
+      let total = 0;
+      allPlansForProjection.forEach((plan) => {
+        (plan.payments || []).forEach((pp) => {
+          if (pp.paid) return;
+          const ymd = toYMDp(pp.date);
+          if (ymd >= sYMD && ymd <= eYMD) total += Number(pp.amount) || 0;
+        });
+      });
+      return total;
+    };
+
     const MAX_ITERATIONS = 26;
     const periods = [];
     let rollover = initialBalance;
@@ -468,14 +500,20 @@ router.get("/projected-balance", authRequired, async (req, res) => {
         windowStart: isCurrent ? todayNorm : undefined,
       });
 
+      // Payment plans due in THIS period — deducted from every period
+      // in the chain so downstream rollovers are correct.
+      const plansDue = sumPlansDue(start, end);
+      const periodBalance = result.estimatedEnd - plansDue;
+
       periods.push({
         start: toDateString(start),
         end: toDateString(end),
         totalIncome: result.totalIncome,
         totalBills: result.totalBills,
         totalExpenses: result.totalExpenses,
+        plansDue,
         rollover,
-        balance: result.estimatedEnd,
+        balance: periodBalance,
       });
 
       // Check if target falls within this period
@@ -483,34 +521,23 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       const pEnd = startOfDay(end);
       const pTarget = startOfDay(targetDate);
       if (pTarget >= pStart && pTarget <= pEnd) {
-        // Sum unpaid payment plan payments for this period
-        const sYMD = toYMDp(start);
-        const eYMD = toYMDp(end);
-        let plansDueThisPeriod = 0;
-        allPlansForProjection.forEach((plan) => {
-          (plan.payments || []).forEach((pp) => {
-            if (pp.paid) return;
-            const ymd = toYMDp(pp.date);
-            if (ymd >= sYMD && ymd <= eYMD) plansDueThisPeriod += Number(pp.amount) || 0;
-          });
-        });
-
         return res.json({
           paydayDate,
           paycheckAmount: result.totalIncome,
           rollover,
           totalAvailable: rollover + result.totalIncome,
           billsThisPeriod: result.totalBills,
-          plansDueThisPeriod,
+          plansDueThisPeriod: plansDue,
           expensesThisPeriod: result.totalExpenses,
-          estimatedBalance: result.estimatedEnd - plansDueThisPeriod,
+          balance: periodBalance,
           periods,
           isFirstPeriod: isCurrent && isOnboardingPeriod,
         });
       }
 
-      // Advance to the next period
-      rollover = result.estimatedEnd;
+      // Advance: the NEXT period's rollover is THIS period's ending
+      // balance (including payment plan deductions).
+      rollover = periodBalance;
       const nextBudget = getBudgetPeriod(sources, nextPayDate);
       if (!nextBudget) {
         return res.status(400).json({ error: "Unable to compute next budget period." });

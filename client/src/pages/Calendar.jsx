@@ -518,7 +518,7 @@ const Calendar = () => {
                       <div className="snapshot-row"><span>Payment plans this period</span><span className="negative">&minus;{currency.format(snapshot.plansDueThisPeriod)}</span></div>
                     )}
                     <div className="snapshot-row"><span>Expenses this period</span><span className="negative">&minus;{currency.format(snapshot.expensesThisPeriod || 0)}</span></div>
-                    <div className="snapshot-row total"><span>Estimated balance</span><span className={snapshot.estimatedBalance >= 0 ? "positive" : "negative"}>{currency.format(snapshot.estimatedBalance || 0)}</span></div>
+                    <div className="snapshot-row total"><span>Balance</span><span className={(snapshot.balance ?? snapshot.estimatedBalance ?? 0) >= 0 ? "positive" : "negative"}>{currency.format(snapshot.balance ?? snapshot.estimatedBalance ?? 0)}</span></div>
                   </>
                 ) : (
                   <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-secondary)" }}>Unable to load projection.</p>
