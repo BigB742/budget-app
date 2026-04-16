@@ -3,16 +3,9 @@ import { Link } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 
-const CATEGORY_COLORS = {
-  "Food": "#F59E0B", "Dining Out": "#F59E0B", "Gas": "#EF4444", "Travel": "#F97316",
-  "Entertainment": "#EC4899", "Shopping": "#14B8A6", "Health": "#10B981", "Gym": "#8B5CF6",
-  "Home": "#84CC16", "Subscriptions": "#6366F1", "Groceries": "#F59E0B", "Bills": "#EF4444",
-  "Savings": "#14B8A6", "Other": "#8492A6",
-  "Extra income": "#8B5CF6", "Unspent": "#14B8A6", "Available": "#14B8A6",
-};
-const BILL_PALETTE = ["#3B82F6", "#8B5CF6", "#6366F1", "#06B6D4", "#0EA5E9", "#14B8A6", "#F59E0B", "#F97316", "#EC4899", "#10B981", "#84CC16", "#EF4444"];
-const hashColor = (name) => { let h = 0; for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0; return BILL_PALETTE[Math.abs(h) % BILL_PALETTE.length]; };
-const getColor = (name) => CATEGORY_COLORS[name] || hashColor(name);
+import { getCategoryColor } from "../utils/categoryColors";
+
+const getColor = getCategoryColor;
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -60,7 +53,7 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
     if (!ytd) return [];
     const slices = [];
     (ytd.billBreakdown || []).forEach((b) => {
-      if (b.annualTotal > 0) slices.push({ name: b.name, value: b.annualTotal, color: hashColor(b.name) });
+      if (b.annualTotal > 0) slices.push({ name: b.name, value: b.annualTotal, color: getColor(b.name) });
     });
     (ytd.expenseBreakdown || []).forEach((e) => {
       if (e.total > 0) slices.push({ name: e.category, value: e.total, color: getColor(e.category) });

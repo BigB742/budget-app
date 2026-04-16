@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(node --check routes/summaryRoutes.js)",
-      "Bash(node --check routes/expenseRoutes.js)"
+      "Bash(node --check routes/expenseRoutes.js)",
+      "Bash(node -e \"require\\('uuid'\\)\")",
+      "Bash(node --check routes/paymentPlanRoutes.js)",
+      "Bash(node --check models/PaymentPlan.js)",
+      "Bash(node --check utils/financeEngine.js)",
+      "Bash(node --check index.js)"
     ]
   }
 }

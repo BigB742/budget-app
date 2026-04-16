@@ -19,8 +19,9 @@ const NAV = [
   { to: "/app",           label: "Dashboard", Icon: IconHome,     end: true },
   { to: "/app/calendar",  label: "Calendar",  Icon: IconCalendar },
   { to: "/app/expenses",  label: "Expenses",  Icon: IconReceipt },
-  { to: "/app/bills",     label: "Bills",     Icon: IconCard },
-  { to: "/app/income",    label: "Income",    Icon: IconTrending },
+  { to: "/app/bills",           label: "Bills",         Icon: IconCard },
+  { to: "/app/payment-plans",  label: "Plans",         Icon: IconCard },
+  { to: "/app/income",         label: "Income",        Icon: IconTrending },
   { to: "/app/savings",   label: "Savings",   Icon: IconPiggy },
   { to: "/app/settings",  label: "Settings",  Icon: IconSettings },
 ];
@@ -39,7 +40,7 @@ const getInitials = (user) => {
 };
 
 const TopNav = ({ onLogout }) => {
-  const { isPremium, isTrialing, trialDaysLeft } = useSubscription();
+  const { isPremium } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef(null);
@@ -76,11 +77,9 @@ const TopNav = ({ onLogout }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const badge = isTrialing
-    ? <span className="pp-top-badge trial">Trial · {trialDaysLeft}d</span>
-    : isPremium
-      ? <span className="pp-top-badge premium">Premium</span>
-      : null;
+  // No badge for free/trial/past_due users — keep the nav clean.
+  // Premium users get a subtle crown next to their avatar.
+  const showCrown = isPremium;
 
   return (
     <header className="pp-top" role="banner">
@@ -117,17 +116,17 @@ const TopNav = ({ onLogout }) => {
 
         {/* Right cluster — badge + avatar (desktop) / hamburger (mobile) */}
         <div className="pp-top-right">
-          {badge}
           <div className="pp-top-avatar-wrap" ref={avatarRef}>
             <button
               type="button"
-              className="pp-top-avatar"
+              className={`pp-top-avatar${showCrown ? " pp-top-avatar-premium" : ""}`}
               onClick={() => setAvatarOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={avatarOpen}
               aria-label="Account menu"
             >
               {initials}
+              {showCrown && <span className="pp-top-crown" aria-label="Premium">👑</span>}
             </button>
             {avatarOpen && (
               <div className="pp-top-avatar-menu" role="menu">

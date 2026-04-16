@@ -380,7 +380,11 @@ const Calendar = () => {
                 const de = expensesByDay[key] || [];
                 const isPayday = paydaySet.has(key);
                 const isToday = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-                const expTotal = de.reduce((s, x) => s + Number(x.amount || 0), 0);
+                // Split savings from spending — savings show in teal, expenses in red
+                const savingsEntries = de.filter((x) => x.category === "Savings");
+                const spendingEntries = de.filter((x) => x.category !== "Savings");
+                const expTotal = spendingEntries.reduce((s, x) => s + Number(x.amount || 0), 0);
+                const savTotal = savingsEntries.reduce((s, x) => s + Number(x.amount || 0), 0);
 
                 return (
                   <button key={di} type="button"
@@ -399,6 +403,9 @@ const Calendar = () => {
                     })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
+                    )}
+                    {savTotal > 0 && (
+                      <span className="cal-savings-tag"><span className="cal-savings-dot" />{currency.format(savTotal)}</span>
                     )}
                     {(incomeByDay[key] || []).length > 0 && (
                       <span className="cal-income-tag"><span className="cal-income-dot" />+{currency.format((incomeByDay[key] || []).reduce((s, i) => s + Number(i.amount || 0), 0))}</span>

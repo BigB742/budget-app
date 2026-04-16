@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get("/", authRequired, async (req, res) => {
   try {
-    const { from, to, category, search, page, limit: limitStr } = req.query;
+    const { from, to, category, search, page, limit: limitStr, excludeSavings } = req.query;
     const query = { $or: [{ user: req.userId }, { userId: req.userId }] };
 
     if (from || to) {
@@ -15,7 +15,15 @@ router.get("/", authRequired, async (req, res) => {
       if (from) query.date.$gte = new Date(from);
       if (to) query.date.$lte = new Date(to);
     }
-    if (category) query.category = category;
+    if (category) {
+      query.category = category;
+    } else if (excludeSavings === "true" || excludeSavings === "1") {
+      // The Expenses page uses this flag so savings transfers don't pollute
+      // the spending list. Explicit category queries (like the Savings page
+      // filtering to category=Savings) still work because this only applies
+      // when no category was passed.
+      query.category = { $ne: "Savings" };
+    }
     if (search) query.description = { $regex: search, $options: "i" };
 
     // If pagination requested

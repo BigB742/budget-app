@@ -1266,6 +1266,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 .day-modal-form .qa-submit { width: 100%; }
 
+/* ─── Calendar: savings entries get teal (income-family, not expense red) ─── */
+.cal-savings-dot { display: inline-block; width: 5px; height: 5px; border-radius: 999px; background: #00C9A7; margin-right: 2px; }
+.cal-savings-tag { font-size: 0.58rem; color: #00C9A7; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ═══════════════════════════════════════
    CALENDAR VIEW TOGGLE ROW (PASS 3 FIX 2)
    Sits at the very top of the page above the month nav.
@@ -1527,6 +1531,19 @@ textarea:focus-visible {
   background: #1F2530;
   border-color: #30363D;
 }
+.pp-top-avatar-premium {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+.pp-top-crown {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+  pointer-events: none;
+}
+.pp-top-avatar-wrap { position: relative; }
 .pp-top-avatar-menu {
   position: absolute;
   top: calc(100% + 8px);

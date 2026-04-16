@@ -1,0 +1,114 @@
+const express = require("express");
+const PaymentPlan = require("../models/PaymentPlan");
+const { authRequired } = require("../middleware/auth");
+
+const router = express.Router();
+
+// GET / — all plans for the authenticated user
+router.get("/", authRequired, async (req, res) => {
+  try {
+    const plans = await PaymentPlan.find({ userId: req.userId }).sort({ createdAt: -1 });
+    res.json(plans);
+  } catch (err) {
+    console.error("Error fetching payment plans:", err.message);
+    res.status(500).json({ message: "Failed to load payment plans." });
+  }
+});
+
+// POST / — create a new plan
+router.post("/", authRequired, async (req, res) => {
+  try {
+    const { name, totalAmount, payments } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ message: "Plan name is required." });
+    }
+    if (!Array.isArray(payments) || payments.length === 0) {
+      return res.status(400).json({ message: "At least one payment entry is required." });
+    }
+    for (const p of payments) {
+      if (!p.date || !Number.isFinite(Number(p.amount)) || Number(p.amount) <= 0) {
+        return res.status(400).json({ message: "Every payment needs a valid date and positive amount." });
+      }
+    }
+
+    const plan = await PaymentPlan.create({
+      userId: req.userId,
+      name: name.trim(),
+      totalAmount: totalAmount != null ? Number(totalAmount) : undefined,
+      payments: payments.map((p) => ({
+        date: new Date(p.date),
+        amount: Number(p.amount),
+        paid: false,
+      })),
+    });
+    res.status(201).json(plan);
+  } catch (err) {
+    console.error("Error creating payment plan:", err.message);
+    res.status(500).json({ message: "Failed to create payment plan." });
+  }
+});
+
+// PUT /:id — update plan (name, totalAmount, add/remove/update payments)
+router.put("/:id", authRequired, async (req, res) => {
+  try {
+    const plan = await PaymentPlan.findOne({ _id: req.params.id, userId: req.userId });
+    if (!plan) return res.status(404).json({ message: "Plan not found." });
+
+    const { name, totalAmount, payments } = req.body;
+    if (name !== undefined) plan.name = String(name).trim() || plan.name;
+    if (totalAmount !== undefined) plan.totalAmount = Number(totalAmount) || null;
+    if (Array.isArray(payments)) {
+      // Paid entries cannot be deleted — keep any paid entries from the
+      // existing list that the caller omitted. Unpaid entries are fully
+      // replaceable (the caller sends the new list of unpaid entries).
+      const existingPaid = plan.payments.filter((p) => p.paid);
+      const newUnpaid = payments
+        .filter((p) => !p.paid)
+        .map((p) => ({
+          id: p.id || undefined, // preserve id if resending
+          date: new Date(p.date),
+          amount: Number(p.amount),
+          paid: false,
+        }));
+      plan.payments = [...existingPaid, ...newUnpaid];
+    }
+    await plan.save();
+    res.json(plan);
+  } catch (err) {
+    console.error("Error updating payment plan:", err.message);
+    res.status(500).json({ message: "Failed to update payment plan." });
+  }
+});
+
+// DELETE /:id — delete entire plan
+router.delete("/:id", authRequired, async (req, res) => {
+  try {
+    const deleted = await PaymentPlan.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    if (!deleted) return res.status(404).json({ message: "Plan not found." });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting payment plan:", err.message);
+    res.status(500).json({ message: "Failed to delete payment plan." });
+  }
+});
+
+// PATCH /:id/payments/:paymentId — mark individual payment as paid
+router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
+  try {
+    const plan = await PaymentPlan.findOne({ _id: req.params.id, userId: req.userId });
+    if (!plan) return res.status(404).json({ message: "Plan not found." });
+
+    const entry = plan.payments.find((p) => p.id === req.params.paymentId);
+    if (!entry) return res.status(404).json({ message: "Payment entry not found." });
+
+    entry.paid = true;
+    entry.paidDate = new Date();
+    await plan.save();
+    res.json(plan);
+  } catch (err) {
+    console.error("Error marking payment as paid:", err.message);
+    res.status(500).json({ message: "Failed to mark payment as paid." });
+  }
+});
+
+module.exports = router;

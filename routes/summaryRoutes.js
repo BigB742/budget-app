@@ -9,6 +9,7 @@ const Expense = require("../models/Expense");
 const SavingsGoal = require("../models/SavingsGoal");
 const Investment = require("../models/Investment");
 const { getBudgetPeriod, getPeriodsForSources, toLocalDate, toDateString, getPaydaysInRange } = require("../utils/paycheckUtils");
+const PaymentPlan = require("../models/PaymentPlan");
 const {
   startOfDay,
   endOfDay,
@@ -114,7 +115,24 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     // ───────────────────────────────────────────────────────────────────
     const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
     const totalBillsDue = sumBillsInPeriod(bills, today, end, overrideMap, payments);
-    const balance = currentBalance - totalExpensesSpent - totalBillsDue;
+
+    // Payment Plans: sum unpaid entries whose date falls within [today, end].
+    // Behaves just like bills — unpaid future obligations reduce spendable.
+    const allPlans = await PaymentPlan.find({ userId: req.userId });
+    const todayStart = startOfDay(today);
+    const periodEnd = endOfDay(end);
+    let totalPaymentPlansDue = 0;
+    allPlans.forEach((plan) => {
+      (plan.payments || []).forEach((p) => {
+        if (p.paid) return;
+        const d = new Date(p.date);
+        if (d >= todayStart && d <= periodEnd) {
+          totalPaymentPlansDue += Number(p.amount) || 0;
+        }
+      });
+    });
+
+    const balance = currentBalance - totalExpensesSpent - totalBillsDue - totalPaymentPlansDue;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -133,6 +151,15 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     }
 
     // ── Next Paycheck Balance (routed through the engine) ──────
+    // Previous period boundaries — used by the Expense page "Last period" tab.
+    let previousPeriod = null;
+    const prevDate = new Date(start);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const prevBudget = getBudgetPeriod(sources, prevDate);
+    if (prevBudget) {
+      previousPeriod = { start: toDateString(prevBudget.start), end: toDateString(prevBudget.end) };
+    }
+
     let nextPaycheckBalance = null;
     let nextPeriod = null;
     if (nextPayDate) {
@@ -167,6 +194,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
 
     res.json({
       period: { start, end },
+      previousPeriod,
       recurringIncome: periodTotals.recurringIncome,
       oneTimeIncome: periodTotals.oneTimeIncome,
       totalIncome: periodTotals.totalIncome,
@@ -176,6 +204,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       // can display these directly or recompute locally if it wants.
       totalBillsDue,
       totalExpensesSpent,
+      totalPaymentPlansDue,
       savingsThisPeriod,
       totalSaved,
       investmentsThisPeriod,
@@ -312,6 +341,7 @@ router.get("/expense-categories", authRequired, async (req, res) => {
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
+        { category: { $ne: "Savings" } }, // Savings are transfers, never spending
         { date: { $gte: from, $lte: to } },
       ],
     });
@@ -524,6 +554,7 @@ router.get("/year-to-date", authRequired, async (req, res) => {
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
+        { category: { $ne: "Savings" } }, // YTD spending chart: savings are transfers, not spending
         {
           $or: [
             { date: { $gte: yearFrom, $lte: yearTo } },
@@ -623,10 +654,11 @@ router.get("/monthly-breakdown", authRequired, async (req, res) => {
       }
     }
 
-    // 4. Expenses for the month, grouped by category
+    // 4. Expenses for the month, grouped by category (savings excluded)
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
+        { category: { $ne: "Savings" } },
         {
           $or: [
             { date: { $gte: monthFrom, $lte: monthTo } },

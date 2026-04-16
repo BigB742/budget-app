@@ -19,8 +19,9 @@ const classifyPayPeriod = (expenseDate, currentPeriod) => {
   return "current";
 };
 
+import { getCategoryColor } from "../utils/categoryColors";
+
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const COLORS = ["#00C896", "#FF6B35", "#0D1B2A", "#F6C90E", "#E53E3E", "#8B5CF6", "#3B82F6", "#F97316", "#8492A6", "#06B6D4", "#EC4899"];
 const CATEGORIES = ["All categories", "Dining Out", "Entertainment", "Food", "Gas", "Groceries", "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other"];
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },
@@ -28,23 +29,11 @@ const SORT_OPTIONS = [
   { value: "highest", label: "Highest amount" },
   { value: "lowest", label: "Lowest amount" },
 ];
-const QUICK_RANGES = [
-  { label: "All time", from: "", to: "" },
-  { label: "This period", key: "period" },
-  { label: "Last 3 months", key: "3mo" },
-  { label: "This year", key: "year" },
-];
+const QUICK_TABS = ["This period", "Last period", "This year", "All time"];
 
-const getQuickDates = (key) => {
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  if (key === "year") return { from: `${y}-01-01`, to: "" };
-  if (key === "3mo") {
-    const fm = m - 2 < 0 ? m + 10 : m - 2;
-    const fy = m - 2 < 0 ? y - 1 : y;
-    return { from: `${fy}-${String(fm + 1).padStart(2, "0")}-01`, to: "" };
-  }
-  return { from: "", to: "" };
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 const ExpenseHistory = () => {
@@ -58,7 +47,7 @@ const ExpenseHistory = () => {
   // When non-null, the edit modal is open for this expense.
   const [editingExpense, setEditingExpense] = useState(null);
 
-  const [quickRange, setQuickRange] = useState("All time");
+  const [activeTab, setActiveTab] = useState("This period");
   const [filters, setFilters] = useState({ from: "", to: "", category: "All categories", search: "" });
   const [sort, setSort] = useState("newest");
 
@@ -70,6 +59,10 @@ const ExpenseHistory = () => {
       if (filters.to) params.set("to", filters.to);
       if (filters.category && filters.category !== "All categories") params.set("category", filters.category);
       if (filters.search) params.set("search", filters.search);
+      // Savings deposits are category:"Savings" Expense docs but they are
+      // transfers to self, not spending — hide them from the spending list.
+      // The Savings page still reads them via its own endpoint.
+      params.set("excludeSavings", "true");
       params.set("page", String(page));
       params.set("limit", "50");
       const data = await authFetch(`/api/expenses?${params.toString()}`);
@@ -82,21 +75,47 @@ const ExpenseHistory = () => {
 
   useEffect(() => { loadExpenses(); }, [loadExpenses]);
   // Ensure the dashboard summary is loaded so we know the current pay
-  // period — needed by the per-row "This period / Upcoming / Past" pill.
+  // period — needed by the per-row "This period / Upcoming / Past" pill
+  // AND the quick-filter tabs.
   useEffect(() => { cache?.fetchSummary?.(); }, [cache]);
+
+  // When summary data first arrives and the default "This period" tab is
+  // active but no date filters have been set yet, set the date range so
+  // the list actually filters to the current period.
+  useEffect(() => {
+    const p = cache?.summary?.period;
+    if (p?.start && p?.end && activeTab === "This period" && !filters.from) {
+      handleTabClick("This period");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cache?.summary]);
 
   const handleDelete = async (id) => { try { await authFetch(`/api/expenses/${id}`, { method: "DELETE" }); loadExpenses(); cache?.fetchSummary?.(true); } catch {} };
 
-  const handleQuickRange = (label) => {
-    setQuickRange(label);
-    const range = QUICK_RANGES.find((r) => r.label === label);
-    if (range?.key) {
-      const dates = getQuickDates(range.key);
-      setFilters((p) => ({ ...p, from: dates.from, to: dates.to }));
-    } else {
-      setFilters((p) => ({ ...p, from: range?.from || "", to: range?.to || "" }));
-    }
+  // Derive date range from the tab name + cache period data, then push
+  // into filters which triggers the re-fetch via the loadExpenses dependency.
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
     setPage(1);
+    const p = cache?.summary?.period;
+    const pp = cache?.summary?.previousPeriod;
+    let from = "";
+    let to = "";
+
+    if (tab === "This period" && p?.start && p?.end) {
+      const s = new Date(p.start);
+      const e = new Date(p.end);
+      from = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+      to = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
+    } else if (tab === "Last period" && pp?.start && pp?.end) {
+      from = pp.start;
+      to = pp.end;
+    } else if (tab === "This year") {
+      from = `${new Date().getFullYear()}-01-01`;
+      to = "";
+    }
+    // "All time" → from="" to="" → no date filter
+    setFilters((prev) => ({ ...prev, from, to }));
   };
 
   // Sort expenses client-side
@@ -118,7 +137,7 @@ const ExpenseHistory = () => {
 
   const chartTotal = categoryData.reduce((s, c) => s + c.value, 0);
   const catColorMap = {};
-  categoryData.forEach((c, i) => { catColorMap[c.name] = COLORS[i % COLORS.length]; });
+  categoryData.forEach((c) => { catColorMap[c.name] = getCategoryColor(c.name); });
 
   return (
     <div className="history-page">
@@ -131,13 +150,13 @@ const ExpenseHistory = () => {
       <div className="hf-bar">
         {/* Quick range pills */}
         <div className="hf-pills">
-          {QUICK_RANGES.map((r) => (
-            <button key={r.label} type="button" className={`hf-pill${quickRange === r.label ? " active" : ""}`} onClick={() => handleQuickRange(r.label)}>{r.label}</button>
+          {QUICK_TABS.map((tab) => (
+            <button key={tab} type="button" className={`hf-pill${activeTab === tab ? " active" : ""}`} onClick={() => handleTabClick(tab)}>{tab}</button>
           ))}
         </div>
         <div className="hf-controls">
-          <input type="date" value={filters.from} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, from: e.target.value })); setQuickRange(""); setPage(1); }} />
-          <input type="date" value={filters.to} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, to: e.target.value })); setQuickRange(""); setPage(1); }} />
+          <input type="date" value={filters.from} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, from: e.target.value })); setActiveTab(""); setPage(1); }} />
+          <input type="date" value={filters.to} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, to: e.target.value })); setActiveTab(""); setPage(1); }} />
           <select value={sort} className="hf-input" onChange={(e) => setSort(e.target.value)}>
             {SORT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
@@ -154,7 +173,7 @@ const ExpenseHistory = () => {
           <div className="donut-wrapper" style={{ margin: "0 auto", maxWidth: 280 }}>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart><Pie data={categoryData} dataKey="value" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={1} stroke="none">
-                {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {categoryData.map((_, i) => <Cell key={i} fill={getCategoryColor(categoryData[i]?.name || "Other")} />)}
               </Pie><Tooltip formatter={(v) => currency.format(v)} /></PieChart>
             </ResponsiveContainer>
             <div className="donut-center"><span className="donut-center-label">Total</span><span className="donut-center-value">{currency.format(chartTotal)}</span></div>
@@ -162,7 +181,7 @@ const ExpenseHistory = () => {
           <div className="spending-legend" style={{ maxWidth: 400, margin: "0.5rem auto 0" }}>
             {categoryData.map((c, i) => (
               <div key={c.name} className="legend-row">
-                <span className="legend-dot-color" style={{ background: COLORS[i % COLORS.length] }} />
+                <span className="legend-dot-color" style={{ background: getCategoryColor(categoryData[i]?.name || "Other") }} />
                 <span className="legend-name">{c.name}</span>
                 <span className="legend-amount">{currency.format(c.value)}</span>
                 <span className="legend-pct">{chartTotal > 0 ? Math.round((c.value / chartTotal) * 100) : 0}%</span>

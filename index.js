@@ -205,6 +205,7 @@ protectedRouter.use("/bill-payments", billPaymentRoutes);
 protectedRouter.use("/debts", debtRoutes);
 protectedRouter.use("/export", exportRoutes);
 protectedRouter.use("/one-time-income", oneTimeIncomeRoutes);
+protectedRouter.use("/payment-plans", require("./routes/paymentPlanRoutes"));
 app.use("/api", protectedRouter);
 
 // ─── Global error handler ──────────────────────────────────────────────

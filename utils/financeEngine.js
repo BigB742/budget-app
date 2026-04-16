@@ -111,6 +111,12 @@ function sumBillsInPeriod(bills, start, end, overrideMap = new Map(), billPaymen
  * primary key — a future-dated expense belongs to its future period, NOT
  * to the period it was typed in. Legacy docs without a `date` field fall
  * back to `createdAt` so historical data still counts.
+ *
+ * IMPORTANT: Savings deposits are stored as Expense docs with
+ * `category: "Savings"` because the Savings flow reuses the Expense
+ * collection. Those are transfers to the user's own savings goals, not
+ * spending. We ALWAYS exclude them from spent totals. A Savings
+ * withdrawal is recorded as a one-time income row elsewhere — not here.
  */
 async function sumExpensesInPeriod(userId, start, end) {
   const from = startOfDay(start);
@@ -118,6 +124,7 @@ async function sumExpensesInPeriod(userId, start, end) {
   const expenseDocs = await Expense.find({
     $and: [
       { $or: [{ user: userId }, { userId }] },
+      { category: { $ne: "Savings" } },
       {
         $or: [
           { date: { $gte: from, $lte: to } },

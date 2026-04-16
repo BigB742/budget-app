@@ -24,6 +24,7 @@ import SubscriptionCancel from "./pages/SubscriptionCancel";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminPanel from "./pages/AdminPanel";
+import PaymentPlans from "./pages/PaymentPlans";
 import Verify2FA from "./pages/Verify2FA";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -66,6 +67,7 @@ function App() {
           {/* Legacy redirect — old /history links keep working */}
           <Route path="history" element={<Navigate to="/app/expenses" replace />} />
           <Route path="bills" element={<Bills />} />
+          <Route path="payment-plans" element={<PaymentPlans />} />
           <Route path="income" element={<ManageIncome />} />
           <Route path="savings" element={<Savings />} />
           {/* Legacy route — old combined Bills & Income page */}
