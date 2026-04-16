@@ -10,7 +10,15 @@
       "Bash(node --check index.js)",
       "Bash(node --check routes/userRoutes.js)",
       "Bash(node --check models/User.js)",
-      "Bash(node --check routes/authRoutes.js)"
+      "Bash(node --check routes/authRoutes.js)",
+      "Bash(git grep:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"---EXIT:$?\")",
+      "Bash(brew list:*)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(brew install:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git remote:*)"
     ]
   }
 }
