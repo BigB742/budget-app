@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { formatDate } from "../utils/dateUtils";
 import { useSubscription } from "../hooks/useSubscription";
+import { useToast } from "../context/ToastContext";
 import FreeLimitModal from "../components/FreeLimitModal";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -11,6 +12,7 @@ const emptyForm = { name: "", amount: "", dueDay: "", category: "Other", startDa
 
 const Bills = () => {
   const { isFree } = useSubscription();
+  const toast = useToast();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -59,6 +61,7 @@ const Bills = () => {
       lastPaymentAmount: form.lastPaymentAmount ? Number(form.lastPaymentAmount) : null,
     };
     try {
+      const wasFirst = !editingBill && bills.length === 0;
       if (editingBill) {
         await authFetch(`/api/bills/${editingBill._id}`, { method: "PUT", body: JSON.stringify(payload) });
       } else {
@@ -68,6 +71,7 @@ const Bills = () => {
       setEditingBill(null);
       setShowModal(false);
       load();
+      if (wasFirst) toast?.showToast?.("First bill saved. PayPulse will track this every month.");
     } catch { /* ignore */ }
   };
 

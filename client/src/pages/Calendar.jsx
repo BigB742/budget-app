@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 import { useDataCache } from "../context/DataCache";
+import { useToast } from "../context/ToastContext";
+import { getFirstName } from "../utils/userHelpers";
 import AdSlot from "../components/AdSlot";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -34,6 +36,7 @@ const buildMonthGrid = (year, month) => {
 const Calendar = () => {
   const { isPremium, isTrialing } = useSubscription();
   const cache = useDataCache();
+  const toast = useToast();
   const hasPremiumAccess = isPremium || isTrialing;
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -254,10 +257,23 @@ const Calendar = () => {
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: selectedDay, amount: Number(expForm.amount), category: expForm.category, description: expForm.description }) });
       setExpForm({ description: "", amount: "", category: "Food" });
       loadData();
-      // Force a summary refresh so the dashboard "You Can Spend" number
-      // reflects this expense immediately — same data source as the
-      // Expenses page, so both entry points stay in sync.
       cache?.fetchSummary?.(true);
+      // Toast: first expense of current period
+      try {
+        const p = cache?.summary?.period;
+        if (p?.start && p?.end) {
+          const s = new Date(p.start);
+          const e = new Date(p.end);
+          const from = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+          const to = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
+          const res = await authFetch(`/api/expenses?from=${from}&to=${to}&excludeSavings=true&limit=2&page=1`);
+          const count = res?.total ?? (Array.isArray(res) ? res.length : 0);
+          if (count === 1) {
+            const fn = getFirstName();
+            toast?.showToast?.(`Period started. Stay on top of it${fn ? `, ${fn}` : ""}.`);
+          }
+        }
+      } catch { /* non-critical */ }
     } catch (err) { console.error(err); }
     finally { setExpSaving(false); }
   };
@@ -296,6 +312,18 @@ const Calendar = () => {
           note: paidForm.note,
         }),
       });
+      // Toast: early payment check (paid before due day this month)
+      try {
+        const dueDay = markingPaid.dueDayOfMonth || markingPaid.dueDay;
+        if (dueDay) {
+          const now = new Date();
+          const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+          const paidDate = new Date(paidForm.paidDate);
+          if (paidDate < dueDate) {
+            toast?.showToast?.(`${markingPaid.name} paid early. Stay ahead.`);
+          }
+        }
+      } catch { /* non-critical */ }
       setMarkingPaid(null);
       setPaidForm({ paidDate: "", note: "" });
       loadData();

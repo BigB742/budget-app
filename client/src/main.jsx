@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/design-system.css'
 import App from './App.jsx'
+import { ToastProvider } from './context/ToastContext'
+import { CelebrationProvider } from './context/CelebrationContext'
 
 // Apply persisted settings on load. PayPulse defaults to dark mode —
 // the design system is tuned for it.
@@ -21,6 +23,10 @@ if (savedFontScale && savedFontScale !== "md") {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ToastProvider>
+      <CelebrationProvider>
+        <App />
+      </CelebrationProvider>
+    </ToastProvider>
   </StrictMode>,
 )

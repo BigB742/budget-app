@@ -237,31 +237,42 @@ const PaymentPlans = () => {
 
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginTop: 8 }}>Payments</div>
               {form.payments.map((p, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div key={i} className="pp-payment-row">
                   {p.paid ? (
-                    <span style={{ flex: 1, fontSize: 13, color: "var(--text-muted)", textDecoration: "line-through" }}>
+                    <span style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "line-through" }}>
                       {fmtDate(p.date)} — {currency.format(Number(p.amount) || 0)} (paid)
                     </span>
                   ) : (
                     <>
-                      <input
-                        type="date"
-                        value={p.date}
-                        onChange={(e) => handlePaymentChange(i, "date", e.target.value)}
-                        required
-                        style={{ flex: 1 }}
-                      />
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="$0.00"
-                        value={p.amount}
-                        onChange={(e) => handlePaymentChange(i, "amount", e.target.value)}
-                        required
-                        style={{ flex: 1 }}
-                      />
-                      <button type="button" className="ghost-button" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => removePaymentRow(i)}>×</button>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Payment {i + 1}</span>
+                        <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 12, height: 24 }} onClick={() => removePaymentRow(i)}>×</button>
+                      </div>
+                      <div className="pp-payment-fields">
+                        <label style={{ flex: "1 1 55%", minWidth: 0 }}>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Date</span>
+                          <input
+                            type="date"
+                            value={p.date}
+                            onChange={(e) => handlePaymentChange(i, "date", e.target.value)}
+                            required
+                            style={{ width: "100%" }}
+                          />
+                        </label>
+                        <label style={{ flex: "1 1 40%", minWidth: 0 }}>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Amount</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            placeholder="$0.00"
+                            value={p.amount}
+                            onChange={(e) => handlePaymentChange(i, "amount", e.target.value)}
+                            required
+                            style={{ width: "100%" }}
+                          />
+                        </label>
+                      </div>
                     </>
                   )}
                 </div>

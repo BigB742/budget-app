@@ -59,6 +59,7 @@ router.put("/me", authRequired, async (req, res) => {
       firstName, lastName, email, dateOfBirth, phone,
       incomeSettings, passwordChange, notificationPrefs,
       locale, twoFactorEnabled, currentBalance, incomeType, totalSavings,
+      tourCompleted,
     } = req.body || {};
 
     const user = await User.findById(userId);
@@ -73,6 +74,7 @@ router.put("/me", authRequired, async (req, res) => {
     if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth;
     if (locale !== undefined) user.locale = locale;
     if (twoFactorEnabled !== undefined) user.twoFactorEnabled = !!twoFactorEnabled;
+    if (tourCompleted !== undefined) user.tourCompleted = !!tourCompleted;
     if (currentBalance !== undefined) {
       const n = Number(currentBalance);
       if (Number.isFinite(n)) user.currentBalance = n;

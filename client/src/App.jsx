@@ -25,6 +25,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminPanel from "./pages/AdminPanel";
 import PaymentPlans from "./pages/PaymentPlans";
+import HelpCenter from "./pages/HelpCenter";
 import Verify2FA from "./pages/Verify2FA";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -73,6 +74,7 @@ function App() {
           {/* Legacy route — old combined Bills & Income page */}
           <Route path="bills-income" element={<BillsIncome />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="help" element={<HelpCenter />} />
         </Route>
       </Routes>
       </ErrorBoundary>

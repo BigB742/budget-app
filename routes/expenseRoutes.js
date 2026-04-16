@@ -1,9 +1,47 @@
 const express = require("express");
 
 const Expense = require("../models/Expense");
+const IncomeSource = require("../models/IncomeSource");
 const { authRequired } = require("../middleware/auth");
+const { getBudgetPeriod } = require("../utils/paycheckUtils");
 
 const router = express.Router();
+
+// GET /period-counts?periods=3 — lightweight count of expenses (excluding
+// savings) per recent pay period. Used by the "3 consecutive periods
+// tracked" celebration check on the frontend.
+router.get("/period-counts", authRequired, async (req, res) => {
+  try {
+    const n = Math.min(Number(req.query.periods) || 3, 10);
+    const sources = await IncomeSource.find({ user: req.userId, isActive: true });
+    if (!sources.length) return res.json([]);
+
+    const result = [];
+    let cursor = new Date();
+    for (let i = 0; i < n; i++) {
+      const budget = getBudgetPeriod(sources, cursor);
+      if (!budget) break;
+      const from = new Date(budget.start.getFullYear(), budget.start.getMonth(), budget.start.getDate());
+      const to = new Date(budget.end.getFullYear(), budget.end.getMonth(), budget.end.getDate(), 23, 59, 59, 999);
+      const count = await Expense.countDocuments({
+        $or: [{ user: req.userId }, { userId: req.userId }],
+        category: { $ne: "Savings" },
+        date: { $gte: from, $lte: to },
+      });
+      result.push({
+        periodStart: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`,
+        periodEnd: `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`,
+        count,
+      });
+      cursor = new Date(budget.start);
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("Error computing period counts:", err.message);
+    res.status(500).json({ message: "Failed to compute period counts." });
+  }
+});
 
 router.get("/", authRequired, async (req, res) => {
   try {

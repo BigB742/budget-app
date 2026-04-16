@@ -63,6 +63,7 @@ const UserSchema = new mongoose.Schema(
     passwordResetExpiry: { type: Date },
     resetCode: { type: String },
     resetCodeExpiry: { type: Date },
+    tourCompleted: { type: Boolean, default: false },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorOTP: { type: String },
     twoFactorOTPExpiry: { type: Date },

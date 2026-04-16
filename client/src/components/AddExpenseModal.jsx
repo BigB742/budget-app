@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { authFetch } from "../apiClient";
+import { useToast } from "../context/ToastContext";
+import { useDataCache } from "../context/DataCache";
+import { getFirstName } from "../utils/userHelpers";
 
 const CATEGORIES = [
   "Dining Out", "Entertainment", "Food", "Gas", "Groceries",
@@ -12,6 +15,8 @@ const todayISO = () => {
 };
 
 const AddExpenseModal = ({ onClose, onSaved }) => {
+  const toast = useToast();
+  const cache = useDataCache();
   const [form, setForm] = useState({ date: todayISO(), description: "", amount: "", category: "Food" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -26,6 +31,22 @@ const AddExpenseModal = ({ onClose, onSaved }) => {
     setSaving(true); setError("");
     try {
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: form.date, amount: Number(form.amount), category: form.category, description: form.description }) });
+      // Check first-expense-of-period toast
+      try {
+        const p = cache?.summary?.period;
+        if (p?.start && p?.end) {
+          const s = new Date(p.start);
+          const e = new Date(p.end);
+          const from = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+          const to = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
+          const res = await authFetch(`/api/expenses?from=${from}&to=${to}&excludeSavings=true&limit=2&page=1`);
+          const count = res?.total ?? (Array.isArray(res) ? res.length : 0);
+          if (count === 1) {
+            const fn = getFirstName();
+            toast?.showToast?.(`Period started. Stay on top of it${fn ? `, ${fn}` : ""}.`);
+          }
+        }
+      } catch { /* non-critical */ }
       onSaved?.();
     } catch { setError("Failed to save expense."); }
     finally { setSaving(false); }

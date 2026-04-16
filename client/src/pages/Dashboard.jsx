@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { useSubscription } from "../hooks/useSubscription";
+import { useToast } from "../context/ToastContext";
+import { useCelebration } from "../context/CelebrationContext";
+import { getFirstName } from "../utils/userHelpers";
 import DayExpensesModal from "../components/DayExpensesModal";
 import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
@@ -44,7 +47,10 @@ const Dashboard = () => {
   const cache = useDataCache();
   const summary = cache?.summary;
   const { isFree, isTrialing, isPremium, trialDaysLeft } = useSubscription();
+  const toast = useToast();
+  const celebration = useCelebration();
   const storedUser = getStoredUser();
+  const prevBalance = useRef(null);
 
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
@@ -70,6 +76,66 @@ const Dashboard = () => {
     cache?.fetchSummary();
     loadSpendingCategories();
   }, []);
+
+  // ── Toast 4: balance negative → positive ──
+  useEffect(() => {
+    if (summary?.balance == null) return;
+    const bal = summary.balance;
+    if (prevBalance.current !== null && prevBalance.current < 0 && bal >= 0) {
+      const fn = getFirstName();
+      toast?.showToast?.(`Back in the green${fn ? `, ${fn}` : ""}.`);
+    }
+    prevBalance.current = bal;
+  }, [summary?.balance]);
+
+  // ── Celebration 2: spent less than last period ──
+  // ── Celebration 3: 3 consecutive periods tracked ──
+  useEffect(() => {
+    if (!summary?.period?.start) return;
+    const periodKey = (() => {
+      const s = new Date(summary.period.start);
+      return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+    })();
+    const lastSeen = localStorage.getItem("pp_lastSeenPeriodStart");
+
+    // Celebration 2 — on period transition, compare spending
+    if (lastSeen && lastSeen !== periodKey) {
+      const prevSpent = Number(localStorage.getItem("pp_prevPeriodSpent")) || 0;
+      const justCompleted = summary.spentPreviousPeriod;
+      if (justCompleted != null && prevSpent > 0 && justCompleted < prevSpent) {
+        const diff = Math.round(prevSpent - justCompleted);
+        const prevPeriodStart = summary.previousPeriod?.start || lastSeen;
+        const fn = getFirstName();
+        celebration?.showCelebration?.({
+          title: "You spent less this period.",
+          subtext: `$${diff} less than last period. Progress.`,
+          buttonText: "Got it",
+          storageKey: `celebration_spentLess_${prevPeriodStart}`,
+        });
+      }
+      if (justCompleted != null) localStorage.setItem("pp_prevPeriodSpent", String(justCompleted));
+    }
+    localStorage.setItem("pp_lastSeenPeriodStart", periodKey);
+
+    // Celebration 3 — 3 consecutive periods with expenses
+    (async () => {
+      try {
+        const key = `celebration_3periods_${periodKey}`;
+        if (localStorage.getItem(key)) return;
+        const counts = await authFetch("/api/expenses/period-counts?periods=3");
+        if (Array.isArray(counts) && counts.length >= 3 && counts.every((c) => c.count > 0)) {
+          const fn = getFirstName();
+          celebration?.showCelebration?.({
+            title: "3 periods tracked.",
+            subtext: `You're building the habit${fn ? `, ${fn}` : ""}. Keep going.`,
+            buttonText: "Got it",
+            storageKey: key,
+          });
+        }
+      } catch { /* non-critical */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary?.period?.start]);
 
   const refreshAll = () => {
     cache?.fetchSummary();

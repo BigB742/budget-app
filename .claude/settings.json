@@ -7,7 +7,9 @@
       "Bash(node --check routes/paymentPlanRoutes.js)",
       "Bash(node --check models/PaymentPlan.js)",
       "Bash(node --check utils/financeEngine.js)",
-      "Bash(node --check index.js)"
+      "Bash(node --check index.js)",
+      "Bash(node --check routes/userRoutes.js)",
+      "Bash(node --check models/User.js)"
     ]
   }
 }

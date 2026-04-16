@@ -305,6 +305,15 @@ const Settings = () => {
             )}
           </div>
 
+          {/* Help */}
+          <div className="settings-section">
+            <h2 className="section-title">Help</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button type="button" className="ghost-button" style={{ width: "100%" }} onClick={() => { window.__ppLaunchTour?.(); }}>Take the Tour</button>
+              <a href="/app/help" style={{ color: "var(--teal)", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Help Center</a>
+            </div>
+          </div>
+
           {/* Support */}
           <div className="settings-section">
             <h2 className="section-title">Support</h2>

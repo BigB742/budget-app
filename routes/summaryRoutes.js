@@ -151,13 +151,16 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     }
 
     // ── Next Paycheck Balance (routed through the engine) ──────
-    // Previous period boundaries — used by the Expense page "Last period" tab.
+    // Previous period boundaries — used by the Expense page "Last period" tab
+    // and the "spent less" celebration modal.
     let previousPeriod = null;
+    let spentPreviousPeriod = null;
     const prevDate = new Date(start);
     prevDate.setDate(prevDate.getDate() - 1);
     const prevBudget = getBudgetPeriod(sources, prevDate);
     if (prevBudget) {
       previousPeriod = { start: toDateString(prevBudget.start), end: toDateString(prevBudget.end) };
+      spentPreviousPeriod = await sumExpensesInPeriod(req.userId, prevBudget.start, prevBudget.end);
     }
 
     let nextPaycheckBalance = null;
@@ -205,6 +208,8 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       totalBillsDue,
       totalExpensesSpent,
       totalPaymentPlansDue,
+      spentCurrentPeriod: periodTotals.totalExpenses,
+      spentPreviousPeriod,
       savingsThisPeriod,
       totalSaved,
       investmentsThisPeriod,

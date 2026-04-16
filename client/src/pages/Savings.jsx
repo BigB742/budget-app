@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
+import { useToast } from "../context/ToastContext";
+import { useCelebration } from "../context/CelebrationContext";
+import { getFirstName } from "../utils/userHelpers";
+import SavingsAmountModal from "../components/SavingsAmountModal";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const Savings = () => {
   const cache = useDataCache();
+  const toast = useToast();
+  const celebration = useCelebration();
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -47,31 +53,42 @@ const Savings = () => {
     finally { setSaving(false); }
   };
 
-  const handleContribute = async (goal) => {
-    const input = window.prompt(`Add to "${goal.name}"`, "0");
-    if (!input) return;
-    const amount = Number(input);
-    if (!amount || amount <= 0) return;
+  // Modal state for contribute/withdraw — replaces old prompt() dialogs
+  const [savingsModal, setSavingsModal] = useState(null); // { goal, mode: "add"|"withdraw" }
+
+  const handleContribute = async (amount, goal) => {
     try {
       await authFetch(`/api/savings-goals/${goal._id}/contribute`, { method: "POST", body: JSON.stringify({ amount }) });
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: dateStr, amount, category: "Savings", description: `Savings — ${goal.name}` }) });
-      load();
+      setSavingsModal(null);
+      const fn = getFirstName();
+      toast?.showToast?.(`Added to savings. Keep it up${fn ? `, ${fn}` : ""}.`);
+      // Reload goals to get updated savedAmount for celebration check
+      const updatedGoals = await authFetch("/api/savings-goals");
+      setGoals(Array.isArray(updatedGoals) ? updatedGoals : []);
       if (cache?.fetchSummary) cache.fetchSummary(true);
+      // Celebration 1: savings goal reached
+      const updated = (Array.isArray(updatedGoals) ? updatedGoals : []).find((g) => g._id === goal._id);
+      if (updated && updated.targetAmount > 0 && (updated.savedAmount || 0) >= updated.targetAmount) {
+        celebration?.showCelebration?.({
+          title: "Goal reached.",
+          subtext: `You set a goal and hit it${fn ? `, ${fn}` : ""}. That's real discipline.`,
+          buttonText: "Keep going",
+          storageKey: `celebration_savingsGoal_${goal._id}`,
+        });
+      }
     } catch { /* ignore */ }
   };
 
-  const handleWithdraw = async (goal) => {
-    const input = window.prompt(`Withdraw from "${goal.name}" (max ${currency.format(goal.savedAmount || 0)})`, "0");
-    if (!input) return;
-    const amount = Number(input);
-    if (!amount || amount <= 0 || amount > (goal.savedAmount || 0)) { alert("Invalid amount."); return; }
+  const handleWithdraw = async (amount, goal) => {
     try {
       await authFetch(`/api/savings-goals/${goal._id}/withdraw`, { method: "POST", body: JSON.stringify({ amount }) });
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: `Savings Withdrawal — ${goal.name}`, amount, date: dateStr }) });
+      setSavingsModal(null);
       load();
       if (cache?.fetchSummary) cache.fetchSummary(true);
     } catch { /* ignore */ }
@@ -112,9 +129,9 @@ const Savings = () => {
                   <p className="muted">Current balance: {currency.format(g.savedAmount || 0)}</p>
                 </div>
                 <div className="recurring-actions">
-                  <button type="button" className="secondary-button savings-plus-btn" onClick={() => handleContribute(g)}>+ Add</button>
+                  <button type="button" className="secondary-button savings-plus-btn" onClick={() => setSavingsModal({ goal: g, mode: "add" })}>+ Add</button>
                   {(g.savedAmount || 0) > 0 && (
-                    <button type="button" className="ghost-button savings-minus-btn" onClick={() => handleWithdraw(g)}>- Withdraw</button>
+                    <button type="button" className="ghost-button savings-minus-btn" onClick={() => setSavingsModal({ goal: g, mode: "withdraw" })}>- Withdraw</button>
                   )}
                   <button type="button" className="bill-icon-btn bill-icon-del" onClick={() => handleDelete(g._id)}>x</button>
                 </div>
@@ -135,6 +152,19 @@ const Savings = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {savingsModal && (
+        <SavingsAmountModal
+          goalName={savingsModal.goal.name}
+          mode={savingsModal.mode}
+          maxAmount={savingsModal.mode === "withdraw" ? (savingsModal.goal.savedAmount || 0) : undefined}
+          onClose={() => setSavingsModal(null)}
+          onConfirm={(amount) => {
+            if (savingsModal.mode === "add") handleContribute(amount, savingsModal.goal);
+            else handleWithdraw(amount, savingsModal.goal);
+          }}
+        />
       )}
     </div>
   );
