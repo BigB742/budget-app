@@ -421,14 +421,14 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     const allPlansForProjection = await PaymentPlan.find({ userId: req.userId });
     const toYMDp = (d) => { const dt = new Date(d); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); };
 
-    // Seed the chain with the user's current bank balance — the same starting
-    // point the dashboard uses. Previously this loop started with rollover = 0
-    // which produced wrong numbers for the first period (and therefore every
-    // subsequent period). The "You Can Spend" value on the dashboard and the
-    // "Estimated balance" shown on the calendar snapshot for the current
-    // period must match, and they now do.
+    // Seed the chain with the SAME live balance the dashboard shows. The
+    // dashboard formula is:
+    //   balance = currentBalance - allExpensesSinceSignup - billsDue - plansDue
+    // We must replicate that here so the calendar's "Balance" for the
+    // current period matches the dashboard's "You Can Spend" exactly.
     const userDoc = await User.findById(req.userId).select("createdAt currentBalance");
     const initialBalance = Number(userDoc?.currentBalance) || 0;
+    const userCreatedAt = userDoc?.createdAt ? new Date(userDoc.createdAt) : new Date(0);
 
     const today = new Date();
     const todayNorm = startOfDay(today);
@@ -475,33 +475,79 @@ router.get("/projected-balance", authRequired, async (req, res) => {
 
     const MAX_ITERATIONS = 26;
     const periods = [];
-    let rollover = initialBalance;
+
+    // Compute the current period's live balance using the EXACT same
+    // formula the dashboard uses: currentBalance - expenses(createdAt..today)
+    // - bills(today..end) - plans(start..end). This is the anchor.
+    const currentPeriodExpenses = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
+    const currentPeriodBills = sumBillsInPeriod(bills, today, currentPeriod.end, await loadOverrideMap(req.userId, currentPeriod.start, currentPeriod.end), await loadBillPayments(req.userId, currentPeriod.start, currentPeriod.end));
+    const currentPeriodPlans = sumPlansDue(currentPeriod.start, currentPeriod.end);
+    const dashboardBalance = initialBalance - currentPeriodExpenses - currentPeriodBills - currentPeriodPlans;
+
+    let rollover = dashboardBalance;
     let iteration = 0;
+    // Skip iteration 0 — its ending balance IS the dashboardBalance we
+    // just computed. Start the chain from the next period.
+    let chainPeriod = currentPeriod;
+
+    // Record the current period in the chain for reference.
+    periods.push({
+      start: toDateString(currentPeriod.start),
+      end: toDateString(currentPeriod.end),
+      totalIncome: 0,
+      totalBills: currentPeriodBills,
+      totalExpenses: currentPeriodExpenses,
+      plansDue: currentPeriodPlans,
+      rollover: initialBalance,
+      balance: dashboardBalance,
+    });
+
+    // Check if the target is IN the current period.
+    const curPStart = startOfDay(currentPeriod.start);
+    const curPEnd = startOfDay(currentPeriod.end);
+    const pTarget = startOfDay(targetDate);
+    if (pTarget >= curPStart && pTarget <= curPEnd) {
+      return res.json({
+        paydayDate,
+        paycheckAmount: 0,
+        rollover: initialBalance,
+        totalAvailable: initialBalance,
+        billsThisPeriod: currentPeriodBills,
+        plansDueThisPeriod: currentPeriodPlans,
+        expensesThisPeriod: currentPeriodExpenses,
+        balance: dashboardBalance,
+        periods,
+        isFirstPeriod: isOnboardingPeriod,
+      });
+    }
+
+    // Advance to the next period for the chain loop.
+    if (!currentPeriod.nextPayDate) {
+      return res.status(400).json({ error: "Unable to compute next budget period." });
+    }
+    chainPeriod = getBudgetPeriod(sources, currentPeriod.nextPayDate);
+    if (!chainPeriod) {
+      return res.status(400).json({ error: "Unable to compute next budget period." });
+    }
 
     while (iteration < MAX_ITERATIONS) {
-      const { start, end, nextPayDate, totalIncome } = currentPeriod;
+      const { start, end, nextPayDate, totalIncome } = chainPeriod;
 
       const overrideMap = await loadOverrideMap(req.userId, start, end);
       const periodPayments = await loadBillPayments(req.userId, start, end);
 
-      // Route through the shared engine. Iteration 0 (current period)
-      // uses windowStart=todayNorm and recurringIncome=0 — matches the
-      // dashboard exactly. Future periods use full period + paycheck.
-      const isCurrent = iteration === 0;
       const result = await computePeriodBalance({
         userId: req.userId,
         periodStart: start,
         periodEnd: end,
         startingBalance: rollover,
-        recurringIncome: isCurrent ? 0 : totalIncome,
+        recurringIncome: totalIncome,
         bills,
         overrideMap,
         payments: periodPayments,
-        windowStart: isCurrent ? todayNorm : undefined,
       });
 
-      // Payment plans due in THIS period — deducted from every period
-      // in the chain so downstream rollovers are correct.
+      // Payment plans due in THIS period
       const plansDue = sumPlansDue(start, end);
       const periodBalance = result.estimatedEnd - plansDue;
 
@@ -531,7 +577,7 @@ router.get("/projected-balance", authRequired, async (req, res) => {
           expensesThisPeriod: result.totalExpenses,
           balance: periodBalance,
           periods,
-          isFirstPeriod: isCurrent && isOnboardingPeriod,
+          isFirstPeriod: false,
         });
       }
 
@@ -542,7 +588,7 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       if (!nextBudget) {
         return res.status(400).json({ error: "Unable to compute next budget period." });
       }
-      currentPeriod = nextBudget;
+      chainPeriod = nextBudget;
       iteration++;
     }
 

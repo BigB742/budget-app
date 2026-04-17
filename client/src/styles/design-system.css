@@ -112,6 +112,9 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 100vh;
   animation: pp-fade-in 150ms ease-out both;
   box-sizing: border-box;
+  /* Center the content column in split-screen and ultra-wide viewports */
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 @keyframes pp-fade-in {
@@ -1064,7 +1067,7 @@ h1, h2, h3, h4, h5, h6 {
 
   .dashboard-page .hero { padding: 40px 24px 44px !important; }
   .dashboard-page .hero-balance { font-size: clamp(52px, 6vw, 72px) !important; }
-  .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
 }
 
 /* ═══════════════════════════════════════
