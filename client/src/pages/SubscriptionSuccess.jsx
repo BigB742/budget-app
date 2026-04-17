@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
+import { storeUser } from "../utils/safeStorage";
 
 const SubscriptionSuccess = () => {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const SubscriptionSuccess = () => {
       try {
         const profile = await authFetch("/api/user/me");
         if (!profile || cancelled) return false;
-        localStorage.setItem("user", JSON.stringify(profile));
+        storeUser(profile);
         if (profile.isPremium) {
           setStatus("success");
           // Brief pause so the user sees the success message, then go to dashboard

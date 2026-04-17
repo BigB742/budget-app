@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_URL } from "../config";
+import { storeUser } from "../utils/safeStorage";
 
 const Verify2FA = () => {
   const [params] = useSearchParams();
@@ -19,7 +20,7 @@ const Verify2FA = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Invalid code.");
       localStorage.setItem("token", data.token);
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.user) storeUser(data.user);
       navigate("/app");
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }

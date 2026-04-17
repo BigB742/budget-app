@@ -3,6 +3,17 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
+
+// Anonymize IP addresses before storing in loginHistory. Uses a one-way
+// SHA-256 hash so we can detect repeat logins from the same IP (for
+// security review) without storing the raw IP (PII under GDPR/CCPA).
+// The salt is the JWT secret so hashes are server-specific and can't
+// be rainbow-tabled across deployments.
+const hashIP = (ip) => {
+  if (!ip || ip === "unknown") return "unknown";
+  const salt = process.env.JWT_SECRET || "pp";
+  return crypto.createHmac("sha256", salt).update(ip).digest("hex").slice(0, 16);
+};
 const IncomeSource = require("../models/IncomeSource");
 const Bill = require("../models/Bill");
 const { sendEmail } = require("../utils/email");
@@ -170,7 +181,7 @@ router.post("/login", async (req, res) => {
     user.loginHistory = user.loginHistory || [];
     user.loginHistory.unshift({
       timestamp: new Date(),
-      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
+      ip: hashIP(req.headers["x-forwarded-for"] || req.socket?.remoteAddress),
       userAgent: req.headers["user-agent"] || "unknown",
     });
     // Keep only last 20 entries
@@ -369,7 +380,7 @@ router.post("/verify-2fa", async (req, res) => {
     user.loginHistory = user.loginHistory || [];
     user.loginHistory.unshift({
       timestamp: new Date(),
-      ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown",
+      ip: hashIP(req.headers["x-forwarded-for"] || req.socket?.remoteAddress),
       userAgent: req.headers["user-agent"] || "unknown",
     });
     if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(0, 20);

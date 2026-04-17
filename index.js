@@ -90,10 +90,13 @@ app.use(
       if (origin === "https://paypulse.money" || origin === "https://www.paypulse.money") return callback(null, true);
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
-    // We use Bearer tokens in the Authorization header (not cookies),
-    // so credentials mode is not required. The browser sends headers
-    // explicitly via fetch — no cookie auto-attach behavior to worry
-    // about. Setting credentials: false keeps preflight permissive.
+    // SECURITY NOTE: credentials is set to false because PayPulse uses
+    // Bearer tokens in the Authorization header, not cookies. If you
+    // ever add cookie-based auth (e.g. "remember me" sessions), you
+    // MUST change this to `credentials: true` AND verify that every
+    // origin in the allowlist is an explicit string (no wildcards).
+    // Without that change, cookies won't send cross-origin and sessions
+    // will silently fail. — Audited 2026-04-15
     credentials: false,
   })
 );

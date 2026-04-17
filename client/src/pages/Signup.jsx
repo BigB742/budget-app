@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
+import { storeUser } from "../utils/safeStorage";
 
 const COUNTRY_CODES = [
   { code: "+1", country: "US", label: "+1 (USA)" },
@@ -48,7 +49,7 @@ const Signup = () => {
         navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
         localStorage.setItem("token", data.token);
-        if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+        if (data.user) storeUser(data.user);
         navigate("/app");
       }
     } catch (err) { setError(err.message); }

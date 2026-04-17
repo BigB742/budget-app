@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { authFetch } from "../apiClient";
+import { storeUser, clearUser } from "../utils/safeStorage";
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
@@ -56,7 +57,7 @@ const ProtectedRoute = ({ children }) => {
         }
 
         setUser(profile);
-        localStorage.setItem("user", JSON.stringify(profile));
+        storeUser(profile);
       } catch (err) {
         if (cancelled) return;
         // Auth failed — clear token so we don't loop back from /login

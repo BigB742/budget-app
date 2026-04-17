@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { authFetch } from "../apiClient";
+import { storeUser } from "../utils/safeStorage";
 
 const DataCacheContext = createContext(null);
 
@@ -67,7 +68,7 @@ export const DataCacheProvider = ({ children }) => {
     try {
       const data = await authFetch("/api/user/me");
       setProfile(data);
-      localStorage.setItem("user", JSON.stringify(data));
+      storeUser(data);
       lastFetchedAt.current.profile = Date.now();
       return data;
     } catch { return profile; }

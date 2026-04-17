@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
+import { storeUser } from "../utils/safeStorage";
 
 const getFirstName = () => {
   try { return JSON.parse(localStorage.getItem("user"))?.firstName || ""; } catch { return ""; }
@@ -52,7 +53,7 @@ const TourOverlay = ({ onFinish }) => {
     try {
       const u = JSON.parse(localStorage.getItem("user") || "{}");
       u.tourCompleted = true;
-      localStorage.setItem("user", JSON.stringify(u));
+      storeUser(u);
     } catch { /* ok */ }
     onFinish?.();
   };

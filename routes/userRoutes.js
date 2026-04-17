@@ -26,7 +26,9 @@ const userResponse = (user) => ({
   locale: user.locale || "en",
   notificationPrefs: user.notificationPrefs || {},
   incomeSettings: user.incomeSettings || {},
-  loginHistory: (user.loginHistory || []).slice(0, 5),
+  // Strip IP hashes from client response — the frontend only shows
+  // time + browser. The hash stays in the DB for security auditing.
+  loginHistory: (user.loginHistory || []).slice(0, 5).map(({ timestamp, userAgent }) => ({ timestamp, userAgent })),
   twoFactorEnabled: !!user.twoFactorEnabled,
   incomeType: user.incomeType || "fixed",
   isAdmin: !!user.isAdmin,

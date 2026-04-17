@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
+import { storeUser } from "../utils/safeStorage";
 
 const VerifyEmail = () => {
   const [params] = useSearchParams();
@@ -49,7 +50,7 @@ const VerifyEmail = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed.");
       localStorage.setItem("token", data.token);
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.user) storeUser(data.user);
       navigate("/app");
     } catch (err) {
       setError(err.message);

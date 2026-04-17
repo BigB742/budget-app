@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authFetch } from "../apiClient";
+import { storeUser } from "../utils/safeStorage";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -55,7 +56,7 @@ const Onboarding = () => {
     setSaving(true);
     try {
       const updated = await authFetch("/api/user/complete-onboarding", { method: "POST" });
-      localStorage.setItem("user", JSON.stringify(updated));
+      storeUser(updated);
     } catch { /* non-critical */ }
     window.location.href = "/app";
   };
@@ -86,7 +87,7 @@ const Onboarding = () => {
           body: JSON.stringify({ incomeType: type }),
         });
         const stored = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem("user", JSON.stringify({ ...stored, incomeType: type }));
+        storeUser({ ...stored, incomeType: type });
       } catch { /* non-critical */ }
       setStep(3);
     };

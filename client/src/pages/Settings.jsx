@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
+import { storeUser } from "../utils/safeStorage";
 
 
 const FONT_SCALES = [
@@ -101,7 +102,7 @@ const Settings = () => {
     setSaving(true); setSaveMsg("");
     try {
       const updated = await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify(form) });
-      setUser(updated); localStorage.setItem("user", JSON.stringify(updated)); setDirty(false);
+      setUser(updated); storeUser(updated); setDirty(false);
       setSaveMsg("Saved"); setTimeout(() => setSaveMsg(""), 2000);
     } catch (err) { setSaveMsg(err?.message || "Error"); }
     finally { setSaving(false); }
@@ -219,8 +220,8 @@ const Settings = () => {
                   <div className="s-field"><span className="s-field-label">Password</span><div className="s-pw-row"><span className="s-pw-dots">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span><button type="button" className="link-button s-change-pw" onClick={() => setShowPwModal(true)}>Change</button></div></div>
                   <div className="s-field"><span className="s-field-label">Two-factor auth</span><div className="s-pw-row">
                     {user.twoFactorEnabled
-                      ? <><span style={{ color: "var(--teal)", fontSize: "0.82rem", fontWeight: 600 }}>Enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--red)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: false }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); localStorage.setItem("user", JSON.stringify(u2)); } catch {} }}>Disable</button></>
-                      : <><span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Not enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--teal)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: true }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); localStorage.setItem("user", JSON.stringify(u2)); } catch {} }}>Enable</button></>
+                      ? <><span style={{ color: "var(--teal)", fontSize: "0.82rem", fontWeight: 600 }}>Enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--red)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: false }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); storeUser(u2); } catch {} }}>Disable</button></>
+                      : <><span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Not enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--teal)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: true }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); storeUser(u2); } catch {} }}>Enable</button></>
                     }
                   </div></div>
                 </div>
@@ -429,7 +430,7 @@ const Settings = () => {
                         // Refresh user in localStorage so useSubscription picks up the new status
                         try {
                           const refreshed = await authFetch("/api/user/me");
-                          localStorage.setItem("user", JSON.stringify(refreshed));
+                          storeUser(refreshed);
                           setUser(refreshed);
                         } catch { /* ignore */ }
                       } catch (err) {
@@ -495,7 +496,7 @@ const Settings = () => {
                   stored.onboardingComplete = false;
                   stored.currentBalance = 0;
                   stored.totalSavings = 0;
-                  localStorage.setItem("user", JSON.stringify(stored));
+                  storeUser(stored);
                   setShowResetModal(false);
                   // Hard redirect — forces ProtectedRoute to re-mount and fetch
                   // the fresh profile, which will now have onboardingComplete: false

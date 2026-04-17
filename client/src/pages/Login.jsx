@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { API_URL } from "../config";
+import { storeUser } from "../utils/safeStorage";
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -41,7 +42,7 @@ const Login = () => {
         return;
       }
       localStorage.setItem("token", data.token);
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.user) storeUser(data.user);
       navigate("/app");
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }

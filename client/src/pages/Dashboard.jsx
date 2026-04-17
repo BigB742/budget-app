@@ -213,7 +213,7 @@ const Dashboard = () => {
       )}
 
       {/* Incomplete setup warning */}
-      {summary && summary.empty && (!storedUser.currentBalance || storedUser.currentBalance === 0) && (
+      {summary && summary.empty && (!summary.currentBalance || summary.currentBalance === 0) && (
         <Link to="/onboarding" className="dash-setup-banner">
           <span>⚠️ Your balance may not be accurate. Add your current bank balance and income to see your real spendable balance.</span>
           <span className="dash-setup-banner-cta">Set up →</span>
