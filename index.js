@@ -72,7 +72,7 @@ const corsAllowList = allowedOriginsEnv
   .filter(Boolean);
 const defaultCorsAllowList = [
   process.env.APP_URL,
-  "https://paypulse-frontend.vercel.app",
+  "https://paypulse.money",
   "http://localhost:5173",
   "http://localhost:3000",
 ].filter(Boolean);
@@ -85,7 +85,9 @@ app.use(
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       // Allow Vercel preview deploys (paypulse-*.vercel.app).
+      // Allow Vercel preview deploys and the custom domain.
       if (/^https:\/\/paypulse-[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+      if (origin === "https://paypulse.money" || origin === "https://www.paypulse.money") return callback(null, true);
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     // We use Bearer tokens in the Authorization header (not cookies),

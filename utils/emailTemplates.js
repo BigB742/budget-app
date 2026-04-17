@@ -3,7 +3,7 @@
 // accent #f97316, white text. Designed to render correctly across Gmail,
 // Outlook, Apple Mail, and other email clients.
 
-const APP_URL = "https://paypulse-frontend.vercel.app";
+const APP_URL = process.env.APP_URL || "https://paypulse.money";
 const SUPPORT_EMAIL = "support@productoslaloma.com";
 
 // Base wrapper used by every email — provides the PayPulse branding,

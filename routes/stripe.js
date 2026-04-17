@@ -10,7 +10,7 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 // Frontend base URL for Stripe redirect URLs. Override in env for local dev
 // (APP_URL=http://localhost:5173) so checkout redirects back to your local
 // server instead of the deployed one.
-const FRONTEND_URL = process.env.APP_URL || "https://paypulse-frontend.vercel.app";
+const FRONTEND_URL = process.env.APP_URL || "https://paypulse.money";
 
 // Price IDs come from env vars only — NO fallbacks. Price IDs are
 // environment-specific in Stripe: a test ID will never resolve against

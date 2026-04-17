@@ -9,7 +9,7 @@ const { buildBillReminderEmail } = require("../utils/emailTemplates");
 // Frontend URL used in reminder email links. APP_URL is the canonical
 // override (already used by routes/stripe.js). DASHBOARD_URL is kept as
 // a legacy fallback to avoid breaking any deployment that already sets it.
-const DASHBOARD_URL = process.env.APP_URL || process.env.DASHBOARD_URL || "https://paypulse-frontend.vercel.app";
+const DASHBOARD_URL = process.env.APP_URL || process.env.DASHBOARD_URL || "https://paypulse.money";
 
 let transporter = null;
 

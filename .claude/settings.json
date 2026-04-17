@@ -18,7 +18,10 @@
       "Bash(echo \"exit:$?\")",
       "Bash(brew install:*)",
       "Bash(git filter-repo:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(node --check routes/stripe.js)",
+      "Bash(node --check utils/emailTemplates.js)",
+      "Bash(node --check jobs/billReminders.js)"
     ]
   }
 }
