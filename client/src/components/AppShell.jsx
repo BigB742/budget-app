@@ -26,11 +26,34 @@ const AppShell = () => {
     } catch { /* ignore */ }
   }, []); // run once on mount
 
-  // Expose a global function so Settings / Help Center can relaunch
+  // Expose a global function so Settings / Help Center can relaunch.
+  // The function navigates to the dashboard FIRST and sets a pending
+  // flag — the next effect picks it up once the route settles so the
+  // tour spotlights the dashboard elements, not whatever page the
+  // button was on.
   useEffect(() => {
-    window.__ppLaunchTour = () => setShowTour(true);
+    window.__ppLaunchTour = () => {
+      if (location.pathname !== "/app") {
+        sessionStorage.setItem("pp_tourPending", "1");
+        navigate("/app");
+      } else {
+        setShowTour(true);
+      }
+    };
     return () => { delete window.__ppLaunchTour; };
-  }, []);
+  }, [navigate, location.pathname]);
+
+  // Pick up the pending flag once the dashboard mounts after a
+  // navigation-from-Settings launch. Small delay lets the DOM settle
+  // so querySelector on .hero resolves.
+  useEffect(() => {
+    if (location.pathname !== "/app") return;
+    if (sessionStorage.getItem("pp_tourPending") === "1") {
+      sessionStorage.removeItem("pp_tourPending");
+      const t = setTimeout(() => setShowTour(true), 200);
+      return () => clearTimeout(t);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");

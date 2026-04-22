@@ -13,8 +13,9 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
-/* ─── Token refresh — dark-first, light stays unchanged ───────────── */
-:root,
+/* ─── Token refresh — scoped to data-theme="dark" ONLY so switching
+       to data-theme="light" reveals the light palette from index.css.
+       main.jsx sets data-theme="dark" by default for new visitors. ─── */
 [data-theme="dark"] {
   --navy:          #0D1117;
   --navy-2:        #161B22;

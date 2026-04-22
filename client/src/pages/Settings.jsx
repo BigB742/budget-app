@@ -35,12 +35,6 @@ const Settings = () => {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState("");
 
-  const [billReminders, setBillReminders] = useState(true);
-  const [lowBalanceWarning, setLowBalanceWarning] = useState(false);
-  const [lowBalanceThreshold, setLowBalanceThreshold] = useState(100);
-  const [editingThreshold, setEditingThreshold] = useState(false);
-  const [thresholdDraft, setThresholdDraft] = useState("100");
-
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState("confirm"); // "confirm" | "code"
   const [deleteCode, setDeleteCode] = useState("");
@@ -84,11 +78,6 @@ const Settings = () => {
       const p = await authFetch("/api/user/me");
       setUser(p);
       setForm({ firstName: p.firstName || "", lastName: p.lastName || "", email: p.email || "", dateOfBirth: p.dateOfBirth?.slice?.(0, 10) || "" });
-      setBillReminders(p.notificationPrefs?.billReminders !== false);
-      setLowBalanceWarning(!!p.notificationPrefs?.lowBalanceWarning);
-      const t = p.notificationPrefs?.lowBalanceThreshold || 100;
-      setLowBalanceThreshold(t);
-      setThresholdDraft(String(t));
     } catch (err) {
       if (err?.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); }
     } finally { setLoading(false); }
@@ -117,18 +106,6 @@ const Settings = () => {
       setShowPwModal(false); setPwForm({ current: "", newPw: "", confirm: "" });
     } catch (err) { setPwError(err?.message || "Failed."); }
     finally { setPwSaving(false); }
-  };
-
-  const saveNotifPref = async (prefs) => {
-    try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ notificationPrefs: prefs }) }); } catch { /* best effort */ }
-  };
-
-  const handleBillToggle = (v) => { setBillReminders(v); saveNotifPref({ billReminders: v, lowBalanceWarning, lowBalanceThreshold }); };
-  const handleLowBalToggle = (v) => { setLowBalanceWarning(v); saveNotifPref({ billReminders, lowBalanceWarning: v, lowBalanceThreshold }); };
-  const handleThresholdSave = () => {
-    const val = Number(thresholdDraft) || 100;
-    setLowBalanceThreshold(val); setEditingThreshold(false);
-    saveNotifPref({ billReminders, lowBalanceWarning, lowBalanceThreshold: val });
   };
 
   const initials = ((form.firstName?.[0] || "") + (form.lastName?.[0] || "")).toUpperCase() || "?";
@@ -255,42 +232,6 @@ const Settings = () => {
 
         {/* RIGHT */}
         <div className="settings-col">
-          {/* Notifications */}
-          <div className="settings-section">
-            <h2 className="section-title">Notifications</h2>
-            <label className="s-toggle-row">
-              <div><span className="s-toggle-label">Bill reminders</span><span className="s-toggle-sub">Get emailed 3 days before a bill is due</span></div>
-              <input type="checkbox" className="s-toggle" checked={billReminders} onChange={(e) => handleBillToggle(e.target.checked)} />
-            </label>
-            {isPremium ? (
-              <label className="s-toggle-row">
-                <div>
-                  <span className="s-toggle-label">Low balance warning</span>
-                  {lowBalanceWarning && !editingThreshold && (
-                    <span className="s-toggle-sub" style={{ color: "#8B95A1" }}>
-                      Alert me when balance drops below <strong style={{ color: "#8B95A1" }}>${lowBalanceThreshold}</strong>{" "}
-                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B95A1" }} onClick={() => { setThresholdDraft(String(lowBalanceThreshold)); setEditingThreshold(true); }}>Edit</button>
-                    </span>
-                  )}
-                  {lowBalanceWarning && editingThreshold && (
-                    <span className="s-toggle-sub s-threshold-edit" style={{ color: "#8B95A1" }}>
-                      Alert below: $<input type="number" min="0" value={thresholdDraft} onChange={(e) => setThresholdDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleThresholdSave()} className="s-threshold-input" />
-                      <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B95A1" }} onClick={handleThresholdSave}>Save</button>
-                    </span>
-                  )}
-                </div>
-                <input type="checkbox" className="s-toggle" checked={lowBalanceWarning} onChange={(e) => handleLowBalToggle(e.target.checked)} />
-              </label>
-            ) : (
-              <div className="s-toggle-row premium-locked-row">
-                <div>
-                  <span className="s-toggle-label" style={{ opacity: 0.5 }}>Low balance warning</span>
-                  <span className="s-toggle-sub" style={{ color: "#8B95A1" }}>Low balance alerts are a Premium feature. Upgrade to get notified before you overdraft.</span>
-                </div>
-                <Link to="/subscription" className="premium-lock-badge">Premium <span style={{ fontSize: "0.65rem" }}>Upgrade</span></Link>
-              </div>
-            )}
-          </div>
 
           {/* Login history */}
           <div className="settings-section">
