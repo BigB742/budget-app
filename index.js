@@ -33,6 +33,21 @@ const {
   apiLimiter,
 } = require("./middleware/rateLimit");
 const stripeRoutes = require("./routes/stripe");
+const { reportError } = require("./utils/observability");
+
+// Forward unhandled async/sync errors to the observability shim so
+// they get the same structured logging as request-handler errors.
+// Without these, a thrown promise rejection in a cron job or background
+// migration would be invisible. Don't process.exit here — Vercel's
+// runtime restarts the function on the next request anyway.
+process.on("unhandledRejection", (reason) => {
+  reportError(reason instanceof Error ? reason : new Error(String(reason)), {
+    source: "unhandledRejection",
+  }, "critical");
+});
+process.on("uncaughtException", (err) => {
+  reportError(err, { source: "uncaughtException" }, "critical");
+});
 
 // ── Startup config validation ──────────────────────────────────────────
 // JWTs are signed with HMAC-SHA256, which requires the secret to be at
@@ -258,8 +273,16 @@ app.use("/api", protectedRouter);
 // stack traces reveal file paths and tech stack, mongoose CastError
 // reveals collection/field names, etc. Log the full error server-side
 // and return a generic message.
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   console.error("[GlobalErrorHandler]", err?.name, err?.message, err?.stack);
+  // Forward to the observability shim with request context so a vendor
+  // can group by route. CORS rejections happen on every preflight from
+  // disallowed origins so they're noisy — log them at "warning" level
+  // instead of "error" to avoid drowning out genuine bugs.
+  reportError(err, {
+    route: req?.path,
+    method: req?.method,
+  }, err?.isCorsRejection ? "warning" : "error");
 
   // Mongoose-specific error normalization for slightly better client UX,
   // but still WITHOUT echoing the raw error string.

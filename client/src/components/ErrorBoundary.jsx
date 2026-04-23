@@ -1,4 +1,5 @@
 import React from "react";
+import { reportError } from "../utils/observability";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -11,7 +12,10 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("ErrorBoundary caught:", error, info);
+    // Forward to the obs shim so a future vendor (Sentry, etc.) gets the
+    // component stack alongside the error. The shim still console.errors
+    // today so local dev sees the same payload.
+    reportError(error, { componentStack: info?.componentStack, source: "ErrorBoundary" }, "error");
   }
 
   render() {
