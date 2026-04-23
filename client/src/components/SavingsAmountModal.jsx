@@ -23,17 +23,18 @@ const SavingsAmountModal = ({ goalName, mode = "add", maxAmount, onConfirm, onCl
   const buttonLabel = mode === "withdraw" ? "Withdraw" : "Add";
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h4>{title}</h4>
-          <button type="button" className="ghost-button" onClick={onClose}>x</button>
+    <div className="pp5-modal-overlay" onClick={onClose}>
+      <div className="pp5-modal has-inset-highlight" onClick={(e) => e.stopPropagation()}>
+        <div className="pp5-modal-header">
+          <h4 className="pp5-modal-title">{title}</h4>
+          <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <label>
-            Amount
+        <form className="pp5-modal-body" onSubmit={handleSubmit}>
+          <div className="pp5-field">
+            <label className="pp5-field-label">Amount</label>
             <input
               ref={inputRef}
+              className="pp5-input"
               type="number"
               step="0.01"
               min="0.01"
@@ -43,11 +44,11 @@ const SavingsAmountModal = ({ goalName, mode = "add", maxAmount, onConfirm, onCl
               onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(e); }}
               required
             />
-          </label>
-          {error && <div className="inline-error">{error}</div>}
-          <div className="modal-actions">
-            <button type="button" className="ghost-button" onClick={onClose}>Cancel</button>
-            <button type="submit" className="primary-button">{buttonLabel}</button>
+          </div>
+          {error && <p className="pp5-field-error">{error}</p>}
+          <div className="pp5-modal-actions">
+            <button type="button" className="pp5-btn pp5-btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="pp5-btn pp5-btn-primary">{buttonLabel}</button>
           </div>
         </form>
       </div>

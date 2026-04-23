@@ -2631,27 +2631,35 @@ textarea:focus-visible {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  animation: pp-fade-in 200ms ease-out both;
+  padding: 24px;
+  animation: pp-fade-in 200ms var(--ease-out-soft) both;
 }
 .p4-modal-card {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 440px;
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  max-width: 480px;
   width: 100%;
-  animation: p4-modal-in 200ms ease-out both;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              0 40px 80px rgba(0, 0, 0, 0.5);
+  animation: p4-modal-in 300ms var(--ease-out-soft) both;
+}
+@media (max-width: 479px) {
+  .p4-modal-card { padding: 28px 20px; border-radius: var(--radius-lg); }
 }
 @keyframes p4-modal-in {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .p4-modal-title {
   font-size: 28px;
@@ -2679,12 +2687,12 @@ textarea:focus-visible {
   display: block;
   width: 100%;
   height: 48px;
-  padding: 0 14px;
-  font-size: 16px;
-  color: var(--color-text);
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 17px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-variant-numeric: tabular-nums;
   box-sizing: border-box;
@@ -2692,8 +2700,8 @@ textarea:focus-visible {
 }
 .p4-field-input:focus {
   outline: none;
-  border-color: var(--teal);
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
 }
 .p4-field-help {
   display: block;
@@ -3379,7 +3387,7 @@ textarea:focus-visible {
 .pp5-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   z-index: 1000;
@@ -3387,7 +3395,7 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: pp5-modal-fade 200ms var(--ease-standard) both;
+  animation: pp5-modal-fade 200ms var(--ease-out-soft) both;
 }
 @keyframes pp5-modal-fade {
   from { opacity: 0; }
@@ -3402,13 +3410,18 @@ textarea:focus-visible {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: pp5-modal-in 250ms var(--ease-standard) both;
+  animation: pp5-modal-in 300ms var(--ease-out-soft) both;
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              0 40px 80px rgba(0, 0, 0, 0.5);
 }
 .pp5-modal-wide { max-width: 600px; }
+@media (max-width: 479px) {
+  .pp5-modal { padding: 28px 20px; border-radius: var(--radius-lg); }
+}
 @keyframes pp5-modal-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .pp5-modal-header {
   margin-bottom: var(--space-5);
