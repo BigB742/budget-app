@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
 import {
   IconMenu,
@@ -45,9 +45,42 @@ const TopNav = ({ onLogout }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef(null);
+  const navRef = useRef(null);
+  const location = useLocation();
+  const [underline, setUnderline] = useState({ left: 0, width: 0, visible: false });
   const user = getStoredUser();
   const initials = getInitials(user);
   const isAdmin = !!user?.isAdmin;
+
+  // Measure the active link and position the teal underline under it.
+  // Re-measures on route change, on resize, and whenever the nav layout
+  // shifts (font loads, content changes).
+  useLayoutEffect(() => {
+    const measure = () => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const active = nav.querySelector(".pp-top-link.active");
+      if (!active) {
+        setUnderline((u) => ({ ...u, visible: false }));
+        return;
+      }
+      const navBox = nav.getBoundingClientRect();
+      const aBox = active.getBoundingClientRect();
+      setUnderline({
+        left: aBox.left - navBox.left,
+        width: aBox.width,
+        visible: true,
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = "ResizeObserver" in window ? new ResizeObserver(measure) : null;
+    if (ro && navRef.current) ro.observe(navRef.current);
+    return () => {
+      window.removeEventListener("resize", measure);
+      if (ro) ro.disconnect();
+    };
+  }, [location.pathname]);
 
   // Close the avatar dropdown when clicking outside
   useEffect(() => {
@@ -92,7 +125,7 @@ const TopNav = ({ onLogout }) => {
         </Link>
 
         {/* Desktop nav — center/right, hidden on mobile */}
-        <nav className="pp-top-nav" aria-label="Primary navigation">
+        <nav className="pp-top-nav" aria-label="Primary navigation" ref={navRef}>
           {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
@@ -113,6 +146,11 @@ const TopNav = ({ onLogout }) => {
               <span>Admin</span>
             </NavLink>
           )}
+          <span
+            className={`pp-top-underline${underline.visible ? " is-visible" : ""}`}
+            style={{ transform: `translateX(${underline.left}px)`, width: `${underline.width}px` }}
+            aria-hidden="true"
+          />
         </nav>
 
         {/* Right cluster — badge + avatar (desktop) / hamburger (mobile) */}

@@ -1965,7 +1965,7 @@ textarea:focus-visible {
   color: var(--text);
 }
 .pp-top-link.active {
-  background: rgba(20, 184, 166, 0.12);
+  background: transparent;
   color: var(--teal);
   font-weight: 600;
 }
@@ -3103,18 +3103,35 @@ textarea:focus-visible {
   color: var(--color-accent-teal) !important;
   background: transparent !important;
 }
-.pp-top-link.active::after {
-  content: "";
+/* Legacy per-link pseudo-underline retired in favor of the animated
+   sliding underline rendered by the nav container below. */
+.pp-top-link.active::after { content: none !important; }
+.pp-top-link svg { width: 16px; height: 16px; }
+
+/* Animated nav underline — positioned absolutely inside .pp-top-nav
+   (which must be position: relative), its left/width are driven by
+   useLayoutEffect in TopNav.jsx, so it slides between active items. */
+.pp-top-nav { position: relative; }
+.pp-top-underline {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 0;
   bottom: -8px;
   height: 2px;
   background: var(--color-accent-teal);
   border-radius: 1px;
-  transition: all 300ms var(--ease-standard);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(0);
+  transition:
+    transform 300ms var(--ease-out-soft),
+    width 300ms var(--ease-out-soft),
+    opacity 200ms var(--ease-out-soft);
+  will-change: transform, width;
 }
-.pp-top-link svg { width: 16px; height: 16px; }
+.pp-top-underline.is-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .pp-top-underline { transition: opacity 150ms linear; }
+}
 
 .pp-top-avatar {
   width: 32px !important;
