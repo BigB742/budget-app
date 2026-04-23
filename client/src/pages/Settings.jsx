@@ -230,8 +230,7 @@ const Settings = () => {
               <div>
                 <p className="pp5-settings-action-label">PayPulse Premium</p>
                 <p className="pp5-settings-action-description">
-                  {isTrialing ? "Free trial active." : "Active plan."}
-                  {subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
+                  Active plan.{subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
                 </p>
               </div>
               <button type="button" className="pp5-settings-action-btn teal" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
@@ -483,9 +482,7 @@ const Settings = () => {
             {!cancelResult ? (
               <>
                 <p className="pp5-modal-description">
-                  {isTrialing
-                    ? "Cancel your trial? You won't be charged, and premium access ends on the trial end date."
-                    : "Cancel your subscription? You'll keep premium access until the end of your current billing period."}
+                  Cancel your subscription? You'll keep premium access until the end of your current billing period.
                 </p>
                 {cancelError && <p className="pp5-field-error">{cancelError}</p>}
                 <div className="pp5-modal-actions">
@@ -509,10 +506,10 @@ const Settings = () => {
                 {cancelResult.endDate ? (
                   <>
                     <p className="type-subtitle" style={{ color: "var(--color-accent-teal)", margin: "16px 0 8px" }}>
-                      {cancelResult.wasTrialing ? "Trial canceled." : "Subscription canceled."}
+                      Subscription canceled.
                     </p>
                     <p className="pp5-modal-description">
-                      {cancelResult.wasTrialing ? "Trial ends " : "Access continues until "}
+                      Access continues until{" "}
                       <strong style={{ color: "var(--color-text-primary)" }}>{formatDate(cancelResult.endDate)}</strong>.
                     </p>
                   </>

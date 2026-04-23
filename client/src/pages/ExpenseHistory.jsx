@@ -6,6 +6,7 @@ import { useDataCache } from "../context/DataCache";
 import AddExpenseModal from "../components/AddExpenseModal";
 import EditExpenseModal from "../components/EditExpenseModal";
 import PageContainer from "../components/PageContainer";
+import AnimatedNumber from "../components/AnimatedNumber";
 
 // Classify an expense date relative to the user's current pay period.
 // Returns "current" | "upcoming" | "past" | null (null if we don't have
@@ -183,7 +184,7 @@ const ExpenseHistory = () => {
                 {categoryData.map((_, i) => <Cell key={i} fill={getCategoryColor(categoryData[i]?.name || "Other")} />)}
               </Pie><Tooltip formatter={(v) => currency.format(v)} /></PieChart>
             </ResponsiveContainer>
-            <div className="donut-center"><span className="donut-center-label">Total</span><span className="donut-center-value">{currency.format(chartTotal)}</span></div>
+            <div className="donut-center"><span className="donut-center-label">Total</span><span className="donut-center-value"><AnimatedNumber value={chartTotal} /></span></div>
           </div>
           <div className="spending-legend" style={{ maxWidth: 400, margin: "0.5rem auto 0" }}>
             {categoryData.map((c, i) => (
@@ -202,7 +203,7 @@ const ExpenseHistory = () => {
       {loading ? <p className="pp5-empty">Loading…</p> : sortedExpenses.length === 0 ? (
         <p className="pp5-empty">No expenses yet.</p>
       ) : (
-        <ul className="history-list">
+        <ul className="history-list stagger-list">
           {sortedExpenses.map((exp) => {
             const periodClass = classifyPayPeriod(exp.date, currentPeriod);
             return (
