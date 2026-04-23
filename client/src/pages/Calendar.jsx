@@ -459,8 +459,15 @@ const Calendar = () => {
                     {db.map((b) => {
                       const paid = isBillPaid(b._id, key);
                       const priorToTracking = isBillBeforeTracking(key);
-                      if (paid || priorToTracking) return <span key={b._id} className="cal-paid-tag">Paid</span>;
-                      return <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(getEffectiveAmount(b, key))}</span>;
+                      const amount = currency.format(getEffectiveAmount(b, key));
+                      if (paid || priorToTracking) {
+                        return (
+                          <span key={b._id} className="cal-paid-tag" title="Paid">
+                            <s>{amount}</s>
+                          </span>
+                        );
+                      }
+                      return <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{amount}</span>;
                     })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
