@@ -39,16 +39,23 @@ const stripeRoutes = require("./routes/stripe");
 // resistant. A short or guessable secret means an attacker can forge
 // admin tokens once they observe one valid token.
 //
-// We WARN loudly here but do NOT process.exit() — that would break
-// existing deployments mid-rotation. Bryan must rotate JWT_SECRET in
-// Vercel before launch. The warning is intentionally hard to miss in
-// the cold-start logs.
-if (!process.env.JWT_SECRET) {
-  console.error("\n[SECURITY ★★★★★] JWT_SECRET is NOT SET. Auth will not work.\n");
-} else if (process.env.JWT_SECRET.length < 32) {
+// In production: hard-fail (process.exit(1)) — booting an API that
+// signs forgeable tokens is worse than not booting at all.
+// In dev/test: warn loudly but keep running so contributors aren't
+// blocked by missing env on first clone.
+//
+// Rotate with: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+const JWT_SECRET_BAD = !process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32;
+if (JWT_SECRET_BAD) {
+  const reason = !process.env.JWT_SECRET
+    ? "JWT_SECRET is NOT SET"
+    : `JWT_SECRET is only ${process.env.JWT_SECRET.length} characters (need >= 32)`;
+  if (process.env.NODE_ENV === "production") {
+    console.error(`\n[SECURITY ★★★★★] ${reason}. Refusing to boot in production.\n`);
+    process.exit(1);
+  }
   console.error(
-    "\n[SECURITY ★★★★★] JWT_SECRET is only " + process.env.JWT_SECRET.length +
-    " characters. Required: at least 32 chars of high-entropy random data.\n" +
+    `\n[SECURITY ★★★★★] ${reason}.\n` +
     "Rotate immediately: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"\n" +
     "Then set the new value in Vercel env vars and redeploy. All existing JWTs will be invalidated.\n"
   );
