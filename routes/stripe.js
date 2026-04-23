@@ -118,7 +118,7 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     console.error("[Stripe] Checkout session error:", error?.type, "|", error?.code, "|", error?.message);
     res.status(500).json({
       success: false,
-      error: "We couldn't start your checkout. Please try again or contact support.",
+      error: "We couldn't start your checkout. Try again or contact support.",
     });
   }
 });
@@ -197,7 +197,7 @@ router.delete("/subscription", authRequired, async (req, res) => {
     console.error("[Stripe] Cancel subscription error:", error?.message);
     res.status(500).json({
       success: false,
-      error: "Failed to cancel subscription. Please try again or contact support.",
+      error: "Failed to cancel subscription. Try again or contact support.",
     });
   }
 });

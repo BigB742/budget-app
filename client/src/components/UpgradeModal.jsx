@@ -25,7 +25,7 @@ const UpgradeModal = ({ onClose }) => {
       if (data.url) window.location.href = data.url;
     } catch (err) {
       console.error("[UpgradeModal] checkout failed:", err);
-      setError(err?.message || "Something went wrong. Please try again.");
+      setError(err?.message || "Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }

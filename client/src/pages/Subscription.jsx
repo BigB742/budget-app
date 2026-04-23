@@ -20,7 +20,7 @@ const Subscription = () => {
     } catch (err) {
       // Surface the backend error message instead of the generic fallback.
       // authFetch throws an Error whose .message is the server's `error` field.
-      const msg = err?.message || "Something went wrong. Please try again.";
+      const msg = err?.message || "Something went wrong. Try again.";
       console.error("[Subscription] checkout failed:", err);
       setError(msg);
     } finally {

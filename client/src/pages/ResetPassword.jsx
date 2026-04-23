@@ -37,8 +37,8 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const code = digits.join("");
-    if (code.length < 6) { setError("Please enter all 6 digits."); return; }
-    if (!newPassword) { setError("Please enter a new password."); return; }
+    if (code.length < 6) { setError("Enter all 6 digits."); return; }
+    if (!newPassword) { setError("Enter a new password."); return; }
     if (newPassword !== confirmPassword) { setError("Passwords don't match."); return; }
     setLoading(true);
     setError("");

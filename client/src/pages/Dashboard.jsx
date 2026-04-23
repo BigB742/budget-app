@@ -149,7 +149,7 @@ const Dashboard = () => {
   const handleQuickExpense = async (e) => {
     e.preventDefault();
     if (!quickForm.amount || Number(quickForm.amount) <= 0) {
-      setQuickError("Please enter a valid amount.");
+      setQuickError("Enter a valid amount.");
       return;
     }
     if (quickForm.category === "Other" && !quickForm.description.trim()) {
@@ -175,7 +175,7 @@ const Dashboard = () => {
       setQuickForm({ description: "", amount: "", category: "Food", date: todayISO() });
       setSheetOpen(false);
       refreshAll();
-    } catch { setQuickError("That didn't save. Please try again."); }
+    } catch { setQuickError("That didn't save. Try again."); }
     finally { setQuickSaving(false); }
   };
 
