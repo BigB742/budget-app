@@ -3,6 +3,7 @@ import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
+import AnimatedNumber from "../components/AnimatedNumber";
 
 // ═══════════════════════════════════════════════════════════════════
 // Savings — Phase 4 web-first rebuild
@@ -356,7 +357,7 @@ const GoalCard = ({ goal, onChanged, onDeposit, onWithdraw, onEditTarget, onDele
       </div>
 
       <div className="sv-p4-balance-row">
-        <span className="sv-p4-current">{currency.format(balance)}</span>
+        <span className="sv-p4-current"><AnimatedNumber value={balance} /></span>
         {hasTarget ? (
           <button type="button" className="sv-p4-target-btn" onClick={() => onEditTarget(goal)}>
             of {currency.format(target)}
@@ -407,9 +408,11 @@ const Savings = () => {
         <p className="pp5-page-subtitle">Build toward what matters.</p>
       </div>
 
-      <section className="sv-p4-total-card" style={{ marginBottom: "var(--space-9)" }}>
+      <section className="sv-p4-total-card hero-glow has-inset-highlight" style={{ marginBottom: "var(--space-9)" }}>
         <div className="sv-p4-total-label">Total saved</div>
-        <div className="sv-p4-total-amount">{currency.format(totalSaved)}</div>
+        <div className="sv-p4-total-amount">
+          <AnimatedNumber value={totalSaved} />
+        </div>
       </section>
 
       <section className="pp5-section">
@@ -423,7 +426,7 @@ const Savings = () => {
         ) : goals.length === 0 ? (
           <p className="pp5-empty">No goals yet.</p>
         ) : (
-          <div className="sv-p4-grid">
+          <div className="sv-p4-grid stagger-list">
             {goals.map((g) => (
               <GoalCard
                 key={g._id}
