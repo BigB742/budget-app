@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const { connectDB } = require("./utils/db");
 
 const authRoutes = require("./routes/authRoutes");
@@ -55,9 +56,24 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 
+// HTTP security headers. PayPulse is a JSON API (not an HTML renderer),
+// so CSP and COEP are disabled — they only matter when the server returns
+// markup that the browser will execute. The remaining defaults give us
+// HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and
+// Cross-Origin-Resource-Policy on every response. Verify after deploy:
+//   curl -I https://api.paypulse.money/
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
 // Trust the first proxy hop (Vercel) so req.ip reflects the real client IP
 // instead of the load-balancer's. Required for express-rate-limit to key
 // per-user instead of bucketing all traffic into one IP.
+// NOTE: this assumes EXACTLY one proxy hop. If you ever add Cloudflare
+// or another reverse proxy in front of Vercel, bump this value or
+// req.ip will reflect the intermediate proxy and rate-limit buckets
+// will collapse all clients onto one IP. See README "Deployment".
 app.set("trust proxy", 1);
 
 // CORS allowlist: APP_URL (production frontend), localhost dev, and any
