@@ -55,7 +55,7 @@ const UpgradeModal = ({ onClose }) => {
           onClick={handleUpgrade}
           disabled={loading}
         >
-          {loading ? "Redirecting..." : "Start Free Trial \u2014 3 days free"}
+          {loading ? "Redirecting..." : "Start free trial"}
         </button>
         <button type="button" className="link-button" style={{ color: "var(--text-secondary)", fontSize: "0.78rem" }} onClick={onClose}>
           Maybe later

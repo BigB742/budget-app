@@ -2870,6 +2870,12 @@ textarea:focus-visible {
   --color-border-subtle:   rgba(255, 255, 255, 0.08);
   --color-border-strong:   rgba(255, 255, 255, 0.16);
 
+  /* Premium accent + surface polish — used for gold-ring pulse on Premium
+     avatars and the subtle top-edge highlight that gives cards depth
+     without drop shadows. */
+  --color-premium-gold:    #F59E0B;
+  --color-inset-highlight: rgba(255, 255, 255, 0.04);
+
   /* Re-map existing semantic tokens onto the new palette so legacy code
      picks up the recalibration without needing individual edits. */
   --color-bg:              #0a0b0d;
@@ -2910,9 +2916,12 @@ textarea:focus-visible {
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-in:       cubic-bezier(0.42, 0, 1, 1);
   --ease-out:      cubic-bezier(0, 0, 0.58, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast:     200ms;
   --duration-standard: 300ms;
   --duration-slow:     500ms;
+  --duration-entrance: 400ms;
 }
 
 /* Also apply the bg color to body so the new palette takes immediate
@@ -3883,4 +3892,92 @@ textarea:focus-visible {
 
 /* Cover the body background too when app-shell isn't applied */
 [data-theme="dark"] html { background: var(--color-bg-base); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   LAUNCH POLISH — interaction patterns (press scale, inset highlight,
+   premium pulse, page entrance). Small, global, opt-in via utility
+   classes so invasive per-page edits aren't required.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Button press-scale. Every interactive button responds to tap/click
+   with a subtle scale-down that settles back on release. Scoped to
+   buttons that opt in via the pp5 classes or explicitly carry .pp-press
+   so legacy buttons aren't affected. */
+.pp5-btn,
+.pp-press,
+.pp5-icon-btn,
+.pp5-settings-action-btn {
+  transition:
+    transform 150ms var(--ease-spring),
+    background-color 200ms var(--ease-standard),
+    filter 200ms var(--ease-standard);
+}
+.pp5-btn:active,
+.pp-press:active,
+.pp5-icon-btn:active,
+.pp5-settings-action-btn:active {
+  transform: scale(0.97);
+  transition: transform 100ms var(--ease-spring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp5-btn:active,
+  .pp-press:active,
+  .pp5-icon-btn:active,
+  .pp5-settings-action-btn:active { transform: none; }
+}
+
+/* Card depth without drop shadow. Add .pp-inset-highlight to any
+   elevated surface — cards, modal bodies, stat tiles — for a subtle
+   1px top-edge gleam that reads as "lifted". */
+.pp-inset-highlight {
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+
+/* Premium avatar — gold ring that pulses at 0.5Hz. 2s cycle, subtle,
+   not disco. Applied by TopNav via the .pp-top-avatar-premium class;
+   the keyframes live here so the Subscription page and any future
+   premium surfaces can opt in. */
+@keyframes pp-premium-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px var(--color-premium-gold),
+      0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--color-premium-gold),
+      0 0 12px 0 rgba(245, 158, 11, 0.6);
+  }
+}
+.avatar-premium,
+.pp-top-avatar-premium {
+  animation: pp-premium-pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-premium,
+  .pp-top-avatar-premium {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--color-premium-gold);
+  }
+}
+
+/* Page entrance — PageContainer children glide into place. Sits on top
+   of the existing pp-fade-in .shell-main animation for a richer "swipe"
+   feel between routes. */
+@keyframes pp-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.pp-container {
+  animation: pp-page-in var(--duration-entrance) var(--ease-out-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-container { animation: none; }
+}
 
