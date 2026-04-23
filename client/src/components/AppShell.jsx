@@ -4,6 +4,7 @@ import { DataCacheProvider } from "../context/DataCache";
 import SessionTimeout from "./SessionTimeout";
 import TopNav from "./TopNav";
 import TourOverlay from "./TourOverlay";
+import OverdueCheckModal from "./OverdueCheckModal";
 
 const AppShell = () => {
   const navigate = useNavigate();
@@ -58,6 +59,7 @@ const AppShell = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("pp_overdueCheckShown");
     navigate("/login");
   };
 
@@ -75,6 +77,7 @@ const AppShell = () => {
 
         <SessionTimeout />
         {showTour && <TourOverlay onFinish={() => setShowTour(false)} />}
+        {!showTour && <OverdueCheckModal />}
       </div>
     </DataCacheProvider>
   );

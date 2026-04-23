@@ -202,7 +202,7 @@ const OnboardingIncome = () => {
                   Pay frequency
                   <select name="frequency" value={form.frequency} onChange={handleChange}>
                     <option value="weekly">Weekly</option>
-                    <option value="biweekly">Bi-weekly</option>
+                    <option value="biweekly">Biweekly</option>
                     <option value="monthly">Monthly</option>
                   </select>
                 </label>

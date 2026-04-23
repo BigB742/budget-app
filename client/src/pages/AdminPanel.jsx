@@ -155,7 +155,7 @@ const UsersSection = () => {
                 <>
                   <h5>Recent Expenses (last 20)</h5>
                   {selected.expenses.map((e) => (
-                    <div key={e._id} className="admin-detail-row"><span>{e.description || e.category} — {formatDate(e.date)}</span><span>{currency.format(e.amount)}</span></div>
+                    <div key={e._id} className="admin-detail-row"><span>{e.description || e.category}, {formatDate(e.date)}</span><span>{currency.format(e.amount)}</span></div>
                   ))}
                 </>
               )}
@@ -319,7 +319,7 @@ const TicketsSection = () => {
         <div className="modal-overlay" onClick={() => setSelected(null)}>
           <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header"><h4>{selected.subject}</h4><button type="button" className="ghost-button" onClick={() => setSelected(null)}>&#x2715;</button></div>
-            <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", margin: "0 0 0.25rem" }}>{selected.email} — {formatDate(selected.createdAt)}</p>
+            <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", margin: "0 0 0.25rem" }}>{selected.email}, {formatDate(selected.createdAt)}</p>
             <p style={{ fontSize: "0.88rem", margin: "0.5rem 0 1rem", whiteSpace: "pre-wrap" }}>{selected.message}</p>
             {selected.status === "open" && (
               <div className="modal-form">

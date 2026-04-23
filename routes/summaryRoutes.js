@@ -116,13 +116,27 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
     const totalBillsDue = sumBillsInPeriod(bills, today, end, overrideMap, payments);
 
-    // Payment Plans: sum installments that hit the current pay period.
-    //   - Unpaid installments: deducted if scheduled `date` is in window.
-    //   - Paid-early installments: deducted if `datePaid` (the day the
-    //     user actually paid) falls in this period. They no longer deduct
-    //     from their original scheduled period — they've been moved.
-    //   - Paid-on-time installments: always excluded (money already left
-    //     the bank before this period started).
+    // ═══════════════════════════════════════════════════════════════
+    // SPENDABLE BALANCE FORMULA — source of truth (do not break)
+    //
+    //   Spendable = currentBalance
+    //             + incomeReceivedThisPeriod
+    //             − billsDueThisPeriod          (unpaid scheduled bills)
+    //             − paymentPlansDueThisPeriod   (see rules below)
+    //             − scheduledSavingsContributions
+    //
+    // Payment plan installment counting rules:
+    //   1. paid === false → deduct from period containing scheduled `date`
+    //   2. paid === true && paidEarly === true → deduct from period
+    //      containing `datePaid` (shifted out of its original future
+    //      period into the period the user actually paid in)
+    //   3. paid === true && paidEarly === false → NEVER count. Money
+    //      already left the bank on or after its scheduled date; it is
+    //      already reflected in the user's real bank balance. Counting
+    //      these is the regression from 2026-04-21: it double-deducted
+    //      auto-marked-past-paid installments and swung the dashboard
+    //      from +$36 to −$437.
+    // ═══════════════════════════════════════════════════════════════
     const allPlans = await PaymentPlan.find({ userId: req.userId });
     const toYMD = (d) => { const dt = new Date(d); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); };
     const periodStartYMD = toYMD(start);
@@ -131,9 +145,9 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     allPlans.forEach((plan) => {
       (plan.payments || []).forEach((p) => {
         if (p.paid) {
-          // Paid: deduct from the period containing datePaid (when the
-          // user actually paid), not the originally scheduled date. This
-          // is how "pay early" shifts the deduction to the current period.
+          // Only paid-early installments re-bucket into the period they
+          // were paid in. Normal paid installments are excluded.
+          if (!p.paidEarly) return;
           const dp = p.datePaid || p.paidDate;
           if (!dp) return;
           const dpYMD = toYMD(dp);
@@ -142,7 +156,6 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
           }
           return;
         }
-        // Unpaid: deduct from the period containing the scheduled date.
         const ymd = toYMD(p.date);
         if (ymd >= periodStartYMD && ymd <= periodEndYMD) {
           totalPaymentPlansDue += Number(p.amount) || 0;
@@ -209,6 +222,7 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
         allPlans.forEach((plan) => {
           (plan.payments || []).forEach((p) => {
             if (p.paid) {
+              if (!p.paidEarly) return;
               const dp = p.datePaid || p.paidDate;
               if (!dp) return;
               const dpYMD = toYMD(dp);
@@ -490,7 +504,7 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       allPlansForProjection.forEach((plan) => {
         (plan.payments || []).forEach((pp) => {
           if (pp.paid) {
-            // Paid installments count in the period containing datePaid.
+            if (!pp.paidEarly) return;
             const dp = pp.datePaid || pp.paidDate;
             if (!dp) return;
             const dpYMD = toYMDp(dp);

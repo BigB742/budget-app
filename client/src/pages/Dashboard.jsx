@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
@@ -50,6 +50,7 @@ const Dashboard = () => {
   const celebration = useCelebration();
   const storedUser = getStoredUser();
   const prevBalance = useRef(null);
+  const navigate = useNavigate();
 
   const [selectedDay, setSelectedDay] = useState(null);
   const [showAllDays, setShowAllDays] = useState(false);
@@ -203,11 +204,11 @@ const Dashboard = () => {
       {/* Stat cards */}
       {summary && (
         <div className="stat-grid">
-          <div className="stat-card"><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></div>
-          <div className="stat-card"><span className="stat-label">Plans Due</span><span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>{currency.format(summary.totalPaymentPlansDue || 0)}</span></div>
-          <div className="stat-card"><span className="stat-label">Spent This Period</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></div>
-          <div className="stat-card"><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></div>
-          <div className="stat-card"><span className="stat-label">Savings</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></div>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/bills")}><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/payment-plans")}><span className="stat-label">Plans Due</span><span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>{currency.format(summary.totalPaymentPlansDue || 0)}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/expenses")}><span className="stat-label">Spent This Period</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/calendar")}><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/savings")}><span className="stat-label">Savings</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></button>
         </div>
       )}
 
@@ -232,7 +233,7 @@ const Dashboard = () => {
       {isFree && !isTrialing && (
         <div className="upgrade-banner">
           <span className="upgrade-banner-text">
-            <strong>Free plan</strong> — unlock unlimited bills and projections
+            <strong>Free plan.</strong> Unlock unlimited bills and projections
           </span>
           <Link to="/subscription" className="primary-button">Upgrade</Link>
         </div>

@@ -5,7 +5,7 @@ import { currency } from "../utils/currency";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Bi-weekly" },
+  { value: "biweekly", label: "Biweekly" },
   { value: "twicemonthly", label: "Twice a month (1st & 15th)" },
   { value: "monthly", label: "Monthly" },
 ];
@@ -22,6 +22,7 @@ const ManageIncome = () => {
   const [recForm, setRecForm] = useState({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" });
   const [otForm, setOtForm] = useState({ name: "", amount: "", date: "", note: "" });
   const [editingSource, setEditingSource] = useState(null);
+  const [editingOneTime, setEditingOneTime] = useState(null);
   const [saving, setSaving] = useState(false);
   const [projected, setProjected] = useState(null);
 
@@ -81,12 +82,29 @@ const ManageIncome = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date, note: otForm.note }) });
+      if (editingOneTime) {
+        await authFetch(`/api/one-time-income/${editingOneTime}`, { method: "PUT", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date, note: otForm.note }) });
+      } else {
+        await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date, note: otForm.note }) });
+      }
       setOtForm({ name: "", amount: "", date: "", note: "" });
+      setEditingOneTime(null);
       setShowModal(false);
       load();
     } catch { /* ignore */ }
     finally { setSaving(false); }
+  };
+
+  const openEditOneTime = (ot) => {
+    setEditingOneTime(ot._id);
+    setOtForm({
+      name: ot.name || "",
+      amount: String(ot.amount || ""),
+      date: ot.date ? new Date(ot.date).toISOString().slice(0, 10) : "",
+      note: ot.note || "",
+    });
+    setIncomeType("onetime");
+    setShowModal(true);
   };
 
   const handleDeleteSource = async (id) => {
@@ -123,14 +141,7 @@ const ManageIncome = () => {
         )}
         {projected && (
           <div className="bi-summary-bar" style={{ flex: 1, minWidth: 180, marginBottom: 0 }}>
-            <div>
-              <span>Projected This Year</span>
-              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                {projected.remainingPaychecks > 0
-                  ? `Based on ${projected.remainingPaychecks} paycheck${projected.remainingPaychecks !== 1 ? "s" : ""} remaining this year`
-                  : "All paychecks received this year"}
-              </span>
-            </div>
+            <span>Projected This Year</span>
             <strong style={{ color: "var(--teal)" }}>{currency.format(projected.projected)}</strong>
           </div>
         )}
@@ -173,6 +184,7 @@ const ManageIncome = () => {
                     </div>
                     <div className="recurring-actions">
                       <span className="entry-amount positive">{currency.format(ot.amount)}</span>
+                      <button type="button" className="ghost-button" onClick={() => openEditOneTime(ot)}>Edit</button>
                       <button type="button" className="ghost-button" onClick={() => handleDeleteOneTime(ot._id)}>x</button>
                     </div>
                   </div>
@@ -185,11 +197,11 @@ const ManageIncome = () => {
 
       {/* Add modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingSource(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null);}}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h4>{editingSource ? "Edit income" : "Add income"}</h4>
-              <button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingSource(null); }}>&#x2715;</button>
+              <button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null);}}>&#x2715;</button>
             </div>
 
             {/* Type selector (hidden when editing) */}

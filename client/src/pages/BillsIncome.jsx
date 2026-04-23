@@ -8,7 +8,7 @@ import { useDataCache } from "../context/DataCache";
 import FreeLimitModal from "../components/FreeLimitModal";
 import { currency } from "../utils/currency";
 
-const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
+const formatFrequency = (f) => f === "biweekly" ? "Biweekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
 const emptyForm = { name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" };

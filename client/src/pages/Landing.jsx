@@ -52,7 +52,7 @@ const HowItWorksFlow = () => {
         <div className="hiw-text">
           <p className="hiw-label">Step 2</p>
           <p className="hiw-title">Bills get subtracted automatically</p>
-          <p className="hiw-desc">Rent, car payment, subscriptions — every bill due before your next paycheck is deducted the moment you add it.</p>
+          <p className="hiw-desc">Rent, car payment, subscriptions. Every bill due before your next paycheck is deducted the moment you add it.</p>
         </div>
       </div>
 
@@ -71,7 +71,7 @@ const HowItWorksFlow = () => {
         <div className="hiw-text">
           <p className="hiw-label">Step 3</p>
           <p className="hiw-title">You see your real spendable number</p>
-          <p className="hiw-desc">No guessing. No mental math. Just one clear number — what you can actually spend right now.</p>
+          <p className="hiw-desc">No guessing. No mental math. Just one clear number. What you can actually spend right now.</p>
         </div>
 
         {/* Mock balance pill */}
@@ -106,7 +106,7 @@ const Landing = () => (
           </span>
         </h1>
         <p className="lp-hero-sub">
-          PayPulse shows you your REAL spending power -- not your bank balance,
+          PayPulse shows you your REAL spending power. Not your bank balance,
           but the money that is actually yours after every bill, subscription,
           and obligation between now and your next paycheck.
         </p>
@@ -127,7 +127,7 @@ const Landing = () => (
           <h3>Tell us your paycheck</h3>
           <p>
             Enter how much you bring home and when you get paid.
-            Biweekly, weekly, twice a month -- we handle it all.
+            Biweekly, weekly, twice a month. We handle it all.
             Takes about 30 seconds.
           </p>
         </div>
@@ -135,7 +135,7 @@ const Landing = () => (
           <div className="lp-step-num">2</div>
           <h3>Add your bills</h3>
           <p>
-            Rent, car payment, phone, Netflix, insurance -- drop in
+            Rent, car payment, phone, Netflix, insurance. Drop in
             everything that pulls from your account each month.
           </p>
         </div>
@@ -144,7 +144,7 @@ const Landing = () => (
           <h3>See your real number</h3>
           <p>
             We subtract every dollar you owe before your next payday.
-            What is left is what you can actually spend -- no guessing,
+            What is left is what you can actually spend. No guessing,
             no mental math, no surprises.
           </p>
         </div>
@@ -160,7 +160,7 @@ const Landing = () => (
           <p>
             Your bank balance lies to you. It includes money already
             spoken for. PayPulse strips that away and shows the number
-            that actually matters -- your true available cash.
+            that actually matters. Your true available cash.
           </p>
         </div>
         <div className="lp-feature">
@@ -174,7 +174,7 @@ const Landing = () => (
           <h3>See 12 months ahead<span className="lp-badge">Premium</span></h3>
           <p>
             Future paycheck projections show you exactly where you will
-            stand 3, 6, even 12 months from now -- so you can plan that
+            stand 3, 6, even 12 months from now so you can plan that
             trip, that move, that big purchase with confidence.
           </p>
         </div>

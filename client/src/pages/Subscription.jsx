@@ -48,7 +48,7 @@ const Subscription = () => {
 
       {isTrialing && (
         <div className="sub-trial-banner">
-          You're on a free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left
+          You're on a free trial. {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left
         </div>
       )}
 

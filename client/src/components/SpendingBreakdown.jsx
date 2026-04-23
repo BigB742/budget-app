@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 
@@ -7,6 +6,28 @@ import { getCategoryColor } from "../utils/categoryColors";
 import { currency } from "../utils/currency";
 
 const getColor = getCategoryColor;
+
+// Compact floating pill tooltip — positioned by recharts near the
+// hovered slice; sized small so it doesn't cover the donut center.
+const PillTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0];
+  return (
+    <div style={{
+      background: "#0D1117",
+      color: "#F0F6FC",
+      padding: "5px 10px",
+      borderRadius: 6,
+      fontSize: 12,
+      fontWeight: 500,
+      border: "1px solid #21262D",
+      whiteSpace: "nowrap",
+      pointerEvents: "none",
+    }}>
+      {p.name}: {currency.format(p.value)}
+    </div>
+  );
+};
 
 const Donut = ({ data, height = 140 }) => {
   if (!data.length) return null;
@@ -28,7 +49,7 @@ const Donut = ({ data, height = 140 }) => {
               <Cell key={i} fill={entry.color || getColor(entry.name)} />
             ))}
           </Pie>
-          <Tooltip formatter={(v) => currency.format(v)} />
+          <Tooltip content={<PillTooltip />} offset={12} wrapperStyle={{ outline: "none" }} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -131,7 +152,6 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
             ))}
           </ul>
 
-          <Link to="/app/expenses" className="sb-view-all">View all expenses →</Link>
         </>
       )}
     </section>

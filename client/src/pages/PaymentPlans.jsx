@@ -73,6 +73,15 @@ const PaymentPlans = () => {
 
   const addPaymentRow = () => setForm((p) => ({ ...p, payments: [...p.payments, emptyRow()] }));
   const removePaymentRow = (idx) => setForm((p) => ({ ...p, payments: p.payments.filter((_, i) => i !== idx) }));
+  // Duplicate a payment row directly below it with the same amount but a
+  // blank date — lets users quickly build equal-installment plans.
+  const duplicatePaymentRow = (idx) => setForm((p) => {
+    const src = p.payments[idx];
+    const copy = { date: "", amount: src?.amount || "" };
+    const next = [...p.payments];
+    next.splice(idx + 1, 0, copy);
+    return { ...p, payments: next };
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,9 +98,10 @@ const PaymentPlans = () => {
 
     setSaving(true);
     try {
+      const computedTotal = form.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       const body = {
         name: form.name.trim(),
-        totalAmount: form.totalAmount ? Number(form.totalAmount) : null,
+        totalAmount: computedTotal,
         payments: form.payments.map((p) => ({
           id: p.id,
           date: p.date,
@@ -241,30 +251,21 @@ const PaymentPlans = () => {
                   required
                 />
               </label>
-              <label>
-                Total Amount (optional)
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.totalAmount}
-                  onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
-                  placeholder="Total cost (optional)"
-                />
-              </label>
-
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginTop: 8 }}>Payments</div>
               {form.payments.map((p, i) => (
                 <div key={i} className="pp-payment-row">
                   {p.paid ? (
                     <span style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "line-through" }}>
-                      {fmtDate(p.date)} — {currency.format(Number(p.amount) || 0)} (paid)
+                      {fmtDate(p.date)}, {currency.format(Number(p.amount) || 0)} (paid)
                     </span>
                   ) : (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Payment {i + 1}</span>
-                        <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 12, height: 24 }} onClick={() => removePaymentRow(i)}>×</button>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 11, height: 24 }} onClick={() => duplicatePaymentRow(i)} title="Duplicate with same amount">Duplicate</button>
+                          <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 12, height: 24 }} onClick={() => removePaymentRow(i)}>×</button>
+                        </div>
                       </div>
                       <div className="pp-payment-fields">
                         <label style={{ flex: "1 1 55%", minWidth: 0 }}>
@@ -296,6 +297,12 @@ const PaymentPlans = () => {
                 </div>
               ))}
               <button type="button" className="link-button" style={{ fontSize: 13, color: "var(--teal)" }} onClick={addPaymentRow}>+ Add Payment</button>
+
+              {/* Live total — sums all payment amounts, updates as the user types */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: "1px solid var(--card-border)", fontSize: 14 }}>
+                <span style={{ color: "var(--text-muted)" }}>Total</span>
+                <strong>{currency.format(form.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))}</strong>
+              </div>
 
               {error && <div className="inline-error">{error}</div>}
               <button type="submit" className="primary-button" style={{ width: "100%" }} disabled={saving}>

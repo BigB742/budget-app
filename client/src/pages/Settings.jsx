@@ -125,7 +125,7 @@ const Settings = () => {
     else if (ua.includes("iPhone")) os = "iPhone";
     else if (ua.includes("Android")) os = "Android";
     else if (ua.includes("Windows")) os = "Windows";
-    return `${time} — ${browser}${os ? ` on ${os}` : ""}`;
+    return `${time}. ${browser}${os ? ` on ${os}` : ""}`;
   };
 
   const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); };
@@ -209,7 +209,7 @@ const Settings = () => {
                   {(isTrialing || status === "premium" || status === "premium_monthly" || status === "premium_annual") && !isCanceled && (
                     <>
                       <p className="s-sub-status">
-                        {isTrialing ? "Free trial — Premium" : "Premium — active"}
+                        {isTrialing ? "Free trial" : "Premium active"}
                       </p>
                       <button type="button" className="link-button s-cancel-btn" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
                         Cancel subscription
@@ -218,7 +218,7 @@ const Settings = () => {
                   )}
                   {isCanceled && subscriptionEndDate && (
                     <p className="s-sub-status s-sub-canceled">
-                      Subscription canceled — access until {new Date(subscriptionEndDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                      Subscription canceled. Access until {new Date(subscriptionEndDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                     </p>
                   )}
                   {!isTrialing && !isCanceled && status !== "premium" && status !== "premium_monthly" && status !== "premium_annual" && (
@@ -391,7 +391,7 @@ const Settings = () => {
                   <>
                     <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--teal)", margin: "0.75rem 0 0.25rem" }}>
                       {cancelResult.wasTrialing
-                        ? "Trial canceled — you won't be charged."
+                        ? "Trial canceled. You won't be charged."
                         : "Subscription canceled."}
                     </p>
                     <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>

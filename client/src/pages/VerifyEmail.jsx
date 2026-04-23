@@ -60,7 +60,7 @@ const VerifyEmail = () => {
   };
 
   const handleResend = async () => {
-    if (!email) { setError("Missing email — go back and try again."); return; }
+    if (!email) { setError("Missing email. Go back and try again."); return; }
     setResending(true);
     setResent(false);
     setError("");

@@ -484,6 +484,24 @@ h1, h2, h3, h4, h5, h6 {
   transition: border-color 150ms ease;
 }
 .stat-card:hover { border-color: var(--card-border-2); }
+
+/* Clickable stat cards — render as buttons but look like cards */
+.stat-card-clickable {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  color: inherit;
+  transition: background 120ms, border-color 120ms;
+}
+.stat-card-clickable:hover {
+  background: var(--card-2) !important;
+  border-color: var(--card-border-2) !important;
+}
+.stat-card-clickable:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
 .stat-label {
   font-size: 11px !important;
   font-weight: 500 !important;
