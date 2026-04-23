@@ -3,6 +3,7 @@ const Stripe = require("stripe");
 const User = require("../models/User");
 const { authRequired } = require("../middleware/auth");
 const { upsertPremiumBill, removePremiumBill } = require("../utils/subscriptionBill");
+const { reportError, reportEvent } = require("../utils/observability");
 
 const router = express.Router();
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -216,16 +217,24 @@ router.post("/webhook", async (req, res) => {
   // Buffer here, that mount order is broken — fail loudly instead of
   // silently producing a bad signature.
   if (!Buffer.isBuffer(req.body)) {
-    console.error("[Stripe Webhook] req.body is not a raw Buffer — express.raw() mount missing or ordered after express.json(). Signature verification cannot proceed.");
+    reportEvent("stripe_webhook.raw_body_missing", {}, "critical");
     return res.status(500).send("Webhook Error: raw body unavailable");
   }
 
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error("[Stripe Webhook] Signature verification FAILED:", err.message);
+    reportEvent("stripe_webhook.signature_failed", { errorMessage: err.message }, "critical");
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
+
+  // Single audit-trail log for every authenticated webhook event. Captures
+  // type + id so a missed/reordered event can be reconciled later. Anything
+  // that fails downstream below adds a follow-up event with the same id.
+  reportEvent("stripe_webhook.received", {
+    eventId: event.id,
+    eventType: event.type,
+  });
 
   try {
     switch (event.type) {
@@ -239,7 +248,12 @@ router.post("/webhook", async (req, res) => {
         if (customerEmail) user = await User.findOne({ email: customerEmail.toLowerCase() });
         if (!user && userId) user = await User.findById(userId);
         if (!user) {
-          console.error("[Stripe Webhook] checkout.session.completed — no user found. email:", customerEmail, "userId:", userId);
+          reportEvent("stripe_webhook.user_not_found", {
+            eventId: event.id,
+            eventType: event.type,
+            hadEmail: !!customerEmail,
+            hadUserId: !!userId,
+          }, "error");
           break;
         }
 
@@ -345,8 +359,11 @@ router.post("/webhook", async (req, res) => {
       }
     }
   } catch (err) {
-    console.error("[Stripe Webhook] Handler error:", err.message);
-    console.error("[Stripe Webhook] Stack:", err.stack);
+    reportError(err, {
+      source: "stripe_webhook.handler",
+      eventId: event?.id,
+      eventType: event?.type,
+    }, "critical");
   }
 
   res.json({ received: true });
