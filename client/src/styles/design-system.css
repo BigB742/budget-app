@@ -3981,3 +3981,132 @@ textarea:focus-visible {
   .pp-container { animation: none; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   C.3 — STAGGER LIST ENTRANCE
+   Apply .stagger-list to a parent whose children should rise into view
+   one after another. Keeps motion quiet (8px translate, ~30ms stagger)
+   so lists feel alive without feeling animated-for-animation's-sake.
+   ═══════════════════════════════════════════════════════════════════ */
+@keyframes pp-stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-list > * {
+  opacity: 0;
+  animation: pp-stagger-in var(--duration-entrance) var(--ease-out-soft) forwards;
+}
+.stagger-list > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-list > *:nth-child(2)  { animation-delay: 30ms; }
+.stagger-list > *:nth-child(3)  { animation-delay: 60ms; }
+.stagger-list > *:nth-child(4)  { animation-delay: 90ms; }
+.stagger-list > *:nth-child(5)  { animation-delay: 120ms; }
+.stagger-list > *:nth-child(6)  { animation-delay: 150ms; }
+.stagger-list > *:nth-child(7)  { animation-delay: 180ms; }
+.stagger-list > *:nth-child(8)  { animation-delay: 210ms; }
+.stagger-list > *:nth-child(9)  { animation-delay: 240ms; }
+.stagger-list > *:nth-child(10) { animation-delay: 270ms; }
+.stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .stagger-list > * { animation: none; opacity: 1; }
+}
+
+/* Alias — the design-system uses .pp-inset-highlight historically,
+   but the C.3 brief standardized on .has-inset-highlight. Expose both
+   so either form works without a global sweep. */
+.has-inset-highlight {
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+
+/* Skeleton shimmer — used by <Skeleton /> while data is loading. */
+@keyframes pp-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-elevated) 0%,
+    var(--color-bg-subtle) 50%,
+    var(--color-bg-elevated) 100%
+  );
+  background-size: 200% 100%;
+  animation: pp-skeleton-shimmer 1.5s infinite linear;
+  border-radius: var(--radius-md);
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--color-bg-elevated); }
+}
+
+/* Hero glow — radial wash sitting behind a hero number so the balance
+   reads as luminous without a drop-shadow. Apply to the hero container
+   via position: relative, and add .hero-glow as a ::before pseudo
+   (or as a sibling absolute element). Teal by default. */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20% auto -20%;
+  height: 340px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 184, 166, 0.14) 0%,
+    rgba(20, 184, 166, 0.04) 40%,
+    transparent 70%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+.hero-glow--neutral::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 70%
+  );
+}
+
+/* ─── C.3 — Dashboard hero refinements ─────────────────────────────
+   The hero balance sits directly on the page background — no card
+   wrapper. The ::before glow anchors the eye, the tabular numerals
+   keep the digit widths stable as AnimatedNumber counts up. */
+.hero-c3 {
+  text-align: center;
+  margin: 0 0 var(--space-10);
+}
+.hero-c3 .hero-c3-eyebrow {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+.hero-c3 .hero-c3-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  display: inline-block;
+}
+.hero-c3 .hero-c3-value.is-negative { color: var(--color-semantic-negative); }
+.hero-c3 .hero-c3-sub {
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+}
+.hero-c3 .hero-c3-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-4);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.06);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.hero-c3 .hero-c3-pill strong {
+  color: var(--color-accent-teal);
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .hero-c3 { margin-bottom: var(--space-8); }
+}
+
