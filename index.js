@@ -112,7 +112,13 @@ app.use(
       // Allow Vercel preview deploys and the custom domain.
       if (/^https:\/\/paypulse-[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
       if (origin === "https://paypulse.money" || origin === "https://www.paypulse.money") return callback(null, true);
-      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      // Tag the error with an explicit flag so the global error handler
+      // can identify CORS rejections without string-matching the message
+      // (which would also catch any unrelated error whose message happens
+      // to start with "Origin ").
+      const corsErr = new Error(`Origin ${origin} not allowed by CORS`);
+      corsErr.isCorsRejection = true;
+      return callback(corsErr);
     },
     // SECURITY NOTE: credentials is set to false because PayPulse uses
     // Bearer tokens in the Authorization header, not cookies. If you
@@ -265,7 +271,7 @@ app.use((err, _req, res, _next) => {
   } else if (err?.code === 11000) {
     status = 409;
     userMessage = "That value is already in use.";
-  } else if (err?.message === `Origin ${err?.origin} not allowed by CORS` || err?.message?.startsWith?.("Origin ")) {
+  } else if (err?.isCorsRejection) {
     status = 403;
     userMessage = "Origin not allowed.";
   }
