@@ -1,0 +1,41 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  client-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client deps
+        run: npm ci
+        working-directory: client
+      - name: Lint client
+        run: npm run lint
+        working-directory: client
+
+  backend-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install backend deps
+        run: npm ci
+      # No backend lint config or test suite yet (see Phase 5).
+      # node --check on every JS file at minimum prevents syntax regressions
+      # from getting merged.
+      - name: Backend syntax check
+        run: |
+          set -e
+          find . -path ./node_modules -prune -o -path ./client -prune -o -name '*.js' -print | xargs -n1 node --check
