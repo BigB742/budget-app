@@ -38,7 +38,7 @@ const VerifyEmail = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const code = digits.join("");
-    if (code.length < 6) { setError("Please enter all 6 digits."); return; }
+    if (code.length < 6) { setError("Enter all 6 digits."); return; }
     setLoading(true);
     setError("");
     try {

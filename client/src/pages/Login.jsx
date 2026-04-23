@@ -29,9 +29,9 @@ const Login = () => {
         } else {
           // Humanize common backend messages.
           const raw = (data.error || "").toLowerCase();
-          let friendly = "Something went wrong. Please try again.";
-          if (raw.includes("invalid credentials")) friendly = "That email and password don't match. Please try again.";
-          else if (raw.includes("too many")) friendly = "Too many attempts. Please wait a few minutes and try again.";
+          let friendly = "Something went wrong. Try again.";
+          if (raw.includes("invalid credentials")) friendly = "That email and password don't match.";
+          else if (raw.includes("too many")) friendly = "Too many attempts. Wait a few minutes and try again.";
           throw new Error(friendly);
         }
         return;

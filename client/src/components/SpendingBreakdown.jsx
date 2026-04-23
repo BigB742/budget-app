@@ -129,7 +129,7 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
       {!hasAny ? (
         <p className="sb-empty">No expenses logged yet. Add your first one above.</p>
       ) : activeSlices.length === 0 ? (
-        <p className="sb-empty">Nothing to show for this view yet.</p>
+        <p className="sb-empty">No spending in this period yet.</p>
       ) : (
         <>
           <div className="sb-donut-row">

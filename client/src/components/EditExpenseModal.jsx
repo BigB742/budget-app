@@ -78,7 +78,7 @@ const EditExpenseModal = ({ expense, onClose, onSaved }) => {
       // its list without a full refetch if it wants.
       onSaved?.(updated);
     } catch (err) {
-      setError(err?.message || "Failed to update expense. Please try again.");
+      setError(err?.message || "Failed to update expense. Try again.");
     } finally {
       setSaving(false);
     }

@@ -21,7 +21,7 @@ const ForgotPassword = () => {
       // Always navigate — don't reveal whether the email exists
       navigate(`/reset-password?email=${encodeURIComponent(email)}`);
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError("Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }

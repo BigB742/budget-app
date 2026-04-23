@@ -415,7 +415,7 @@ const Onboarding = () => {
               />
             </label>
           </div>
-          <p className="ob-tip">Overdrafted? No problem. Just enter a negative number like -50.00 and we'll calculate from there.</p>
+          <p className="ob-tip">Overdrawn? No problem. Just enter a negative number like -50.00 and we'll calculate from there.</p>
           <div className="ob-actions-col">
             <button
               type="button"
