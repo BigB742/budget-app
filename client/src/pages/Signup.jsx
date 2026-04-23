@@ -44,7 +44,20 @@ const Signup = () => {
         body: JSON.stringify({ ...form, phone }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Signup failed.");
+      if (!res.ok) {
+        // Humanize common backend signup errors. The backend already
+        // returns "Email already in use." for the duplicate-key case
+        // (authRoutes.js), but Mongoose can also surface raw E11000
+        // text if a future code path bubbles it up — catch both.
+        const raw = (data.error || "").toLowerCase();
+        let friendly = data.error || "Signup failed.";
+        if (raw.includes("already in use") || raw.includes("e11000") || raw.includes("duplicate key")) {
+          friendly = "That email is already registered. Try logging in instead.";
+        } else if (raw.includes("password must")) {
+          friendly = "Password must be at least 8 characters.";
+        }
+        throw new Error(friendly);
+      }
       if (data.needsVerification) {
         navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
