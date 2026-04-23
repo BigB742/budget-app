@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
+import Modal from "./ui/Modal";
 
 // "Did you pay this?" login prompt. Shows one-at-a-time for each
 // overdue-and-unpaid bill or payment plan installment. Remembers which
@@ -176,26 +177,29 @@ const OverdueCheckModal = () => {
   if (!current) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-card" style={{ maxWidth: 420 }}>
-        <div className="modal-header">
-          <h4>Did you pay this?</h4>
-        </div>
-        <div style={{ padding: "8px 0 20px" }}>
-          <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: "var(--text)" }}>{current.name}</p>
-          <p style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px", color: "var(--red)" }}>{currency.format(current.amount)}</p>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Due {current.dueDateDisplay}</p>
-        </div>
-        <div className="modal-actions" style={{ flexDirection: "column", gap: 8 }}>
-          <button type="button" className="primary-button" style={{ width: "100%" }} disabled={saving} onClick={handleYes}>
-            {saving ? "Saving..." : "Yes, I paid it"}
-          </button>
-          <button type="button" className="ghost-button" style={{ width: "100%" }} disabled={saving} onClick={handleNo}>
-            Not yet
-          </button>
-        </div>
+    <Modal
+      isOpen
+      onClose={handleNo}
+      titleId="overdue-check-title"
+      size="sm"
+    >
+      <div className="pp5-modal-header">
+        <h2 id="overdue-check-title" className="pp5-modal-title">Did you pay this?</h2>
       </div>
-    </div>
+      <div style={{ padding: "8px 0 20px" }}>
+        <p style={{ fontSize: 18, fontWeight: 600, margin: "0 0 8px", color: "var(--color-text-primary)" }}>{current.name}</p>
+        <p style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px", color: "var(--color-semantic-negative)" }}>{currency.format(current.amount)}</p>
+        <p style={{ fontSize: 13, color: "var(--color-text-tertiary)", margin: 0 }}>Due {current.dueDateDisplay}</p>
+      </div>
+      <div className="pp5-modal-actions-stack">
+        <button type="button" className="pp5-btn pp5-btn-primary pp5-btn-block" disabled={saving} onClick={handleYes}>
+          {saving ? "Saving…" : "Yes, I paid it"}
+        </button>
+        <button type="button" className="pp5-btn pp5-btn-secondary pp5-btn-block" disabled={saving} onClick={handleNo}>
+          Not yet
+        </button>
+      </div>
+    </Modal>
   );
 };
 

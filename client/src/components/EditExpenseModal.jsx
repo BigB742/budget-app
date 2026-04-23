@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authFetch } from "../apiClient";
+import Modal from "./ui/Modal";
 
 // Category list matches AddExpenseModal so edits can pick any of the
 // same options a new expense could have been created with.
@@ -85,13 +86,12 @@ const EditExpenseModal = ({ expense, onClose, onSaved }) => {
   };
 
   return (
-    <div className="pp5-modal-overlay" onClick={onClose}>
-      <div className="pp5-modal has-inset-highlight" onClick={(e) => e.stopPropagation()}>
-        <div className="pp5-modal-header">
-          <h4 className="pp5-modal-title">Edit expense</h4>
-          <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
-        </div>
-        <form className="pp5-modal-body" onSubmit={handleSubmit}>
+    <Modal isOpen onClose={onClose} titleId="edit-expense-title" size="md">
+      <div className="pp5-modal-header">
+        <h2 id="edit-expense-title" className="pp5-modal-title">Edit expense</h2>
+        <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <form className="pp5-modal-body" onSubmit={handleSubmit}>
           <div className="pp5-field">
             <label className="pp5-field-label">Date</label>
             <input className="pp5-input" type="date" name="date" value={form.date} onChange={handleChange} required />
@@ -118,8 +118,7 @@ const EditExpenseModal = ({ expense, onClose, onSaved }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

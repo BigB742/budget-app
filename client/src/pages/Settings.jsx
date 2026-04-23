@@ -4,6 +4,7 @@ import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 import { storeUser } from "../utils/safeStorage";
 import PageContainer from "../components/PageContainer";
+import Modal from "../components/ui/Modal";
 
 const FONT_SCALES = [
   { key: "xs", scale: 0.85, base: "0.75rem" },
@@ -373,15 +374,17 @@ const Settings = () => {
         </section>
       </div>
 
-      {/* Password modal */}
-      {showPwModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowPwModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Change password</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowPwModal(false)}>×</button>
-            </div>
-            <form onSubmit={handlePw} className="pp5-modal-body">
+      <Modal
+        isOpen={showPwModal}
+        onClose={() => setShowPwModal(false)}
+        titleId="pw-modal-title"
+        size="md"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="pw-modal-title" className="pp5-modal-title">Change password</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowPwModal(false)} aria-label="Close">×</button>
+        </div>
+        <form onSubmit={handlePw} className="pp5-modal-body">
               <div className="pp5-field">
                 <label className="pp5-field-label">Current password</label>
                 <input type="password" className="pp5-input" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} required />
@@ -400,19 +403,22 @@ const Settings = () => {
                 <button type="submit" className="pp5-btn pp5-btn-primary" disabled={pwSaving}>{pwSaving ? "Updating…" : "Update password"}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Delete modal */}
-      {showDeleteModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Delete account?</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}>×</button>
-            </div>
-            <p className="pp5-modal-description">This permanently removes your account and all data. It cannot be undone.</p>
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}
+        titleId="delete-modal-title"
+        describedById="delete-modal-desc"
+        size="md"
+        role="alertdialog"
+        disableBackdropClose
+      >
+        <div className="pp5-modal-header">
+          <h2 id="delete-modal-title" className="pp5-modal-title">Delete account?</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }} aria-label="Close">×</button>
+        </div>
+        <p id="delete-modal-desc" className="pp5-modal-description">This permanently removes your account and all data. It cannot be undone.</p>
 
             {deleteStep === "confirm" && (
               <>
@@ -432,7 +438,7 @@ const Settings = () => {
               </>
             )}
 
-            {deleteStep === "code" && (
+        {deleteStep === "code" && (
               <div className="pp5-modal-body" style={{ marginTop: 16 }}>
                 <p className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>Code sent. Check your email.</p>
                 <div className="pp5-field">
@@ -463,18 +469,19 @@ const Settings = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Cancel subscription modal */}
-      {showCancelModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowCancelModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Manage subscription</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowCancelModal(false)}>×</button>
-            </div>
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        titleId="cancel-modal-title"
+        size="md"
+        role="alertdialog"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="cancel-modal-title" className="pp5-modal-title">Manage subscription</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowCancelModal(false)} aria-label="Close">×</button>
+        </div>
             {!cancelResult ? (
               <>
                 <p className="pp5-modal-description">
@@ -519,18 +526,20 @@ const Settings = () => {
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Reset account modal */}
-      {showResetModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowResetModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Reset onboarding?</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowResetModal(false)}>×</button>
-            </div>
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        titleId="reset-modal-title"
+        size="md"
+        role="alertdialog"
+        disableBackdropClose
+      >
+        <div className="pp5-modal-header">
+          <h2 id="reset-modal-title" className="pp5-modal-title">Reset onboarding?</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowResetModal(false)} aria-label="Close">×</button>
+        </div>
             <p className="pp5-modal-description">This removes your financial data — bills, income, expenses, and savings. Your account stays, and you'll go through setup again.</p>
             <div className="pp5-modal-body" style={{ marginTop: 20 }}>
               <div className="pp5-field">
@@ -560,19 +569,19 @@ const Settings = () => {
                 finally { setResetLoading(false); }
               }}>{resetLoading ? "Resetting…" : "Reset"}</button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Support modal */}
-      {showSupportModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowSupportModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Contact support</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowSupportModal(false)}>×</button>
-            </div>
-            {supportMsg ? (
+      <Modal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        titleId="support-modal-title"
+        size="md"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="support-modal-title" className="pp5-modal-title">Contact support</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowSupportModal(false)} aria-label="Close">×</button>
+        </div>
+        {supportMsg ? (
               <>
                 <p className="pp5-modal-description" style={{ color: "var(--color-accent-teal)" }}>{supportMsg}</p>
                 <div className="pp5-modal-actions">
@@ -604,9 +613,7 @@ const Settings = () => {
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
     </PageContainer>
   );
 };

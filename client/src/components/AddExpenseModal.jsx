@@ -3,6 +3,7 @@ import { authFetch } from "../apiClient";
 import { useToast } from "../context/ToastContext";
 import { useDataCache } from "../context/DataCache";
 import { getFirstName } from "../utils/userHelpers";
+import Modal from "./ui/Modal";
 
 const CATEGORIES = [
   "Dining Out", "Entertainment", "Food", "Gas", "Groceries",
@@ -52,13 +53,12 @@ const AddExpenseModal = ({ onClose, onSaved }) => {
   };
 
   return (
-    <div className="pp5-modal-overlay" onClick={onClose}>
-      <div className="pp5-modal has-inset-highlight" onClick={(e) => e.stopPropagation()}>
-        <div className="pp5-modal-header">
-          <h4 className="pp5-modal-title">Add expense</h4>
-          <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
-        </div>
-        <form className="pp5-modal-body" onSubmit={handleSubmit}>
+    <Modal isOpen onClose={onClose} titleId="add-expense-title" size="md">
+      <div className="pp5-modal-header">
+        <h2 id="add-expense-title" className="pp5-modal-title">Add expense</h2>
+        <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <form className="pp5-modal-body" onSubmit={handleSubmit}>
           <div className="pp5-field">
             <label className="pp5-field-label">Date</label>
             <input className="pp5-input" type="date" name="date" value={form.date} onChange={handleChange} required />
@@ -89,8 +89,7 @@ const AddExpenseModal = ({ onClose, onSaved }) => {
             <button type="submit" className="pp5-btn pp5-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save expense"}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

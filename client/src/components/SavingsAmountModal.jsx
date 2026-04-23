@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Modal from "./ui/Modal";
 
 const SavingsAmountModal = ({ goalName, mode = "add", maxAmount, onConfirm, onClose }) => {
   const [amount, setAmount] = useState("");
@@ -23,13 +24,12 @@ const SavingsAmountModal = ({ goalName, mode = "add", maxAmount, onConfirm, onCl
   const buttonLabel = mode === "withdraw" ? "Withdraw" : "Add";
 
   return (
-    <div className="pp5-modal-overlay" onClick={onClose}>
-      <div className="pp5-modal has-inset-highlight" onClick={(e) => e.stopPropagation()}>
-        <div className="pp5-modal-header">
-          <h4 className="pp5-modal-title">{title}</h4>
-          <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
-        </div>
-        <form className="pp5-modal-body" onSubmit={handleSubmit}>
+    <Modal isOpen onClose={onClose} titleId="savings-amount-title" size="sm">
+      <div className="pp5-modal-header">
+        <h2 id="savings-amount-title" className="pp5-modal-title">{title}</h2>
+        <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <form className="pp5-modal-body" onSubmit={handleSubmit}>
           <div className="pp5-field">
             <label className="pp5-field-label">Amount</label>
             <input
@@ -51,8 +51,7 @@ const SavingsAmountModal = ({ goalName, mode = "add", maxAmount, onConfirm, onCl
             <button type="submit" className="pp5-btn pp5-btn-primary">{buttonLabel}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

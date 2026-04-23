@@ -1,5 +1,6 @@
 import { useState } from "react";
 import UpgradeModal from "./UpgradeModal";
+import Modal from "./ui/Modal";
 
 const LIMITS = {
   bills: { max: 5, label: "5 bills" },
@@ -14,20 +15,22 @@ const FreeLimitModal = ({ type, onClose }) => {
   if (showUpgrade) return <UpgradeModal onClose={onClose} />;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, textAlign: "center" }}>
-        <h4 style={{ margin: "0 0 0.5rem" }}>Free plan limit reached</h4>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "0 0 1rem" }}>
-          You've reached the free plan limit of {limit.label}. Upgrade to Premium for unlimited access.
-        </p>
-        <button type="button" className="primary-button" style={{ width: "100%", marginBottom: "0.5rem" }} onClick={() => setShowUpgrade(true)}>
+    <Modal isOpen onClose={onClose} titleId="free-limit-title" size="sm">
+      <h2 id="free-limit-title" className="pp5-modal-title" style={{ textAlign: "center" }}>
+        Free plan limit reached
+      </h2>
+      <p className="pp5-modal-description" style={{ textAlign: "center" }}>
+        You've reached the free plan limit of {limit.label}. Upgrade to Premium for unlimited access.
+      </p>
+      <div className="pp5-modal-actions-stack">
+        <button type="button" className="pp5-btn pp5-btn-primary pp5-btn-block" onClick={() => setShowUpgrade(true)}>
           Upgrade to Premium
         </button>
-        <button type="button" className="link-button" style={{ color: "var(--text-muted)", fontSize: "0.78rem" }} onClick={onClose}>
+        <button type="button" className="pp5-btn pp5-btn-text pp5-btn-block" onClick={onClose}>
           Maybe later
         </button>
       </div>
-    </div>
+    </Modal>
   );
 };
 
