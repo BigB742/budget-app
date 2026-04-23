@@ -45,13 +45,26 @@
   --radius:     12px;
   --radius-lg:  16px;
   --radius-pill: 999px;
+
+  /* Phase 4 tokens — semantic names for the new web-first design system. */
+  --color-bg:            #0D1117;
+  --color-bg-elevated:   #161B22;
+  --color-bg-subtle:     #1F2530;
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border:        #21262D;
+  --color-text:          #F0F6FC;
+  --color-text-secondary:#B1BAC4;
+  --color-text-muted:    #8B95A1;
 }
 
 /* ─── Global resets ───────────────────────────────────────────────── */
 html { scroll-behavior: smooth; }
 
 html, body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* System-first font stack — inherits SF Pro on Apple devices for that
+     native, considered feel the Phase 4 brief calls for. Falls back to
+     Inter where available, then system UI fonts. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv11", "ss01";
@@ -2210,4 +2223,619 @@ textarea:focus-visible {
     max-width: 420px !important;
     max-height: 90vh !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHASE 4 — Web-first foundation
+   Typography, layout container, card primitives.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* PageContainer — wraps every page. Desktop-first max-width with a
+   graceful descent to mobile. Vertical padding breathes on desktop,
+   tightens on mobile. Numbers match the Phase 4 brief exactly. */
+.pp-container {
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 40px 16px 64px;
+  font-feature-settings: "tnum";
+}
+@media (min-width: 480px) {
+  .pp-container { padding: 40px 24px 64px; }
+}
+@media (min-width: 768px) {
+  .pp-container {
+    max-width: 90%;
+    padding: 64px 32px 96px;
+  }
+}
+@media (min-width: 1280px) {
+  .pp-container {
+    max-width: 1120px;
+    padding: 64px 48px 96px;
+  }
+}
+
+/* Typography scale */
+.heading-display {
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: 0;
+}
+.heading-section {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0;
+}
+.heading-card {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--color-text);
+  margin: 0;
+}
+.text-body {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.text-secondary {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+.text-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.text-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+/* Heading-display shrinks gracefully on small viewports */
+@media (max-width: 640px) {
+  .heading-display { font-size: 36px; }
+  .heading-section { font-size: 22px; }
+}
+
+/* Card primitive — the elevated surface used throughout Phase 4. */
+.pp-card {
+  background: var(--color-bg-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* Tabular numerals — applied to dollar amounts so columns of numbers
+   align cleanly. Opt-in via class rather than global so we don't force
+   it on labels/descriptions. */
+.tnum { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHASE 4 — Savings page (new layout, replaces v2 from Phase 3)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sv-p4 {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header row: title block on left, action on right */
+.sv-p4-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 64px;
+  flex-wrap: wrap;
+}
+.sv-p4-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .sv-p4-header { margin-bottom: 40px; }
+}
+
+/* Total Saved card — full container width, generous padding */
+.sv-p4-total {
+  background: var(--color-bg-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+  padding: 40px;
+  margin-bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sv-p4-total-value {
+  font-size: 56px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+@media (max-width: 640px) {
+  .sv-p4-total { padding: 32px 24px; margin-bottom: 48px; }
+  .sv-p4-total-value { font-size: 44px; }
+}
+
+/* Goals grid — 2 columns desktop, 1 column tablet/mobile */
+.sv-p4-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .sv-p4-grid { gap: 24px; }
+}
+@media (min-width: 1024px) {
+  .sv-p4-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+}
+
+/* Goal card (Phase 4 polish) */
+.sv-p4-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 32px;
+  transition: background 200ms ease-out, border-color 200ms ease-out;
+}
+.sv-p4-card:hover { border-color: rgba(255,255,255,0.1); }
+
+.sv-p4-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* Progress bar */
+.sv-p4-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  min-height: 24px;
+}
+.sv-p4-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--color-bg-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.sv-p4-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 999px;
+  transition: width 400ms ease-out;
+}
+.sv-p4-set-target {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 200ms ease-out, color 200ms ease-out;
+}
+.sv-p4-set-target:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.sv-p4-reached {
+  background: rgba(0, 201, 167, 0.15);
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Balance row (below bar) */
+.sv-p4-balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.sv-p4-current {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.sv-p4-target-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  transition: color 200ms ease-out;
+}
+.sv-p4-target-btn:hover { color: var(--color-text); }
+.sv-p4-no-target { font-size: 14px; color: var(--color-text-muted); }
+
+/* Action buttons (right-aligned) */
+.sv-p4-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.sv-p4-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out;
+}
+.sv-p4-btn-add {
+  background: var(--teal);
+  color: #fff;
+  border: none;
+}
+.sv-p4-btn-add:hover { background: #14b8a6; }
+.sv-p4-btn-withdraw {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+.sv-p4-btn-withdraw:hover { border-color: var(--color-text-muted); }
+
+/* Name inline edit */
+.sv-p4-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: color 200ms ease-out;
+}
+.sv-p4-name-btn:hover { color: var(--teal); }
+.sv-p4-name-input {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--teal);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  max-width: 320px;
+}
+
+/* Overflow menu */
+.sv-p4-menu-wrap { position: relative; }
+.sv-p4-menu-trigger {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 200ms ease-out, color 200ms ease-out;
+}
+.sv-p4-menu-trigger:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+.sv-p4-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 20;
+  animation: pp-fade-in 180ms ease-out both;
+}
+.sv-p4-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 200ms ease-out, color 200ms ease-out;
+}
+.sv-p4-menu button:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+
+/* Empty state */
+.sv-p4-empty {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 64px 40px;
+  text-align: center;
+}
+.sv-p4-empty p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Skeleton */
+.sv-p4-skeleton {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 32px;
+  height: 180px;
+  opacity: 0.5;
+  animation: pp-fade-in 280ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHASE 4 — Refined modal (Apple-quality)
+   ═══════════════════════════════════════════════════════════════════ */
+.p4-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: pp-fade-in 200ms ease-out both;
+}
+.p4-modal-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 440px;
+  width: 100%;
+  animation: p4-modal-in 200ms ease-out both;
+}
+@keyframes p4-modal-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+.p4-modal-title {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+.p4-modal-body {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+.p4-field { display: block; margin-bottom: 20px; }
+.p4-field-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+.p4-field-input {
+  display: block;
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+  transition: border-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+.p4-field-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
+}
+.p4-field-help {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}
+.p4-field-error {
+  color: var(--red);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.p4-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+.p4-modal-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.p4-btn {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out;
+}
+.p4-btn-primary {
+  background: var(--cta);
+  color: #fff;
+  border: none;
+}
+.p4-btn-primary:hover:not(:disabled) { background: var(--cta-hover); }
+.p4-btn-primary:disabled { opacity: 0.5; cursor: default; }
+.p4-btn-outline {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+.p4-btn-outline:hover:not(:disabled) { border-color: var(--color-text-muted); }
+.p4-btn-text {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+}
+.p4-btn-text:hover:not(:disabled) { color: var(--color-text); }
+.p4-btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.p4-btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
+.p4-btn-block { width: 100%; }
+.p4-btn:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHASE 4 — Dashboard hero polish
+   ═══════════════════════════════════════════════════════════════════ */
+.pp-container .hero {
+  background: var(--color-bg-elevated) !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  padding: 64px 40px !important;
+  margin-bottom: 32px !important;
+  text-align: center !important;
+}
+.pp-container .hero-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-muted) !important;
+  margin: 0 0 16px !important;
+}
+.pp-container .hero-balance {
+  font-size: 72px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--color-text) !important;
+  line-height: 1 !important;
+  font-variant-numeric: tabular-nums !important;
+  margin: 0 !important;
+}
+.pp-container .hero-balance.healthy,
+.pp-container .hero-balance.warning { text-shadow: none !important; }
+.pp-container .hero-sub {
+  font-size: 14px !important;
+  color: var(--color-text-muted) !important;
+  margin: 16px 0 0 !important;
+}
+@media (max-width: 640px) {
+  .pp-container .hero { padding: 40px 24px !important; }
+  .pp-container .hero-balance { font-size: 48px !important; }
+}
+
+/* Stat grid in the new container */
+.pp-container .stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 12px !important;
+  margin: 0 0 32px !important;
+  padding: 0 !important;
+}
+@media (min-width: 768px) {
+  .pp-container .stat-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 16px !important; }
+}
+@media (min-width: 1024px) {
+  .pp-container .stat-grid { grid-template-columns: repeat(5, 1fr) !important; }
+}
+.pp-container .stat-card {
+  background: var(--color-bg-elevated) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+  padding: 24px !important;
+  min-height: auto !important;
+  gap: 12px !important;
+}
+.pp-container .stat-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-muted) !important;
+}
+.pp-container .stat-value {
+  font-size: 28px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--color-text) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.pp-container .stat-card-clickable:hover {
+  background: var(--color-bg-subtle) !important;
+  border-color: rgba(255,255,255,0.1) !important;
 }

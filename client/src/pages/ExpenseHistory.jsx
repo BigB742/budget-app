@@ -5,6 +5,7 @@ import { formatDate } from "../utils/dateUtils";
 import { useDataCache } from "../context/DataCache";
 import AddExpenseModal from "../components/AddExpenseModal";
 import EditExpenseModal from "../components/EditExpenseModal";
+import PageContainer from "../components/PageContainer";
 
 // Classify an expense date relative to the user's current pay period.
 // Returns "current" | "upcoming" | "past" | null (null if we don't have
@@ -140,9 +141,10 @@ const ExpenseHistory = () => {
   categoryData.forEach((c) => { catColorMap[c.name] = getCategoryColor(c.name); });
 
   return (
-    <div className="history-page">
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Expenses</h1>
+      <div className="history-page">
       <div className="history-header">
-        <h1>Expense History</h1>
         <button type="button" className="primary-button" onClick={() => setShowAddModal(true)}>+ Add Expense</button>
       </div>
 
@@ -259,7 +261,8 @@ const ExpenseHistory = () => {
           }}
         />
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

@@ -5,6 +5,7 @@ import { useSubscription } from "../hooks/useSubscription";
 import { useToast } from "../context/ToastContext";
 import FreeLimitModal from "../components/FreeLimitModal";
 import { currency } from "../utils/currency";
+import PageContainer from "../components/PageContainer";
 
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
@@ -83,8 +84,9 @@ const Bills = () => {
   const monthlyObligations = bills.reduce((s, b) => s + Number(b.amount || 0), 0);
 
   return (
-    <div className="bills-income-page">
-      <h1>Bills</h1>
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Bills</h1>
+      <div className="bills-income-page">
 
       <div className="bi-summary-bar">
         <span>Total monthly payments</span>
@@ -140,7 +142,8 @@ const Bills = () => {
       )}
 
       {limitModal && <FreeLimitModal type={limitModal} onClose={() => setLimitModal(null)} />}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

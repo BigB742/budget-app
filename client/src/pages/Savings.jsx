@@ -2,40 +2,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
+import PageContainer from "../components/PageContainer";
 
 // ═══════════════════════════════════════════════════════════════════
-// Savings page — Phase 3 redesign
+// Savings — Phase 4 web-first rebuild
 // ═══════════════════════════════════════════════════════════════════
-// Layout:
-//   1. Header: title + subtitle + "Add Goal" button
-//   2. Total Saved card: the one big number
-//   3. Goals list: one horizontal progress-bar card per goal
-//
-// Every goal bar gets the same full-card width. Fill % is calculated
-// against that goal's own target, so a $50 / $100 goal and a
-// $5,000 / $10,000 goal both show as 50% filled. Comparing goals to
-// each other is not the product intent — progress toward your own
-// target is.
+// Desktop: full-width header (title left, Add goal right), full-width
+// Total Saved card, 2-column grid of goal cards. Every bar is the same
+// visual width; fill percentage is relative to that goal's own target.
 // ═══════════════════════════════════════════════════════════════════
 
+// ─── Skeleton ──────────────────────────────────────────────────────
 const Skeleton = () => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    {[0, 1, 2].map((i) => (
-      <div key={i} style={{
-        background: "var(--card)",
-        border: "1px solid var(--card-border)",
-        borderRadius: 12,
-        padding: 20,
-        height: 140,
-        opacity: 0.5,
-        animation: "pp-fade-in 280ms ease-out",
-      }}>
-        <div style={{ height: 14, width: "40%", background: "var(--card-2)", borderRadius: 4, marginBottom: 18 }} />
-        <div style={{ height: 12, width: "100%", background: "var(--card-2)", borderRadius: 6, marginBottom: 16 }} />
-        <div style={{ height: 12, width: "30%", background: "var(--card-2)", borderRadius: 4 }} />
-      </div>
+  <div className="sv-p4-grid">
+    {[0, 1, 2, 3].map((i) => (
+      <div key={i} className="sv-p4-skeleton" />
     ))}
   </div>
+);
+
+// ─── Three dots icon ───────────────────────────────────────────────
+const DotsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <circle cx="5" cy="12" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="19" cy="12" r="1.5" />
+  </svg>
 );
 
 // ─── New Goal modal ────────────────────────────────────────────────
@@ -61,22 +53,44 @@ const NewGoalModal = ({ onClose, onCreated }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <div className="modal-header"><h4>New savings goal</h4></div>
-        <form className="modal-form" onSubmit={submit}>
-          <label>
-            Goal name
-            <input type="text" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} placeholder="Vacation fund" autoFocus required />
-          </label>
-          <label>
-            Target amount <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
-            <input type="number" step="0.01" min="0" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="0.00" />
-          </label>
-          {error && <div className="inline-error">{error}</div>}
-          <div className="modal-actions">
-            <button type="button" className="ghost-button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" className="primary-button" disabled={saving}>{saving ? "Creating…" : "Create goal"}</button>
+    <div className="p4-modal-overlay" onClick={onClose}>
+      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2 className="p4-modal-title">New savings goal</h2>
+        <form onSubmit={submit}>
+          <div className="p4-field">
+            <label className="p4-field-label" htmlFor="sv-name">Goal name</label>
+            <input
+              id="sv-name"
+              className="p4-field-input"
+              type="text"
+              maxLength={50}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Vacation fund"
+              autoFocus
+              required
+            />
+          </div>
+          <div className="p4-field">
+            <label className="p4-field-label" htmlFor="sv-target">Target</label>
+            <input
+              id="sv-target"
+              className="p4-field-input"
+              type="number"
+              step="0.01"
+              min="0"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="0.00"
+            />
+            <span className="p4-field-help">Leave blank to set later.</span>
+          </div>
+          {error && <p className="p4-field-error">{error}</p>}
+          <div className="p4-modal-actions">
+            <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>
+              {saving ? "Creating…" : "Create goal"}
+            </button>
           </div>
         </form>
       </div>
@@ -84,21 +98,22 @@ const NewGoalModal = ({ onClose, onCreated }) => {
   );
 };
 
-// ─── Add / Withdraw modal ──────────────────────────────────────────
+// ─── Amount modal (deposit / withdraw) ─────────────────────────────
 const AmountModal = ({ goal, mode, onClose, onDone }) => {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const title = mode === "deposit" ? `Add to ${goal.name}` : `Withdraw from ${goal.name}`;
   const cta = mode === "deposit" ? "Add" : "Withdraw";
+  const balance = goal.currentBalance || 0;
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) { setError("Enter a positive amount."); return; }
-    if (mode === "withdraw" && n > (goal.currentBalance || 0)) {
-      setError(`You can withdraw up to ${currency.format(goal.currentBalance || 0)}.`);
+    if (mode === "withdraw" && n > balance) {
+      setError(`You can withdraw up to ${currency.format(balance)}.`);
       return;
     }
     setSaving(true);
@@ -115,23 +130,90 @@ const AmountModal = ({ goal, mode, onClose, onDone }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <div className="modal-header"><h4>{title}</h4></div>
-        <form className="modal-form" onSubmit={submit}>
-          <label>
-            Amount
-            <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus required />
-          </label>
-          {mode === "withdraw" && (
-            <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
-              Available: {currency.format(goal.currentBalance || 0)}
-            </span>
-          )}
-          {error && <div className="inline-error">{error}</div>}
-          <div className="modal-actions">
-            <button type="button" className="ghost-button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving…" : cta}</button>
+    <div className="p4-modal-overlay" onClick={onClose}>
+      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2 className="p4-modal-title">{title}</h2>
+        <form onSubmit={submit}>
+          <div className="p4-field">
+            <label className="p4-field-label" htmlFor="sv-amt">Amount</label>
+            <input
+              id="sv-amt"
+              className="p4-field-input"
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              autoFocus
+              required
+            />
+            {mode === "withdraw" && (
+              <span className="p4-field-help">Available: {currency.format(balance)}</span>
+            )}
+          </div>
+          {error && <p className="p4-field-error">{error}</p>}
+          <div className="p4-modal-actions">
+            <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : cta}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ─── Edit target modal ────────────────────────────────────────────
+const TargetModal = ({ goal, onClose, onDone }) => {
+  const [target, setTarget] = useState(goal.targetAmount != null ? String(goal.targetAmount) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const n = target === "" ? null : Number(target);
+      if (n !== null && (!Number.isFinite(n) || n < 0)) {
+        setError("Enter a positive number or leave blank.");
+        setSaving(false);
+        return;
+      }
+      const updated = await authFetch(`/api/savings/goals/${goal._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ targetAmount: n }),
+      });
+      onDone(updated);
+    } catch (err) {
+      setError(err?.message || "Could not save.");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="p4-modal-overlay" onClick={onClose}>
+      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2 className="p4-modal-title">Set target for {goal.name}</h2>
+        <form onSubmit={submit}>
+          <div className="p4-field">
+            <label className="p4-field-label" htmlFor="sv-tgt">Target</label>
+            <input
+              id="sv-tgt"
+              className="p4-field-input"
+              type="number"
+              step="0.01"
+              min="0"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="0.00"
+              autoFocus
+            />
+            <span className="p4-field-help">Leave blank to clear the target.</span>
+          </div>
+          {error && <p className="p4-field-error">{error}</p>}
+          <div className="p4-modal-actions">
+            <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
           </div>
         </form>
       </div>
@@ -159,92 +241,37 @@ const DeleteModal = ({ goal, onClose, onDone }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <div className="modal-header"><h4>Delete this goal?</h4></div>
-        <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 20 }}>
+    <div className="p4-modal-overlay" onClick={onClose}>
+      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2 className="p4-modal-title">Delete this goal?</h2>
+        <p className="p4-modal-body">
           {hasMoney
             ? `This goal has ${currency.format(balance)} in it. What should happen to that money?`
-            : "Are you sure you want to delete this goal? This cannot be undone."}
-        </div>
-        {error && <div className="inline-error" style={{ marginBottom: 12 }}>{error}</div>}
+            : "Are you sure? This cannot be undone."}
+        </p>
+        {error && <p className="p4-field-error">{error}</p>}
         {hasMoney ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button type="button" className="primary-button" style={{ width: "100%" }} disabled={saving} onClick={() => doDelete(true)}>
+          <div className="p4-modal-actions-stack">
+            <button type="button" className="p4-btn p4-btn-primary p4-btn-block" disabled={saving} onClick={() => doDelete(true)}>
               Withdraw and delete
             </button>
-            <button type="button" disabled={saving} onClick={() => doDelete(false)} style={{
-              width: "100%", padding: "12px 20px", borderRadius: 10, border: "1px solid #ef4444",
-              background: "transparent", color: "#ef4444", fontWeight: 600, cursor: "pointer",
-              fontFamily: "inherit", fontSize: 14,
-            }}>
+            <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
               Delete only
             </button>
-            <button type="button" className="ghost-button" style={{ width: "100%" }} disabled={saving} onClick={onClose}>Cancel</button>
+            <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
+              Cancel
+            </button>
           </div>
         ) : (
-          <div className="modal-actions">
-            <button type="button" className="ghost-button" disabled={saving} onClick={onClose}>Cancel</button>
-            <button type="button" disabled={saving} onClick={() => doDelete(false)} style={{
-              padding: "10px 18px", borderRadius: 10, border: "1px solid #ef4444",
-              background: "transparent", color: "#ef4444", fontWeight: 600, cursor: "pointer",
-              fontFamily: "inherit", fontSize: 14,
-            }}>
+          <div className="p4-modal-actions-stack">
+            <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
               Delete
+            </button>
+            <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
+              Cancel
             </button>
           </div>
         )}
-      </div>
-    </div>
-  );
-};
-
-// ─── Edit Target modal ─────────────────────────────────────────────
-const TargetModal = ({ goal, onClose, onDone }) => {
-  const [target, setTarget] = useState(goal.targetAmount != null ? String(goal.targetAmount) : "");
-  const [saving, setSaving] = useState(false);
-  const max = Math.max((goal.currentBalance || 0) * 5, 1000);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const n = target === "" ? null : Number(target);
-      const updated = await authFetch(`/api/savings/goals/${goal._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ targetAmount: n }),
-      });
-      onDone(updated);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <div className="modal-header"><h4>Set target for {goal.name}</h4></div>
-        <form className="modal-form" onSubmit={submit}>
-          <label>
-            Target amount
-            <input type="number" step="0.01" min="0" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="0.00" autoFocus />
-          </label>
-          <input
-            type="range"
-            min="0"
-            max={max}
-            step="10"
-            value={Number(target) || 0}
-            onChange={(e) => setTarget(e.target.value)}
-            style={{ width: "100%", accentColor: "var(--teal)" }}
-          />
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Leave blank to clear the target.
-          </span>
-          <div className="modal-actions">
-            <button type="button" className="ghost-button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -284,12 +311,11 @@ const GoalCard = ({ goal, onChanged, onDeposit, onWithdraw, onEditTarget, onDele
   };
 
   return (
-    <div className="sv-card">
-      {/* Top row: name + overflow menu */}
-      <div className="sv-top-row">
+    <div className="sv-p4-card">
+      <div className="sv-p4-card-top">
         {editingName ? (
           <input
-            className="sv-name-input"
+            className="sv-p4-name-input"
             value={nameDraft}
             maxLength={50}
             autoFocus
@@ -301,18 +327,16 @@ const GoalCard = ({ goal, onChanged, onDeposit, onWithdraw, onEditTarget, onDele
             }}
           />
         ) : (
-          <button type="button" className="sv-name" onClick={() => setEditingName(true)} title="Click to rename">
+          <button type="button" className="sv-p4-name-btn" onClick={() => setEditingName(true)} title="Click to rename">
             {goal.name}
           </button>
         )}
-        <div className="sv-menu-wrap" ref={menuRef}>
-          <button type="button" className="sv-menu-trigger" onClick={() => setMenuOpen((v) => !v)} aria-label="Goal options">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
-            </svg>
+        <div className="sv-p4-menu-wrap" ref={menuRef}>
+          <button type="button" className="sv-p4-menu-trigger" onClick={() => setMenuOpen((v) => !v)} aria-label="Goal options">
+            <DotsIcon />
           </button>
           {menuOpen && (
-            <div className="sv-menu">
+            <div className="sv-p4-menu">
               <button type="button" onClick={() => { setMenuOpen(false); onEditTarget(goal); }}>Edit target</button>
               <button type="button" onClick={() => { setMenuOpen(false); onDelete(goal); }}>Delete goal</button>
             </div>
@@ -320,38 +344,33 @@ const GoalCard = ({ goal, onChanged, onDeposit, onWithdraw, onEditTarget, onDele
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="sv-bar-wrap">
-        <div className="sv-bar">
+      <div className="sv-p4-bar-row">
+        <div className="sv-p4-bar">
           {hasTarget ? (
-            <div className="sv-bar-fill" style={{ width: `${pct}%` }} />
+            <div className="sv-p4-bar-fill" style={{ width: `${pct}%` }} />
           ) : (
-            <button type="button" className="sv-set-target-btn" onClick={() => onEditTarget(goal)}>
-              Set target
-            </button>
+            <button type="button" className="sv-p4-set-target" onClick={() => onEditTarget(goal)}>Set target</button>
           )}
         </div>
-        {reached && <span className="sv-reached-badge">Goal reached</span>}
+        {reached && <span className="sv-p4-reached">Goal reached</span>}
       </div>
 
-      {/* Bottom row: balance + target + actions */}
-      <div className="sv-bottom-row">
-        <div className="sv-amounts">
-          <span className="sv-current">{currency.format(balance)}</span>
-          {hasTarget ? (
-            <button type="button" className="sv-target-btn" onClick={() => onEditTarget(goal)}>
-              of {currency.format(target)}
-            </button>
-          ) : (
-            <span className="sv-no-target">No target set</span>
-          )}
-        </div>
-        <div className="sv-actions">
-          <button type="button" className="sv-btn sv-btn-add" onClick={() => onDeposit(goal)}>Add</button>
-          {balance > 0 && (
-            <button type="button" className="sv-btn sv-btn-withdraw" onClick={() => onWithdraw(goal)}>Withdraw</button>
-          )}
-        </div>
+      <div className="sv-p4-balance-row">
+        <span className="sv-p4-current">{currency.format(balance)}</span>
+        {hasTarget ? (
+          <button type="button" className="sv-p4-target-btn" onClick={() => onEditTarget(goal)}>
+            of {currency.format(target)}
+          </button>
+        ) : (
+          <span className="sv-p4-no-target">No target set</span>
+        )}
+      </div>
+
+      <div className="sv-p4-actions">
+        <button type="button" className="sv-p4-btn sv-p4-btn-add" onClick={() => onDeposit(goal)}>Add</button>
+        {balance > 0 && (
+          <button type="button" className="sv-p4-btn sv-p4-btn-withdraw" onClick={() => onWithdraw(goal)}>Withdraw</button>
+        )}
       </div>
     </div>
   );
@@ -362,9 +381,9 @@ const Savings = () => {
   const cache = useDataCache();
   const [goals, setGoals] = useState(null);
   const [newGoalOpen, setNewGoalOpen] = useState(false);
-  const [amountModal, setAmountModal] = useState(null); // { goal, mode }
-  const [deleteModal, setDeleteModal] = useState(null); // goal
-  const [targetModal, setTargetModal] = useState(null); // goal
+  const [amountModal, setAmountModal] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [targetModal, setTargetModal] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -382,46 +401,44 @@ const Savings = () => {
   const totalSaved = (goals || []).reduce((s, g) => s + (g.currentBalance || 0), 0);
 
   return (
-    <div className="savings-page-v2">
-      {/* Header */}
-      <div className="sv-header">
-        <div>
-          <h1 className="sv-title">Savings</h1>
-          <p className="sv-subtitle">Track your goals and watch progress build.</p>
-        </div>
-        <button type="button" className="primary-button" onClick={() => setNewGoalOpen(true)}>Add goal</button>
+    <PageContainer>
+      <div className="sv-p4">
+        <header className="sv-p4-header">
+          <div className="sv-p4-header-text">
+            <h1 className="heading-display">Savings</h1>
+            <p className="text-secondary">Track your goals and watch progress build.</p>
+          </div>
+          <button type="button" className="primary-button" onClick={() => setNewGoalOpen(true)}>Add goal</button>
+        </header>
+
+        <section className="sv-p4-total">
+          <span className="text-label">Total saved</span>
+          <span className="sv-p4-total-value">{currency.format(totalSaved)}</span>
+        </section>
+
+        {goals === null ? (
+          <Skeleton />
+        ) : goals.length === 0 ? (
+          <div className="sv-p4-empty">
+            <p>You have no savings goals yet. Click Add goal to create your first one.</p>
+          </div>
+        ) : (
+          <div className="sv-p4-grid">
+            {goals.map((g) => (
+              <GoalCard
+                key={g._id}
+                goal={g}
+                onChanged={replaceGoal}
+                onDeposit={(goal) => setAmountModal({ goal, mode: "deposit" })}
+                onWithdraw={(goal) => setAmountModal({ goal, mode: "withdraw" })}
+                onEditTarget={(goal) => setTargetModal(goal)}
+                onDelete={(goal) => setDeleteModal(goal)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Total Saved card */}
-      <div className="sv-total-card">
-        <span className="sv-total-label">TOTAL SAVED</span>
-        <span className="sv-total-value">{currency.format(totalSaved)}</span>
-      </div>
-
-      {/* Goals list */}
-      {goals === null ? (
-        <Skeleton />
-      ) : goals.length === 0 ? (
-        <div className="sv-empty">
-          <p>You have no savings goals yet. Click Add goal to create your first one.</p>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {goals.map((g) => (
-            <GoalCard
-              key={g._id}
-              goal={g}
-              onChanged={replaceGoal}
-              onDeposit={(goal) => setAmountModal({ goal, mode: "deposit" })}
-              onWithdraw={(goal) => setAmountModal({ goal, mode: "withdraw" })}
-              onEditTarget={(goal) => setTargetModal(goal)}
-              onDelete={(goal) => setDeleteModal(goal)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Modals */}
       {newGoalOpen && (
         <NewGoalModal
           onClose={() => setNewGoalOpen(false)}
@@ -437,11 +454,14 @@ const Savings = () => {
           goal={amountModal.goal}
           mode={amountModal.mode}
           onClose={() => setAmountModal(null)}
-          onDone={(updated) => {
-            replaceGoal(updated);
-            setAmountModal(null);
-            cache?.fetchSummary?.(true);
-          }}
+          onDone={(updated) => { replaceGoal(updated); setAmountModal(null); cache?.fetchSummary?.(true); }}
+        />
+      )}
+      {targetModal && (
+        <TargetModal
+          goal={targetModal}
+          onClose={() => setTargetModal(null)}
+          onDone={(updated) => { replaceGoal(updated); setTargetModal(null); }}
         />
       )}
       {deleteModal && (
@@ -455,14 +475,7 @@ const Savings = () => {
           }}
         />
       )}
-      {targetModal && (
-        <TargetModal
-          goal={targetModal}
-          onClose={() => setTargetModal(null)}
-          onDone={(updated) => { replaceGoal(updated); setTargetModal(null); }}
-        />
-      )}
-    </div>
+    </PageContainer>
   );
 };
 

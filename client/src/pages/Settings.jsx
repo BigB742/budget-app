@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 import { storeUser } from "../utils/safeStorage";
+import PageContainer from "../components/PageContainer";
 
 
 const FONT_SCALES = [
@@ -131,8 +132,9 @@ const Settings = () => {
   const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); };
 
   return (
-    <div className="settings-page">
-      <h1>Settings</h1>
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Settings</h1>
+      <div className="settings-page">
 
       <div className="settings-two-col">
         {/* LEFT */}
@@ -479,7 +481,8 @@ const Settings = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

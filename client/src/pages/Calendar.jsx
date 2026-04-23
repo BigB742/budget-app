@@ -5,6 +5,7 @@ import { useDataCache } from "../context/DataCache";
 import { useToast } from "../context/ToastContext";
 import { getFirstName } from "../utils/userHelpers";
 import { currency } from "../utils/currency";
+import PageContainer from "../components/PageContainer";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -395,7 +396,9 @@ const Calendar = () => {
   const isSelectedPayday = selectedDay ? paydaySet.has(selectedDay) : false;
 
   return (
-    <div className="calendar-page">
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Calendar</h1>
+      <div className="calendar-page">
       {/* View toggle — lives at the very top of the page so the user can
           switch between Week and Month before touching anything else. */}
       <div className="cal-view-toggle-row">
@@ -769,7 +772,8 @@ const Calendar = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
+import PageContainer from "../components/PageContainer";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -125,9 +126,10 @@ const ManageIncome = () => {
   };
 
   return (
-    <div className="manage-income-page">
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Income</h1>
+      <div className="manage-income-page">
       <div className="history-header">
-        <h1>Manage Income</h1>
         <button type="button" className="primary-button" onClick={() => { setEditingSource(null); setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" }); setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
       </div>
 
@@ -232,7 +234,8 @@ const ManageIncome = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

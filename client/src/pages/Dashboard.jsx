@@ -10,6 +10,7 @@ import { getFirstName } from "../utils/userHelpers";
 import DayExpensesModal from "../components/DayExpensesModal";
 import AdSlot from "../components/AdSlot";
 import SpendingBreakdown from "../components/SpendingBreakdown";
+import PageContainer from "../components/PageContainer";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
 import { IconPlus, IconClose } from "../components/AppIcons";
@@ -179,7 +180,8 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="dashboard-page">
+    <PageContainer>
+      <div className="dashboard-page">
       {/* Hero */}
       <section className="hero">
         {summaryLoading && <p className="hero-loading">Loading...</p>}
@@ -454,7 +456,8 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 

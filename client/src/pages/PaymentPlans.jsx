@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
+import PageContainer from "../components/PageContainer";
 
 // Format dates using UTC components so a date stored as noon UTC doesn't
 // shift when the browser is behind UTC (US timezones).
@@ -147,9 +148,10 @@ const PaymentPlans = () => {
   };
 
   return (
-    <div className="history-page">
+    <PageContainer>
+      <h1 className="heading-display" style={{ marginBottom: 32 }}>Plans</h1>
+      <div className="history-page">
       <div className="history-header">
-        <h1>Payment Plans</h1>
         <button type="button" className="primary-button" onClick={openAdd}>+ Add Plan</button>
       </div>
 
@@ -313,7 +315,8 @@ const PaymentPlans = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 };
 
