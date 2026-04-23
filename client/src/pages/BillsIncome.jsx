@@ -64,8 +64,8 @@ const BillsIncome = () => {
       amount: String(b.amount || ""),
       dueDay: String(b.dueDayOfMonth || b.dueDay || ""),
       category: b.category || "Other",
-      startDate: b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : "",
-      lastPaymentDate: b.lastPaymentDate ? new Date(b.lastPaymentDate).toISOString().slice(0, 10) : "",
+      startDate: b.startDate ? String(b.startDate).slice(0, 10) : "",
+      lastPaymentDate: b.lastPaymentDate ? String(b.lastPaymentDate).slice(0, 10) : "",
       lastPaymentAmount: b.lastPaymentAmount != null ? String(b.lastPaymentAmount) : "",
     });
     setShowBillModal(true);

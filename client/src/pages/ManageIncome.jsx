@@ -75,7 +75,7 @@ const ManageIncome = () => {
 
   const openEditModal = (s) => {
     setEditingSource(s._id);
-    setRecForm({ name: s.name || "", amount: String(s.amount || ""), frequency: s.frequency || "biweekly", nextPayDate: s.nextPayDate ? new Date(s.nextPayDate).toISOString().slice(0, 10) : "" });
+    setRecForm({ name: s.name || "", amount: String(s.amount || ""), frequency: s.frequency || "biweekly", nextPayDate: s.nextPayDate ? String(s.nextPayDate).slice(0, 10) : "" });
     setIncomeType("recurring");
     setShowModal(true);
   };
@@ -102,7 +102,7 @@ const ManageIncome = () => {
     setOtForm({
       name: ot.name || "",
       amount: String(ot.amount || ""),
-      date: ot.date ? new Date(ot.date).toISOString().slice(0, 10) : "",
+      date: ot.date ? String(ot.date).slice(0, 10) : "",
     });
     setIncomeType("onetime");
     setShowModal(true);

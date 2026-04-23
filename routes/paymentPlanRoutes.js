@@ -1,23 +1,14 @@
 const express = require("express");
 const PaymentPlan = require("../models/PaymentPlan");
 const { authRequired } = require("../middleware/auth");
+const { parseDateOnlyNoon, todayLocal } = require("../utils/date");
 
 const router = express.Router();
 
-// Parse a YYYY-MM-DD string as LOCAL noon so it never shifts day when
-// stored as UTC. Using noon instead of midnight gives a 12-hour buffer
-// in any timezone worldwide.
-function parseLocalDate(str) {
-  if (!str) return null;
-  const [y, m, d] = String(str).split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d, 12, 0, 0);
-}
-
-function todayLocalStart() {
-  const n = new Date();
-  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
-}
+// Backwards-compat shims so the rest of this file's call sites don't
+// have to churn. Both delegate to the single utils/date.js source.
+const parseLocalDate = parseDateOnlyNoon;
+const todayLocalStart = todayLocal;
 
 // GET / — all plans for the authenticated user
 router.get("/", authRequired, async (req, res) => {
