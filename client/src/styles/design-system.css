@@ -4110,3 +4110,338 @@ textarea:focus-visible {
   .hero-c3 { margin-bottom: var(--space-8); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   SIDE SHEET (C.3) — slide-in panel, right edge, universal spec
+   ═══════════════════════════════════════════════════════════════════ */
+.pp-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease-out-soft);
+}
+.pp-sheet-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pp-sheet {
+  --pp-sheet-width: 480px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--pp-sheet-width);
+  max-width: 100vw;
+  background: var(--color-bg-elevated);
+  border-left: 1px solid var(--color-border-subtle);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              -24px 0 64px rgba(0, 0, 0, 0.4);
+  z-index: 210;
+  transform: translateX(100%);
+  transition: transform 300ms var(--ease-out-soft);
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.pp-sheet.open { transform: translateX(0); }
+
+@media (max-width: 767px) {
+  .pp-sheet { width: 100vw; }
+}
+
+.pp-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 32px 32px 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.pp-sheet-header-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-sheet-title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.pp-sheet-subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+.pp-sheet-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 160ms, color 160ms;
+}
+.pp-sheet-close:hover {
+  background: var(--color-bg-elevated-2);
+  color: var(--color-text-primary);
+}
+
+.pp-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+@media (max-width: 479px) {
+  .pp-sheet-header { padding: 24px 20px 16px; }
+  .pp-sheet-body { padding: 20px 20px 32px; }
+}
+
+/* Sections within the sheet */
+.pp-sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pp-sheet-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pp-sheet-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+.pp-sheet-section-total {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  transition: background 160ms, border-color 160ms;
+}
+.pp-sheet-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.pp-sheet-row-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-sheet-row-meta {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+.pp-sheet-row-amt {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.pp-sheet-row-amt.is-paid {
+  text-decoration: line-through;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+.pp-sheet-row-amt.is-positive { color: var(--color-accent-teal); }
+.pp-sheet-row-amt.is-negative { color: var(--color-semantic-negative); }
+
+.pp-sheet-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.pp-sheet-row-action {
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent-teal);
+  cursor: pointer;
+  font-family: inherit;
+}
+.pp-sheet-row-action:hover { text-decoration: underline; }
+.pp-sheet-row-action.is-muted { color: var(--color-text-secondary); }
+.pp-sheet-row-action.is-danger { color: var(--color-semantic-negative); }
+
+.pp-sheet-row.is-paid { opacity: 0.7; }
+.pp-sheet-row.is-paid .pp-sheet-row-name { color: var(--color-text-secondary); }
+
+.pp-sheet-empty {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 8px 2px;
+  margin: 0;
+}
+
+/* Inline form inside the sheet (mark paid, override, add income/expense) */
+.pp-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+.pp-sheet-form-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.pp-sheet-form-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: -6px 0 0;
+}
+.pp-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pp-sheet-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.pp-sheet-field-input,
+.pp-sheet-field select,
+.pp-sheet-field input {
+  height: 44px;
+  padding: 0 14px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.pp-sheet-field-input:focus,
+.pp-sheet-field input:focus,
+.pp-sheet-field select:focus {
+  outline: none;
+  border-color: var(--color-accent-teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}
+.pp-sheet-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.pp-sheet-btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, color 160ms;
+}
+.pp-sheet-btn-primary {
+  background: var(--color-accent-teal);
+  color: #04110F;
+  font-weight: 600;
+}
+.pp-sheet-btn-primary:hover { filter: brightness(1.08); }
+.pp-sheet-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.pp-sheet-btn-ghost {
+  background: transparent;
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.pp-sheet-btn-ghost:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* Snapshot card inside the sheet (paychecks) */
+.pp-sheet-snapshot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+.pp-sheet-snapshot-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-teal);
+  margin: 0 0 4px;
+}
+.pp-sheet-snapshot-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.pp-sheet-snapshot-row span:last-child { color: var(--color-text-primary); font-weight: 500; }
+.pp-sheet-snapshot-row.is-positive span:last-child { color: var(--color-accent-teal); }
+.pp-sheet-snapshot-row.is-negative span:last-child { color: var(--color-semantic-negative); }
+.pp-sheet-snapshot-row.is-total {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-sheet,
+  .pp-sheet-backdrop { transition: none; }
+}
+

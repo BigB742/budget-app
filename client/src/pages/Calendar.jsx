@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { getFirstName } from "../utils/userHelpers";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
+import SideSheet from "../components/SideSheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -393,7 +394,25 @@ const Calendar = () => {
   const daySavingsDeposits = selectedDay ? savingsDepositsByDay[selectedDay] || [] : [];
   const daySavingsWithdrawals = selectedDay ? savingsWithdrawalsByDay[selectedDay] || [] : [];
   const dayIncomes = selectedDay ? incomeByDay[selectedDay] || [] : [];
+  const dayPlanPayments = selectedDay ? ppByDay[selectedDay] || [] : [];
   const isSelectedPayday = selectedDay ? paydaySet.has(selectedDay) : false;
+  const daySpendingOnly = dayExpenses.filter((exp) => !/^savings$/i.test(exp.category || ""));
+  const sumAmt = (arr) => arr.reduce((s, x) => s + Number(x.amount || 0), 0);
+  const closeSheet = () => {
+    setSelectedDay(null);
+    setEditBill(null);
+    setMarkingPaid(null);
+    setPayingEarly(null);
+    setSnapshot(null);
+  };
+  const dayTitle = selectedDay
+    ? new Date(selectedDay + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
 
   return (
     <PageContainer>
@@ -514,270 +533,366 @@ const Calendar = () => {
         </div>
       )}
 
-      {/* Day detail modal */}
-      {selectedDay && (
-        <div className="modal-overlay" onClick={() => setSelectedDay(null)}>
-          <div className="modal-card cal-detail" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4>{new Date(selectedDay + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h4>
-              <button type="button" className="ghost-button" onClick={() => setSelectedDay(null)}>&#x2715;</button>
-            </div>
-
-            {/* Paycheck snapshot */}
-            {isSelectedPayday && (
-              <div className="paycheck-snapshot">
-                <h5>Paycheck Snapshot</h5>
-                {snapshotLoading ? (
-                  <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-secondary)" }}>Calculating projection...</p>
-                ) : snapshot ? (
-                  <>
-                    <div className="snapshot-row"><span>Paycheck amount</span><span>{currency.format(snapshot.paycheckAmount || 0)}</span></div>
-                    <div className="snapshot-row"><span>{snapshot.isFirstPeriod ? "Opening balance" : "Rollover from previous"}</span><span>{currency.format(snapshot.rollover || 0)}</span></div>
-                    <div className="snapshot-row"><span>Total available</span><span className="positive">{currency.format(snapshot.totalAvailable || 0)}</span></div>
-                    <div className="snapshot-row"><span>Bills this period</span><span className="negative">&minus;{currency.format(snapshot.billsThisPeriod || 0)}</span></div>
-                    {(snapshot.plansDueThisPeriod || 0) > 0 && (
-                      <div className="snapshot-row"><span>Payment plans this period</span><span className="negative">&minus;{currency.format(snapshot.plansDueThisPeriod)}</span></div>
-                    )}
-                    <div className="snapshot-row"><span>Expenses this period</span><span className="negative">&minus;{currency.format(snapshot.expensesThisPeriod || 0)}</span></div>
-                    <div className="snapshot-row total"><span>Balance</span><span className={(snapshot.balance ?? snapshot.estimatedBalance ?? 0) >= 0 ? "positive" : "negative"}>{currency.format(snapshot.balance ?? snapshot.estimatedBalance ?? 0)}</span></div>
-                  </>
-                ) : (
-                  <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-secondary)" }}>Unable to load projection.</p>
+      <SideSheet
+        open={!!selectedDay}
+        onClose={closeSheet}
+        title={dayTitle}
+        subtitle={isSelectedPayday ? "Payday" : undefined}
+      >
+        {isSelectedPayday && (
+          <div className="pp-sheet-snapshot has-inset-highlight">
+            <h4 className="pp-sheet-snapshot-title">Paycheck snapshot</h4>
+            {snapshotLoading ? (
+              <p className="pp-sheet-empty">Calculating projection…</p>
+            ) : snapshot ? (
+              <>
+                <div className="pp-sheet-snapshot-row"><span>Paycheck amount</span><span>{currency.format(snapshot.paycheckAmount || 0)}</span></div>
+                <div className="pp-sheet-snapshot-row"><span>{snapshot.isFirstPeriod ? "Opening balance" : "Rollover"}</span><span>{currency.format(snapshot.rollover || 0)}</span></div>
+                <div className="pp-sheet-snapshot-row is-positive"><span>Total available</span><span>{currency.format(snapshot.totalAvailable || 0)}</span></div>
+                <div className="pp-sheet-snapshot-row is-negative"><span>Bills this period</span><span>&minus;{currency.format(snapshot.billsThisPeriod || 0)}</span></div>
+                {(snapshot.plansDueThisPeriod || 0) > 0 && (
+                  <div className="pp-sheet-snapshot-row is-negative"><span>Payment plans</span><span>&minus;{currency.format(snapshot.plansDueThisPeriod)}</span></div>
                 )}
-              </div>
+                <div className="pp-sheet-snapshot-row is-negative"><span>Expenses this period</span><span>&minus;{currency.format(snapshot.expensesThisPeriod || 0)}</span></div>
+                <div className={`pp-sheet-snapshot-row is-total ${(snapshot.balance ?? snapshot.estimatedBalance ?? 0) >= 0 ? "is-positive" : "is-negative"}`}>
+                  <span>Balance</span><span>{currency.format(snapshot.balance ?? snapshot.estimatedBalance ?? 0)}</span>
+                </div>
+              </>
+            ) : (
+              <p className="pp-sheet-empty">Unable to load projection.</p>
             )}
+          </div>
+        )}
 
-            {/* Bills */}
+        {/* 1. Income */}
+        <section className="pp-sheet-section">
+          <header className="pp-sheet-section-head">
+            <h3 className="pp-sheet-section-title">Income</h3>
+            {(dayIncomes.length + daySavingsWithdrawals.length) > 0 && (
+              <span className="pp-sheet-section-total">+{currency.format(sumAmt(dayIncomes) + sumAmt(daySavingsWithdrawals))}</span>
+            )}
+          </header>
+          {dayIncomes.length === 0 && daySavingsWithdrawals.length === 0 ? (
+            <p className="pp-sheet-empty">No income recorded.</p>
+          ) : (
+            <>
+              {dayIncomes.map((inc) => (
+                <div key={inc._id} className="pp-sheet-row">
+                  <div className="pp-sheet-row-main">
+                    <span className="pp-sheet-row-name">{inc.name}</span>
+                    <span className="pp-sheet-row-meta">One-time income</span>
+                  </div>
+                  <span className="pp-sheet-row-amt is-positive">+{currency.format(inc.amount)}</span>
+                </div>
+              ))}
+              {daySavingsWithdrawals.map((t) => (
+                <div key={t._id} className="pp-sheet-row">
+                  <div className="pp-sheet-row-main">
+                    <span className="pp-sheet-row-name">{t.goalNameSnapshot}</span>
+                    <span className="pp-sheet-row-meta">Savings withdrawal</span>
+                  </div>
+                  <span className="pp-sheet-row-amt is-positive">+{currency.format(t.amount)}</span>
+                </div>
+              ))}
+            </>
+          )}
+          <form className="pp-sheet-form" onSubmit={handleAddIncome}>
+            <h4 className="pp-sheet-form-title">Add income</h4>
+            <div className="pp-sheet-field">
+              <label className="pp-sheet-field-label" htmlFor="cal-inc-source">Source</label>
+              <input
+                id="cal-inc-source"
+                type="text"
+                placeholder="Where did this come from?"
+                value={incForm.name}
+                onChange={(e) => setIncForm((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="pp-sheet-field">
+              <label className="pp-sheet-field-label" htmlFor="cal-inc-amount">Amount</label>
+              <input
+                id="cal-inc-amount"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                placeholder="$0.00"
+                value={incForm.amount}
+                onChange={(e) => setIncForm((p) => ({ ...p, amount: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="pp-sheet-form-actions">
+              <button type="submit" className="pp-sheet-btn pp-sheet-btn-primary" disabled={incSaving}>
+                {incSaving ? "Saving…" : "Add income"}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* 2. Bills */}
+        <section className="pp-sheet-section">
+          <header className="pp-sheet-section-head">
+            <h3 className="pp-sheet-section-title">Bills</h3>
             {dayBills.length > 0 && (
-              <div className="cal-detail-section">
-                <h5>Bills</h5>
-                {dayBills.map((b) => {
-                  const amt = getEffectiveAmount(b, selectedDay);
-                  const payment = getBillPayment(b._id, selectedDay);
-                  const priorToTracking = isBillBeforeTracking(selectedDay);
-                  const hasOverride = !!overrideMap[`${b._id}_${selectedDay}`];
-                  const isPaid = !!payment || priorToTracking;
-                  return (
-                    <div key={b._id} className="cal-detail-row bill-row">
-                      <div>
-                        <strong>{b.name}</strong>
-                        {payment ? (
-                          <span className="cal-paid-badge">Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                        ) : priorToTracking ? (
-                          <span className="cal-paid-badge">Paid (before tracking started)</span>
-                        ) : (
-                          <span className="cal-detail-amt bill-amt">{currency.format(amt)}</span>
-                        )}
-                        {hasOverride && <span className="pill">Edited</span>}
-                      </div>
-                      {isPaid && payment && (
-                        <button type="button" className="link-button" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }} onClick={async () => {
+              <span className="pp-sheet-section-total">{currency.format(dayBills.reduce((s, b) => s + Number(getEffectiveAmount(b, selectedDay) || 0), 0))}</span>
+            )}
+          </header>
+          {dayBills.length === 0 ? (
+            <p className="pp-sheet-empty">No bills due.</p>
+          ) : (
+            dayBills.map((b) => {
+              const amt = getEffectiveAmount(b, selectedDay);
+              const payment = getBillPayment(b._id, selectedDay);
+              const priorToTracking = isBillBeforeTracking(selectedDay);
+              const hasOverride = !!overrideMap[`${b._id}_${selectedDay}`];
+              const isPaid = !!payment || priorToTracking;
+              return (
+                <div key={b._id} className={`pp-sheet-row${isPaid ? " is-paid" : ""}`} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
+                    <div className="pp-sheet-row-main">
+                      <span className="pp-sheet-row-name">{b.name}</span>
+                      {payment ? (
+                        <span className="pp-sheet-row-meta">Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      ) : priorToTracking ? (
+                        <span className="pp-sheet-row-meta">Paid before tracking started</span>
+                      ) : hasOverride ? (
+                        <span className="pp-sheet-row-meta">Edited for this month</span>
+                      ) : null}
+                    </div>
+                    <span className={`pp-sheet-row-amt${isPaid ? " is-paid" : ""}`}>{currency.format(amt)}</span>
+                  </div>
+                  {isPaid && payment && (
+                    <div className="pp-sheet-row-actions">
+                      <button
+                        type="button"
+                        className="pp-sheet-row-action is-muted"
+                        onClick={async () => {
                           try {
                             await authFetch(`/api/bill-payments/${payment._id}`, { method: "DELETE" });
                             loadData();
                             cache?.fetchSummary?.(true);
                           } catch { /* ignore */ }
-                        }}>Undo</button>
-                      )}
-                      {!isPaid && (
-                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", rowGap: "0.35rem", width: "100%", marginTop: "0.25rem" }}>
-                          <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit</button>
-                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--teal)" }} onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Mark as paid</button>
-                          <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B5CF6" }} onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>
-                        </div>
-                      )}
+                        }}
+                      >
+                        Unmark paid
+                      </button>
                     </div>
-                  );
-                })}
+                  )}
+                  {!isPaid && (
+                    <div className="pp-sheet-row-actions">
+                      <button type="button" className="pp-sheet-row-action" onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Mark as paid</button>
+                      <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit amount</button>
+                      <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          {markingPaid && (
+            <form className="pp-sheet-form" onSubmit={handleMarkPaid}>
+              <h4 className="pp-sheet-form-title">Mark <span style={{ color: "var(--color-accent-teal)" }}>{markingPaid.name}</span> as paid</h4>
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">When did you pay it?</label>
+                <input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required />
               </div>
-            )}
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Note (optional)</label>
+                <input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} />
+              </div>
+              <div className="pp-sheet-form-actions">
+                <button type="button" className="pp-sheet-btn pp-sheet-btn-ghost" onClick={() => setMarkingPaid(null)}>Cancel</button>
+                <button type="submit" className="pp-sheet-btn pp-sheet-btn-primary" disabled={paidSaving}>{paidSaving ? "Saving…" : "Save"}</button>
+              </div>
+            </form>
+          )}
 
-            {/* Mark as paid form */}
-            {markingPaid && (
-              <form className="cal-override-form" onSubmit={handleMarkPaid}>
-                <p className="cal-override-label">Mark <strong>{markingPaid.name}</strong> as paid</p>
-                <label>When did you pay it?<input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required /></label>
-                <label>Note (optional)<input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} /></label>
-                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setMarkingPaid(null)}>Cancel</button><button type="submit" className="primary-button" disabled={paidSaving}>{paidSaving ? "..." : "Save"}</button></div>
-              </form>
-            )}
-
-            {/* Pay early form */}
-            {payingEarly && (
-              <form className="cal-override-form" onSubmit={async (e) => {
+          {payingEarly && (
+            <form
+              className="pp-sheet-form"
+              onSubmit={async (e) => {
                 e.preventDefault();
                 setPaidSaving(true);
                 try {
-                  await authFetch("/api/bill-payments", { method: "POST", body: JSON.stringify({ billId: payingEarly._id, dueDate: selectedDay, paidDate: paidForm.paidDate, paidAmount: Number(paidForm.amount), note: paidForm.note || `Early payment — due ${selectedDay}` }) });
+                  await authFetch("/api/bill-payments", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      billId: payingEarly._id,
+                      dueDate: selectedDay,
+                      paidDate: paidForm.paidDate,
+                      paidAmount: Number(paidForm.amount),
+                      note: paidForm.note || `Early payment — due ${selectedDay}`,
+                    }),
+                  });
                   setPayingEarly(null);
                   setPaidForm({ paidDate: "", note: "", amount: "" });
                   loadData();
                   cache?.fetchSummary?.(true);
                 } catch { /* ignore */ }
                 finally { setPaidSaving(false); }
-              }}>
-                <p className="cal-override-label">Pay <strong>{payingEarly.name}</strong> early</p>
-                <p className="muted">Due: {selectedDay}</p>
-                <label>Amount<input type="number" step="0.01" value={paidForm.amount} onChange={(e) => setPaidForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-                <label>Date paid<input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required /></label>
-                <label>Note (optional)<input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} /></label>
-                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setPayingEarly(null)}>Cancel</button><button type="submit" className="primary-button" disabled={paidSaving}>{paidSaving ? "..." : "Confirm early payment"}</button></div>
-              </form>
-            )}
-
-            {editBill && (
-              <form className="cal-override-form" onSubmit={handleSaveOverride}>
-                <p className="cal-override-label">Editing: <strong>{editBill.name}</strong> on {selectedDay}</p>
-                <label>Amount<input type="number" step="0.01" value={overrideForm.amount} onChange={(e) => setOverrideForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-                <label>Note (optional)<input type="text" value={overrideForm.note} onChange={(e) => setOverrideForm((p) => ({ ...p, note: e.target.value }))} /></label>
-                <div className="modal-actions">
-                  <button type="button" className="ghost-button" onClick={() => setEditBill(null)}>Cancel</button>
-                  <button type="submit" className="primary-button" disabled={overrideSaving}>{overrideSaving ? "Saving..." : "Save this payment only"}</button>
-                </div>
-              </form>
-            )}
-
-            <div className="cal-detail-section">
-              <h5>Expenses</h5>
-              {(() => {
-                // Savings deposits live in SavingsTransaction, not Expense,
-                // but legacy users may have quick-added a Savings-chip
-                // expense. Filter those out of the red expenses list so
-                // they aren't mis-rendered as spending.
-                const spendingOnly = dayExpenses.filter(
-                  (exp) => !/^savings$/i.test(exp.category || "")
-                );
-                if (spendingOnly.length === 0 && daySavingsDeposits.length === 0) {
-                  return <p className="empty-row">No expenses.</p>;
-                }
-                return (
-                  <>
-                    {spendingOnly.map((exp, i) => (
-                      <div key={exp._id || i} className="cal-detail-row">
-                        <span>{exp.description || exp.category || "Expense"}</span>
-                        <span className="cal-detail-amt">{currency.format(exp.amount)}</span>
-                      </div>
-                    ))}
-                    {daySavingsDeposits.map((t) => (
-                      <div key={t._id} className="cal-detail-row">
-                        <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ color: "var(--teal)", fontWeight: 600 }}>{t.goalNameSnapshot}</span>
-                          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary, #8B949E)" }}>Savings deposit</span>
-                        </span>
-                        <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>{"\u2212"}{currency.format(t.amount)}</span>
-                      </div>
-                    ))}
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* One-time income + savings withdrawals */}
-            {(dayIncomes.length > 0 || daySavingsWithdrawals.length > 0) && (
-              <div className="cal-detail-section">
-                <h5>Income</h5>
-                {dayIncomes.map((inc) => (
-                  <div key={inc._id} className="cal-detail-row">
-                    <span style={{ color: "#8B5CF6", fontWeight: 600 }}>{inc.name}</span>
-                    <span className="cal-detail-amt" style={{ color: "#8B5CF6" }}>+{currency.format(inc.amount)}</span>
-                  </div>
-                ))}
-                {daySavingsWithdrawals.map((t) => (
-                  <div key={t._id} className="cal-detail-row">
-                    <span style={{ color: "var(--teal)", fontWeight: 600 }}>{t.goalNameSnapshot}</span>
-                    <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>+{currency.format(t.amount)}</span>
-                  </div>
-                ))}
+              }}
+            >
+              <h4 className="pp-sheet-form-title">Pay <span style={{ color: "var(--color-accent-teal)" }}>{payingEarly.name}</span> early</h4>
+              <p className="pp-sheet-form-hint">Due {selectedDay}</p>
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Amount</label>
+                <input type="number" step="0.01" value={paidForm.amount} onChange={(e) => setPaidForm((p) => ({ ...p, amount: e.target.value }))} required />
               </div>
-            )}
-
-            {/* Add income form — vertical stack */}
-            <form className="cal-add-exp day-modal-form" onSubmit={handleAddIncome} style={{ borderTop: dayIncomes.length > 0 ? "none" : undefined }}>
-              <h5>+ Add income</h5>
-              <div className="qa-field">
-                <label className="qa-label" htmlFor="cal-inc-source">Source</label>
-                <input
-                  id="cal-inc-source"
-                  type="text"
-                  className="qa-input"
-                  placeholder="Where did this come from?"
-                  value={incForm.name}
-                  onChange={(e) => setIncForm((p) => ({ ...p, name: e.target.value }))}
-                  required
-                />
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Date paid</label>
+                <input type="date" value={paidForm.paidDate} onChange={(e) => setPaidForm((p) => ({ ...p, paidDate: e.target.value }))} required />
               </div>
-              <div className="qa-field">
-                <label className="qa-label" htmlFor="cal-inc-amount">Amount</label>
-                <input
-                  id="cal-inc-amount"
-                  type="number"
-                  inputMode="decimal"
-                  className="qa-input"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="$0.00"
-                  value={incForm.amount}
-                  onChange={(e) => setIncForm((p) => ({ ...p, amount: e.target.value }))}
-                  required
-                />
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Note (optional)</label>
+                <input type="text" value={paidForm.note} onChange={(e) => setPaidForm((p) => ({ ...p, note: e.target.value }))} />
               </div>
-              <button type="submit" className="qa-submit" disabled={incSaving}>
-                {incSaving ? "Saving…" : "Add income"}
-              </button>
+              <div className="pp-sheet-form-actions">
+                <button type="button" className="pp-sheet-btn pp-sheet-btn-ghost" onClick={() => setPayingEarly(null)}>Cancel</button>
+                <button type="submit" className="pp-sheet-btn pp-sheet-btn-primary" disabled={paidSaving}>{paidSaving ? "Saving…" : "Confirm early payment"}</button>
+              </div>
             </form>
+          )}
 
-            {/* Add expense form — vertical stack with category chips */}
-            <form className="cal-add-exp day-modal-form" onSubmit={handleAddDayExpense}>
-              <h5>+ Add expense</h5>
-              <div className="qa-field">
-                <label className="qa-label" htmlFor="cal-exp-desc">Description</label>
-                <input
-                  id="cal-exp-desc"
-                  type="text"
-                  className="qa-input"
-                  placeholder={expForm.category === "Other" ? "What is this for?" : "Optional"}
-                  value={expForm.description}
-                  onChange={(e) => setExpForm((p) => ({ ...p, description: e.target.value }))}
-                  required={expForm.category === "Other"}
-                />
+          {editBill && (
+            <form className="pp-sheet-form" onSubmit={handleSaveOverride}>
+              <h4 className="pp-sheet-form-title">Edit amount for <span style={{ color: "var(--color-accent-teal)" }}>{editBill.name}</span></h4>
+              <p className="pp-sheet-form-hint">This month only — {selectedDay}</p>
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Amount</label>
+                <input type="number" step="0.01" value={overrideForm.amount} onChange={(e) => setOverrideForm((p) => ({ ...p, amount: e.target.value }))} required />
               </div>
-              <div className="qa-field">
-                <label className="qa-label" htmlFor="cal-exp-amount">Amount</label>
-                <input
-                  id="cal-exp-amount"
-                  type="number"
-                  inputMode="decimal"
-                  className="qa-input"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="$0.00"
-                  value={expForm.amount}
-                  onChange={(e) => setExpForm((p) => ({ ...p, amount: e.target.value }))}
-                  required
-                />
+              <div className="pp-sheet-field">
+                <label className="pp-sheet-field-label">Note (optional)</label>
+                <input type="text" value={overrideForm.note} onChange={(e) => setOverrideForm((p) => ({ ...p, note: e.target.value }))} />
               </div>
-              <div className="qa-field">
-                <label className="qa-label">Category</label>
-                <div className="qa-chips" role="group" aria-label="Category">
-                  {QUICK_CHIPS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={`qa-chip${expForm.category === c ? " active" : ""}`}
-                      onClick={() => setExpForm((p) => ({ ...p, category: c }))}
-                    >
-                      {c}
-                    </button>
-                  ))}
+              <div className="pp-sheet-form-actions">
+                <button type="button" className="pp-sheet-btn pp-sheet-btn-ghost" onClick={() => setEditBill(null)}>Cancel</button>
+                <button type="submit" className="pp-sheet-btn pp-sheet-btn-primary" disabled={overrideSaving}>{overrideSaving ? "Saving…" : "Save this payment only"}</button>
+              </div>
+            </form>
+          )}
+        </section>
+
+        {/* 3. Payment plans */}
+        <section className="pp-sheet-section">
+          <header className="pp-sheet-section-head">
+            <h3 className="pp-sheet-section-title">Payment plans</h3>
+            {dayPlanPayments.length > 0 && (
+              <span className="pp-sheet-section-total">{currency.format(sumAmt(dayPlanPayments))}</span>
+            )}
+          </header>
+          {dayPlanPayments.length === 0 ? (
+            <p className="pp-sheet-empty">No plan payments due.</p>
+          ) : (
+            dayPlanPayments.map((pp, i) => (
+              <div key={i} className={`pp-sheet-row${pp.paid ? " is-paid" : ""}`}>
+                <div className="pp-sheet-row-main">
+                  <span className="pp-sheet-row-name">{pp.planName}</span>
+                  {pp.paid && <span className="pp-sheet-row-meta">Paid</span>}
                 </div>
+                <span className={`pp-sheet-row-amt${pp.paid ? " is-paid" : ""}`}>{currency.format(pp.amount)}</span>
               </div>
-              <button type="submit" className="qa-submit" disabled={expSaving}>
+            ))
+          )}
+        </section>
+
+        {/* 4. Expenses */}
+        <section className="pp-sheet-section">
+          <header className="pp-sheet-section-head">
+            <h3 className="pp-sheet-section-title">Expenses</h3>
+            {daySpendingOnly.length > 0 && (
+              <span className="pp-sheet-section-total">{currency.format(sumAmt(daySpendingOnly))}</span>
+            )}
+          </header>
+          {daySpendingOnly.length === 0 ? (
+            <p className="pp-sheet-empty">No expenses.</p>
+          ) : (
+            daySpendingOnly.map((exp, i) => (
+              <div key={exp._id || i} className="pp-sheet-row">
+                <div className="pp-sheet-row-main">
+                  <span className="pp-sheet-row-name">{exp.description || exp.category || "Expense"}</span>
+                  {exp.category && <span className="pp-sheet-row-meta">{exp.category}</span>}
+                </div>
+                <span className="pp-sheet-row-amt">{currency.format(exp.amount)}</span>
+              </div>
+            ))
+          )}
+          <form className="pp-sheet-form" onSubmit={handleAddDayExpense}>
+            <h4 className="pp-sheet-form-title">Add expense</h4>
+            <div className="pp-sheet-field">
+              <label className="pp-sheet-field-label" htmlFor="cal-exp-desc">Description</label>
+              <input
+                id="cal-exp-desc"
+                type="text"
+                placeholder={expForm.category === "Other" ? "What is this for?" : "Optional"}
+                value={expForm.description}
+                onChange={(e) => setExpForm((p) => ({ ...p, description: e.target.value }))}
+                required={expForm.category === "Other"}
+              />
+            </div>
+            <div className="pp-sheet-field">
+              <label className="pp-sheet-field-label" htmlFor="cal-exp-amount">Amount</label>
+              <input
+                id="cal-exp-amount"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                placeholder="$0.00"
+                value={expForm.amount}
+                onChange={(e) => setExpForm((p) => ({ ...p, amount: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="pp-sheet-field">
+              <label className="pp-sheet-field-label">Category</label>
+              <div className="qa-chips" role="group" aria-label="Category">
+                {QUICK_CHIPS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`qa-chip${expForm.category === c ? " active" : ""}`}
+                    onClick={() => setExpForm((p) => ({ ...p, category: c }))}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pp-sheet-form-actions">
+              <button type="submit" className="pp-sheet-btn pp-sheet-btn-primary" disabled={expSaving}>
                 {expSaving ? "Saving…" : "Add expense"}
               </button>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+          </form>
+        </section>
+
+        {/* 5. Savings deposits */}
+        <section className="pp-sheet-section">
+          <header className="pp-sheet-section-head">
+            <h3 className="pp-sheet-section-title">Savings deposits</h3>
+            {daySavingsDeposits.length > 0 && (
+              <span className="pp-sheet-section-total">{currency.format(sumAmt(daySavingsDeposits))}</span>
+            )}
+          </header>
+          {daySavingsDeposits.length === 0 ? (
+            <p className="pp-sheet-empty">No deposits.</p>
+          ) : (
+            daySavingsDeposits.map((t) => (
+              <div key={t._id} className="pp-sheet-row">
+                <div className="pp-sheet-row-main">
+                  <span className="pp-sheet-row-name">{t.goalNameSnapshot}</span>
+                  <span className="pp-sheet-row-meta">Goal deposit</span>
+                </div>
+                <span className="pp-sheet-row-amt is-positive">+{currency.format(t.amount)}</span>
+              </div>
+            ))
+          )}
+        </section>
+      </SideSheet>
       </div>
     </PageContainer>
   );
