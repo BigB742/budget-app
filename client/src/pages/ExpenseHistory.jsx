@@ -142,31 +142,30 @@ const ExpenseHistory = () => {
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Expenses</h1>
-      <div className="history-page">
-      <div className="history-header">
-        <button type="button" className="primary-button" onClick={() => setShowAddModal(true)}>+ Add Expense</button>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Expenses</h1>
+        <p className="pp5-page-subtitle">Every dollar tracked.</p>
       </div>
 
-      {/* Filter bar */}
-      <div className="hf-bar">
-        {/* Quick range pills */}
-        <div className="hf-pills">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
+        <div className="pp5-segmented">
           {QUICK_TABS.map((tab) => (
-            <button key={tab} type="button" className={`hf-pill${activeTab === tab ? " active" : ""}`} onClick={() => handleTabClick(tab)}>{tab}</button>
+            <button key={tab} type="button" className={activeTab === tab ? "active" : ""} onClick={() => handleTabClick(tab)}>{tab}</button>
           ))}
         </div>
-        <div className="hf-controls">
-          <input type="date" value={filters.from} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, from: e.target.value })); setActiveTab(""); setPage(1); }} />
-          <input type="date" value={filters.to} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, to: e.target.value })); setActiveTab(""); setPage(1); }} />
-          <select value={sort} className="hf-input" onChange={(e) => setSort(e.target.value)}>
-            {SORT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select value={filters.category} className="hf-input" onChange={(e) => { setFilters((p) => ({ ...p, category: e.target.value })); setPage(1); }}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input type="text" placeholder="Search..." value={filters.search} className="hf-input hf-search" onChange={(e) => { setFilters((p) => ({ ...p, search: e.target.value })); setPage(1); }} />
-        </div>
+        <button type="button" className="pp5-btn pp5-btn-primary" onClick={() => setShowAddModal(true)}>Add expense</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: "var(--space-7)" }}>
+        <input type="date" value={filters.from} className="pp5-input" style={{ flex: "1 1 150px", minWidth: 150 }} onChange={(e) => { setFilters((p) => ({ ...p, from: e.target.value })); setActiveTab(""); setPage(1); }} />
+        <input type="date" value={filters.to} className="pp5-input" style={{ flex: "1 1 150px", minWidth: 150 }} onChange={(e) => { setFilters((p) => ({ ...p, to: e.target.value })); setActiveTab(""); setPage(1); }} />
+        <select value={sort} className="pp5-select" style={{ flex: "1 1 170px" }} onChange={(e) => setSort(e.target.value)}>
+          {SORT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        <select value={filters.category} className="pp5-select" style={{ flex: "1 1 170px" }} onChange={(e) => { setFilters((p) => ({ ...p, category: e.target.value })); setPage(1); }}>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input type="text" placeholder="Search" value={filters.search} className="pp5-input" style={{ flex: "2 1 220px" }} onChange={(e) => { setFilters((p) => ({ ...p, search: e.target.value })); setPage(1); }} />
       </div>
 
       {/* Category donut chart */}
@@ -194,8 +193,8 @@ const ExpenseHistory = () => {
       )}
 
       {/* Expense list */}
-      {loading ? <p className="status">Loading...</p> : sortedExpenses.length === 0 ? (
-        <div className="empty-state"><p>No expenses yet. Start adding them from the dashboard.</p></div>
+      {loading ? <p className="pp5-empty">Loading…</p> : sortedExpenses.length === 0 ? (
+        <p className="pp5-empty">No expenses yet.</p>
       ) : (
         <ul className="history-list">
           {sortedExpenses.map((exp) => {
@@ -252,16 +251,12 @@ const ExpenseHistory = () => {
           expense={editingExpense}
           onClose={() => setEditingExpense(null)}
           onSaved={() => {
-            // Close, refetch the list so the row shows new values, and
-            // force-refresh the dashboard summary so "You Can Spend"
-            // recalculates immediately with the edited amount/date.
             setEditingExpense(null);
             loadExpenses();
             cache?.fetchSummary?.(true);
           }}
         />
       )}
-      </div>
     </PageContainer>
   );
 };

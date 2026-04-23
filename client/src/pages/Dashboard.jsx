@@ -207,8 +207,8 @@ const Dashboard = () => {
       {summary && (
         <div className="stat-grid">
           <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/bills")}><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/payment-plans")}><span className="stat-label">Plans Due</span><span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>{currency.format(summary.totalPaymentPlansDue || 0)}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/expenses")}><span className="stat-label">Spent This Period</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/payment-plans")}><span className="stat-label">Plans due</span><span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>{currency.format(summary.totalPaymentPlansDue || 0)}</span></button>
+          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/expenses")}><span className="stat-label">Spent this period</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></button>
           <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/calendar")}><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></button>
           <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/savings")}><span className="stat-label">Savings</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></button>
         </div>
@@ -217,7 +217,7 @@ const Dashboard = () => {
       {/* Incomplete setup warning */}
       {summary && summary.empty && (!summary.currentBalance || summary.currentBalance === 0) && (
         <Link to="/onboarding" className="dash-setup-banner">
-          <span>⚠️ Your balance may not be accurate. Add your current bank balance and income to see your real spendable balance.</span>
+          <span>Add your bank balance and income to see your real spendable balance.</span>
           <span className="dash-setup-banner-cta">Set up →</span>
         </Link>
       )}
@@ -225,7 +225,7 @@ const Dashboard = () => {
       {/* Variable income prompt */}
       {storedUser.incomeType === "variable" && summary && summary.totalIncome === 0 && !summary.empty && (
         <Link to="/app/income" className="dash-variable-banner">
-          <span>💰 Don't forget to log your income for this pay period!</span>
+          <span>Log your income for this pay period.</span>
           <span className="dash-setup-banner-cta">Add income →</span>
         </Link>
       )}
@@ -280,8 +280,8 @@ const Dashboard = () => {
             return (
               <>
                 <div className="planner-header-row">
-                  <h2 className="section-title">Bills This Pay Period</h2>
-                  <button type="button" className="link-button" onClick={() => setShowAllDays((p) => !p)}>
+                  <h2 className="section-title">Bills this pay period</h2>
+                  <button type="button" className="pp5-btn pp5-btn-teal" onClick={() => setShowAllDays((p) => !p)}>
                     {showAllDays ? "Card view" : "Show all"}
                   </button>
                 </div>
@@ -326,7 +326,7 @@ const Dashboard = () => {
               pay period without having to toggle. */}
           {summary && !summary.empty && (
             <section className="sb-mini-card">
-              <h3 className="sb-mini-title">This Paycheck</h3>
+              <h3 className="sb-mini-title">This paycheck</h3>
               <ul className="sb-mini-list">
                 <li className="sb-mini-row">
                   <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "#EF4444" }} />Bills</span>

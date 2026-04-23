@@ -4,17 +4,10 @@ import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 
-// Format dates using UTC components so a date stored as noon UTC doesn't
-// shift when the browser is behind UTC (US timezones).
 const fmtDate = (d) => {
   if (!d) return "";
   const dt = new Date(d);
-  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-};
-
-const todayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 };
 
 const emptyRow = () => ({ date: "", amount: "" });
@@ -74,8 +67,6 @@ const PaymentPlans = () => {
 
   const addPaymentRow = () => setForm((p) => ({ ...p, payments: [...p.payments, emptyRow()] }));
   const removePaymentRow = (idx) => setForm((p) => ({ ...p, payments: p.payments.filter((_, i) => i !== idx) }));
-  // Duplicate a payment row directly below it with the same amount but a
-  // blank date — lets users quickly build equal-installment plans.
   const duplicatePaymentRow = (idx) => setForm((p) => {
     const src = p.payments[idx];
     const copy = { date: "", amount: src?.amount || "" };
@@ -119,11 +110,12 @@ const PaymentPlans = () => {
       loadPlans();
       cache?.fetchSummary?.(true);
     } catch (err) {
-      setError(err?.message || "Failed to save. Please try again.");
+      setError(err?.message || "Couldn't save. Try again.");
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
+    if (!window.confirm("Delete this plan?")) return;
     try {
       await authFetch(`/api/payment-plans/${id}`, { method: "DELETE" });
       loadPlans();
@@ -149,173 +141,142 @@ const PaymentPlans = () => {
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Plans</h1>
-      <div className="history-page">
-      <div className="history-header">
-        <button type="button" className="primary-button" onClick={openAdd}>+ Add Plan</button>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Plans</h1>
+        <p className="pp5-page-subtitle">Installment payment schedules.</p>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-7)" }}>
+        <button type="button" className="pp5-btn pp5-btn-primary" onClick={openAdd}>Add plan</button>
       </div>
 
       {loading ? (
-        <p className="status">Loading...</p>
+        <p className="pp5-empty">Loading…</p>
       ) : plans.length === 0 ? (
-        <div className="empty-state">
-          <p>No payment plans yet. Add one to track installments, Klarna payments, or anything you owe on specific dates.</p>
-        </div>
+        <p className="pp5-empty">No payment plans yet.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
           {plans.map((plan) => {
             const remaining = plan.payments.filter((p) => !p.paid).length;
             const total = plan.payments.length;
             return (
-              <div key={plan._id} className="bi-section">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div key={plan._id} className="pp5-card-xl">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: "var(--space-5)", flexWrap: "wrap" }}>
                   <div>
-                    <strong style={{ fontSize: 16 }}>{plan.name}</strong>
-                    <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)" }}>
+                    <div className="type-title">{plan.name}</div>
+                    <div className="type-secondary" style={{ marginTop: 4 }}>
                       {remaining} of {total} payment{total !== 1 ? "s" : ""} remaining
-                    </span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                    <button type="button" className="link-button" onClick={() => openEdit(plan)}>Edit</button>
-                    <button type="button" className="link-button" style={{ color: "var(--red)" }} onClick={() => handleDelete(plan._id)}>Delete</button>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button type="button" className="pp5-btn pp5-btn-teal" onClick={() => openEdit(plan)}>Edit</button>
+                    <button type="button" className="pp5-btn pp5-btn-text" style={{ color: "var(--color-semantic-negative)" }} onClick={() => handleDelete(plan._id)}>Delete</button>
                   </div>
                 </div>
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
                   {plan.payments
                     .slice()
                     .sort((a, b) => new Date(a.date) - new Date(b.date))
                     .map((p) => (
-                      <li
-                        key={p.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "var(--card-2)",
-                          borderRadius: 10,
-                          fontSize: 14,
-                          opacity: p.paid ? 0.5 : 1,
+                      <div key={p.id} className="pp5-row" style={{ padding: "16px 0" }}>
+                        <div className="pp5-row-primary" style={{
+                          color: p.paid ? "var(--color-text-tertiary)" : "var(--color-text-primary)",
                           textDecoration: p.paid ? "line-through" : "none",
-                        }}
-                      >
-                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {p.paid && <span style={{ color: "#00C9A7" }}>✓</span>}
-                          <span>{fmtDate(p.date)}</span>
-                        </span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{currency.format(p.amount)}</span>
+                        }}>
+                          {fmtDate(p.date)}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                          <span className="pp5-row-amount" style={{
+                            color: p.paid ? "var(--color-text-tertiary)" : "var(--color-text-primary)",
+                            textDecoration: p.paid ? "line-through" : "none",
+                          }}>
+                            {currency.format(p.amount)}
+                          </span>
                           {!p.paid ? (
-                            <button
-                              type="button"
-                              className="link-button"
-                              style={{ fontSize: 12, color: "var(--teal)" }}
-                              onClick={() => handleMarkPaid(plan._id, p.id)}
-                            >
-                              Mark paid
-                            </button>
+                            <button type="button" className="pp5-btn pp5-btn-teal" onClick={() => handleMarkPaid(plan._id, p.id)}>Mark paid</button>
                           ) : (
-                            <button
-                              type="button"
-                              className="link-button"
-                              style={{ fontSize: 11, color: "var(--text-muted)" }}
-                              onClick={() => handleUnmarkPaid(plan._id, p.id)}
-                            >
-                              Undo
-                            </button>
+                            <button type="button" className="pp5-btn pp5-btn-text" onClick={() => handleUnmarkPaid(plan._id, p.id)}>Undo</button>
                           )}
-                        </span>
-                      </li>
+                        </div>
+                      </div>
                     ))}
-                </ul>
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Add / Edit modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4>{editingPlan ? "Edit Payment Plan" : "New Payment Plan"}</h4>
-              <button type="button" className="ghost-button" onClick={() => setShowModal(false)}>x</button>
+        <div className="pp5-modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="pp5-modal pp5-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">{editingPlan ? "Edit payment plan" : "New payment plan"}</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => setShowModal(false)}>×</button>
             </div>
-            <form className="modal-form" onSubmit={handleSubmit}>
-              <label>
-                Plan Name
+            <form className="pp5-modal-body" onSubmit={handleSubmit}>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Plan name</label>
                 <input
+                  className="pp5-input"
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. Klarna - Nike Shoes"
+                  placeholder="e.g. Klarna, Nike shoes"
                   required
                 />
-              </label>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginTop: 8 }}>Payments</div>
+              </div>
+
+              <div className="type-eyebrow" style={{ marginTop: 8 }}>Payments</div>
               {form.payments.map((p, i) => (
-                <div key={i} className="pp-payment-row">
+                <div key={i} style={{ background: "var(--color-bg-elevated-2)", borderRadius: "var(--radius-md)", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                   {p.paid ? (
-                    <span style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "line-through" }}>
+                    <span className="type-secondary" style={{ textDecoration: "line-through" }}>
                       {fmtDate(p.date)}, {currency.format(Number(p.amount) || 0)} (paid)
                     </span>
                   ) : (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Payment {i + 1}</span>
+                        <span className="type-caption" style={{ fontWeight: 600 }}>Payment {i + 1}</span>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 11, height: 24 }} onClick={() => duplicatePaymentRow(i)} title="Duplicate with same amount">Duplicate</button>
-                          <button type="button" className="ghost-button" style={{ padding: "2px 8px", fontSize: 12, height: 24 }} onClick={() => removePaymentRow(i)}>×</button>
+                          <button type="button" className="pp5-btn pp5-btn-text pp5-btn-sm" onClick={() => duplicatePaymentRow(i)}>Duplicate</button>
+                          <button type="button" className="pp5-btn pp5-btn-text pp5-btn-sm" onClick={() => removePaymentRow(i)}>Remove</button>
                         </div>
                       </div>
-                      <div className="pp-payment-fields">
-                        <label style={{ flex: "1 1 55%", minWidth: 0 }}>
-                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Date</span>
-                          <input
-                            type="date"
-                            value={p.date}
-                            onChange={(e) => handlePaymentChange(i, "date", e.target.value)}
-                            required
-                            style={{ width: "100%" }}
-                          />
-                        </label>
-                        <label style={{ flex: "1 1 40%", minWidth: 0 }}>
-                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Amount</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="$0.00"
-                            value={p.amount}
-                            onChange={(e) => handlePaymentChange(i, "amount", e.target.value)}
-                            required
-                            style={{ width: "100%" }}
-                          />
-                        </label>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <div className="pp5-field" style={{ flex: "1 1 55%" }}>
+                          <label className="pp5-field-label">Date</label>
+                          <input className="pp5-input" type="date" value={p.date} onChange={(e) => handlePaymentChange(i, "date", e.target.value)} required />
+                        </div>
+                        <div className="pp5-field" style={{ flex: "1 1 40%" }}>
+                          <label className="pp5-field-label">Amount</label>
+                          <input className="pp5-input" type="number" step="0.01" min="0.01" placeholder="0.00" value={p.amount} onChange={(e) => handlePaymentChange(i, "amount", e.target.value)} required />
+                        </div>
                       </div>
                     </>
                   )}
                 </div>
               ))}
-              <button type="button" className="link-button" style={{ fontSize: 13, color: "var(--teal)" }} onClick={addPaymentRow}>+ Add Payment</button>
+              <button type="button" className="pp5-btn pp5-btn-teal" style={{ alignSelf: "flex-start" }} onClick={addPaymentRow}>Add payment</button>
 
-              {/* Live total — sums all payment amounts, updates as the user types */}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: "1px solid var(--card-border)", fontSize: 14 }}>
-                <span style={{ color: "var(--text-muted)" }}>Total</span>
-                <strong>{currency.format(form.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))}</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 0 4px", borderTop: "1px solid var(--color-border-subtle)" }}>
+                <span className="type-secondary">Total</span>
+                <span className="type-subtitle" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {currency.format(form.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))}
+                </span>
               </div>
 
-              {error && <div className="inline-error">{error}</div>}
-              <button type="submit" className="primary-button" style={{ width: "100%" }} disabled={saving}>
-                {saving ? "Saving..." : editingPlan ? "Save Changes" : "Save Payment Plan"}
-              </button>
-              <button type="button" className="link-button" style={{ textAlign: "center", width: "100%", fontSize: 13 }} onClick={() => setShowModal(false)}>Cancel</button>
+              {error && <p className="pp5-field-error">{error}</p>}
+              <div className="pp5-modal-actions">
+                <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="pp5-btn pp5-btn-primary" disabled={saving}>
+                  {saving ? "Saving…" : editingPlan ? "Save changes" : "Save plan"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
-      </div>
     </PageContainer>
   );
 };

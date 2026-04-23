@@ -402,26 +402,26 @@ const Savings = () => {
 
   return (
     <PageContainer>
-      <div className="sv-p4">
-        <header className="sv-p4-header">
-          <div className="sv-p4-header-text">
-            <h1 className="heading-display">Savings</h1>
-            <p className="text-secondary">Track your goals and watch progress build.</p>
-          </div>
-          <button type="button" className="primary-button" onClick={() => setNewGoalOpen(true)}>Add goal</button>
-        </header>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Savings</h1>
+        <p className="pp5-page-subtitle">Build toward what matters.</p>
+      </div>
 
-        <section className="sv-p4-total">
-          <span className="text-label">Total saved</span>
-          <span className="sv-p4-total-value">{currency.format(totalSaved)}</span>
-        </section>
+      <section className="sv-p4-total-card" style={{ marginBottom: "var(--space-9)" }}>
+        <div className="sv-p4-total-label">Total saved</div>
+        <div className="sv-p4-total-amount">{currency.format(totalSaved)}</div>
+      </section>
+
+      <section className="pp5-section">
+        <div className="pp5-section-header">
+          <h2 className="type-headline">Your goals</h2>
+          <button type="button" className="pp5-btn pp5-btn-primary" onClick={() => setNewGoalOpen(true)}>Add goal</button>
+        </div>
 
         {goals === null ? (
           <Skeleton />
         ) : goals.length === 0 ? (
-          <div className="sv-p4-empty">
-            <p>You have no savings goals yet. Click Add goal to create your first one.</p>
-          </div>
+          <p className="pp5-empty">No goals yet.</p>
         ) : (
           <div className="sv-p4-grid">
             {goals.map((g) => (
@@ -437,7 +437,7 @@ const Savings = () => {
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {newGoalOpen && (
         <NewGoalModal

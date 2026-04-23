@@ -397,49 +397,34 @@ const Calendar = () => {
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Calendar</h1>
-      <div className="calendar-page">
-      {/* View toggle — lives at the very top of the page so the user can
-          switch between Week and Month before touching anything else. */}
-      <div className="cal-view-toggle-row">
-        <div className="cal-view-toggle" role="tablist" aria-label="Calendar view">
-          <button
-            type="button"
-            className={calView === "week" ? "active" : ""}
-            onClick={() => setCalView("week")}
-            role="tab"
-            aria-selected={calView === "week"}
-          >
-            Week
-          </button>
-          <button
-            type="button"
-            className={calView === "month" ? "active" : ""}
-            onClick={() => setCalView("month")}
-            role="tab"
-            aria-selected={calView === "month"}
-          >
-            Month
-          </button>
-        </div>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Calendar</h1>
+        <p className="pp5-page-subtitle">Your money mapped across the month.</p>
       </div>
-
-      <div className="cal-header">
-        <button type="button" className="cal-nav-btn" onClick={goPrev}>&larr;</button>
-        <h2 className="cal-month-label">{monthLabel}</h2>
-        <button type="button" className="cal-nav-btn" onClick={goNext}>&rarr;</button>
+      <div className="calendar-page">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
+        <div className="pp5-segmented" role="tablist" aria-label="Calendar view">
+          <button type="button" className={calView === "week" ? "active" : ""} onClick={() => setCalView("week")}>Week</button>
+          <button type="button" className={calView === "month" ? "active" : ""} onClick={() => setCalView("month")}>Month</button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button type="button" className="pp5-btn pp5-btn-secondary pp5-btn-sm" onClick={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); }}>Today</button>
+          <button type="button" className="cal-nav-btn" onClick={goPrev} aria-label="Previous">‹</button>
+          <span className="type-title" style={{ minWidth: 180, textAlign: "center" }}>{monthLabel}</span>
+          <button type="button" className="cal-nav-btn" onClick={goNext} aria-label="Next">›</button>
+        </div>
       </div>
 
       {!hasPremiumAccess && isFutureMonth && (
         <div className="cal-toolbar"><span className="premium-badge">Premium required for future months</span></div>
       )}
 
-      {loading && <p className="status">Loading...</p>}
+      {loading && <p className="pp5-empty">Loading…</p>}
 
       {locked ? (
         <div className="premium-lock">
           <p>Projected months are a premium feature.</p>
-          <button type="button" className="primary-button">Upgrade to Premium</button>
+          <button type="button" className="pp5-btn pp5-btn-primary">Upgrade</button>
         </div>
       ) : (
         <div className="cal-grid-wrapper">

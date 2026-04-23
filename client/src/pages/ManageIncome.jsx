@@ -6,8 +6,8 @@ import PageContainer from "../components/PageContainer";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Biweekly" },
-  { value: "twicemonthly", label: "Twice a month (1st & 15th)" },
+  { value: "biweekly", label: "Every two weeks" },
+  { value: "twicemonthly", label: "Twice a month, 1st and 15th" },
   { value: "monthly", label: "Monthly" },
 ];
 
@@ -113,11 +113,10 @@ const ManageIncome = () => {
   };
 
   const handleDeleteOneTime = async (id) => {
+    if (!window.confirm("Remove this one-time income?")) return;
     try { await authFetch(`/api/one-time-income/${id}`, { method: "DELETE" }); load(); } catch { /* ignore */ }
   };
 
-  // Use UTC components so dates stored at midnight/noon UTC don't shift
-  // back a day in US timezones (same fix the Dashboard uses).
   const formatDate = (d) => {
     if (!d) return "";
     const dt = new Date(d);
@@ -127,44 +126,51 @@ const ManageIncome = () => {
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Income</h1>
-      <div className="manage-income-page">
-      <div className="history-header">
-        <button type="button" className="primary-button" onClick={() => { setEditingSource(null); setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" }); setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Income</h1>
+        <p className="pp5-page-subtitle">What you earn.</p>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: "var(--space-7)" }}>
         {cache?.summary?.nextPayDate && (
-          <div className="bi-summary-bar" style={{ flex: 1, minWidth: 180, marginBottom: 0 }}>
-            <span>Next payday</span>
-            <strong style={{ color: "var(--teal)" }}>{formatDate(cache.summary.nextPayDate)}</strong>
+          <div className="pp5-card">
+            <div className="type-eyebrow" style={{ marginBottom: 12 }}>Next payday</div>
+            <div className="type-title" style={{ color: "var(--color-accent-teal)" }}>{formatDate(cache.summary.nextPayDate)}</div>
           </div>
         )}
         {projected && (
-          <div className="bi-summary-bar" style={{ flex: 1, minWidth: 180, marginBottom: 0 }}>
-            <span>Projected This Year</span>
-            <strong style={{ color: "var(--teal)" }}>{currency.format(projected.projected)}</strong>
+          <div className="pp5-card">
+            <div className="type-eyebrow" style={{ marginBottom: 12 }}>Projected this year</div>
+            <div className="type-title" style={{ color: "var(--color-accent-teal)", fontVariantNumeric: "tabular-nums" }}>{currency.format(projected.projected)}</div>
           </div>
         )}
       </div>
 
-      {loading ? <p className="status">Loading...</p> : (
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-6)" }}>
+        <button type="button" className="pp5-btn pp5-btn-primary" onClick={() => { setEditingSource(null); setRecForm({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" }); setShowModal(true); setIncomeType("recurring"); }}>Add income</button>
+      </div>
+
+      {loading ? <p className="pp5-empty">Loading…</p> : (
         <>
-          {/* Recurring */}
-          <section className="bi-section">
-            <h2 className="section-title" style={{ marginBottom: "0.5rem" }}>Recurring income</h2>
-            {sources.length === 0 ? <p className="empty-row">No recurring income sources yet.</p> : (
-              <div className="recurring-list">
+          <section className="pp5-section">
+            <div className="pp5-section-header">
+              <h2 className="type-headline">Recurring income</h2>
+            </div>
+            {sources.length === 0 ? <p className="pp5-empty">No recurring income yet.</p> : (
+              <div className="pp5-list-card">
                 {sources.map((s) => (
-                  <div key={s._id} className="recurring-card">
-                    <div>
-                      <p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p>
-                      <p className="muted">{formatFreq(s.frequency)}. Next pay {formatDate(s.nextPayDate)}</p>
+                  <div key={s._id} className="pp5-row">
+                    <div className="pp5-row-left">
+                      <div className="pp5-row-primary">
+                        {s.name}
+                        {s.isPrimary && <span className="pp5-pill pp5-pill-teal">Primary</span>}
+                      </div>
+                      <div className="pp5-row-secondary">{formatFreq(s.frequency)} · Next pay {formatDate(s.nextPayDate)}</div>
                     </div>
-                    <div className="recurring-actions">
-                      <span className="entry-amount positive">{currency.format(s.amount)}</span>
-                      <button type="button" className="ghost-button" onClick={() => openEditModal(s)}>Edit</button>
-                      <button type="button" className="ghost-button" onClick={() => handleDeleteSource(s._id)}>Remove</button>
+                    <div className="pp5-row-right">
+                      <span className="pp5-row-amount positive">{currency.format(s.amount)}</span>
+                      <button type="button" className="pp5-icon-btn" onClick={() => openEditModal(s)}>Edit</button>
+                      <button type="button" className="pp5-icon-btn destructive" onClick={() => handleDeleteSource(s._id)}>×</button>
                     </div>
                   </div>
                 ))}
@@ -172,21 +178,22 @@ const ManageIncome = () => {
             )}
           </section>
 
-          {/* One-time */}
-          <section className="bi-section">
-            <h2 className="section-title" style={{ marginBottom: "0.5rem" }}>One-time income</h2>
-            {oneTime.length === 0 ? <p className="empty-row">No one-time income yet.</p> : (
-              <div className="recurring-list">
+          <section className="pp5-section">
+            <div className="pp5-section-header">
+              <h2 className="type-headline">One-time income</h2>
+            </div>
+            {oneTime.length === 0 ? <p className="pp5-empty">No one-time income yet.</p> : (
+              <div className="pp5-list-card">
                 {oneTime.map((ot) => (
-                  <div key={ot._id} className="recurring-card">
-                    <div>
-                      <p className="entry-title">{ot.name}</p>
-                      <p className="muted">{formatDate(ot.date)}</p>
+                  <div key={ot._id} className="pp5-row">
+                    <div className="pp5-row-left">
+                      <div className="pp5-row-primary">{ot.name}</div>
+                      <div className="pp5-row-secondary">{formatDate(ot.date)}</div>
                     </div>
-                    <div className="recurring-actions">
-                      <span className="entry-amount positive">{currency.format(ot.amount)}</span>
-                      <button type="button" className="ghost-button" onClick={() => openEditOneTime(ot)}>Edit</button>
-                      <button type="button" className="ghost-button" onClick={() => handleDeleteOneTime(ot._id)}>x</button>
+                    <div className="pp5-row-right">
+                      <span className="pp5-row-amount positive">{currency.format(ot.amount)}</span>
+                      <button type="button" className="pp5-icon-btn" onClick={() => openEditOneTime(ot)}>Edit</button>
+                      <button type="button" className="pp5-icon-btn destructive" onClick={() => handleDeleteOneTime(ot._id)}>×</button>
                     </div>
                   </div>
                 ))}
@@ -196,45 +203,69 @@ const ManageIncome = () => {
         </>
       )}
 
-      {/* Add modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null);}}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4>{editingSource ? "Edit income" : "Add income"}</h4>
-              <button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null);}}>&#x2715;</button>
+        <div className="pp5-modal-overlay" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null); }}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">{editingSource || editingOneTime ? "Edit income" : "New income"}</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => { setShowModal(false); setEditingSource(null); setEditingOneTime(null); }}>×</button>
             </div>
 
-            {/* Type selector (hidden when editing) */}
-            {!editingSource && (
-              <div style={{ display: "flex", gap: "0.35rem", margin: "0.65rem 0" }}>
-                <button type="button" className={`s-pill${incomeType === "recurring" ? " active" : ""}`} onClick={() => setIncomeType("recurring")}>Recurring paycheck</button>
-                <button type="button" className={`s-pill${incomeType === "onetime" ? " active" : ""}`} onClick={() => setIncomeType("onetime")}>One-time income</button>
+            {!editingSource && !editingOneTime && (
+              <div className="pp5-segmented" style={{ marginBottom: 20, alignSelf: "flex-start" }}>
+                <button type="button" className={incomeType === "recurring" ? "active" : ""} onClick={() => setIncomeType("recurring")}>Recurring paycheck</button>
+                <button type="button" className={incomeType === "onetime" ? "active" : ""} onClick={() => setIncomeType("onetime")}>One-time income</button>
               </div>
             )}
 
             {incomeType === "recurring" ? (
-              <form className="modal-form" onSubmit={editingSource ? handleEditRecurring : handleAddRecurring}>
-                <label>Source name<input value={recForm.name} onChange={(e) => setRecForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FPE Inc" required /></label>
-                <label>Amount per paycheck<input type="number" step="0.01" value={recForm.amount} onChange={(e) => setRecForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-                <label>Frequency<select value={recForm.frequency} onChange={(e) => setRecForm((p) => ({ ...p, frequency: e.target.value }))}>
-                  {FREQ_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select></label>
-                <label>Next payday<input type="date" value={recForm.nextPayDate} onChange={(e) => setRecForm((p) => ({ ...p, nextPayDate: e.target.value }))} required /></label>
-                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "..." : "Save"}</button></div>
+              <form className="pp5-modal-body" onSubmit={editingSource ? handleEditRecurring : handleAddRecurring}>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Source name</label>
+                  <input className="pp5-input" value={recForm.name} onChange={(e) => setRecForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FPE Inc" required />
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Amount per paycheck</label>
+                  <input className="pp5-input" type="number" step="0.01" value={recForm.amount} onChange={(e) => setRecForm((p) => ({ ...p, amount: e.target.value }))} required />
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Frequency</label>
+                  <select className="pp5-select" value={recForm.frequency} onChange={(e) => setRecForm((p) => ({ ...p, frequency: e.target.value }))}>
+                    {FREQ_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Next payday</label>
+                  <input className="pp5-input" type="date" value={recForm.nextPayDate} onChange={(e) => setRecForm((p) => ({ ...p, nextPayDate: e.target.value }))} required />
+                </div>
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                  <button type="submit" className="pp5-btn pp5-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                </div>
               </form>
             ) : (
-              <form className="modal-form" onSubmit={handleAddOneTime}>
-                <label>Source name<input value={otForm.name} onChange={(e) => setOtForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FAFSA, Tax return, Uncle" required /></label>
-                <label>Amount<input type="number" step="0.01" value={otForm.amount} onChange={(e) => setOtForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-                <label>Date received<input type="date" value={otForm.date} onChange={(e) => setOtForm((p) => ({ ...p, date: e.target.value }))} required /></label>
-                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "..." : "Save"}</button></div>
+              <form className="pp5-modal-body" onSubmit={handleAddOneTime}>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Source</label>
+                  <input className="pp5-input" value={otForm.name} onChange={(e) => setOtForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FAFSA, tax return, uncle" required />
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Amount</label>
+                  <input className="pp5-input" type="number" step="0.01" value={otForm.amount} onChange={(e) => setOtForm((p) => ({ ...p, amount: e.target.value }))} required />
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Date received</label>
+                  <input className="pp5-input" type="date" value={otForm.date} onChange={(e) => setOtForm((p) => ({ ...p, date: e.target.value }))} required />
+                </div>
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                  <button type="submit" className="pp5-btn pp5-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                </div>
               </form>
             )}
           </div>
         </div>
       )}
-      </div>
     </PageContainer>
   );
 };

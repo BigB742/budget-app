@@ -85,37 +85,44 @@ const Bills = () => {
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Bills</h1>
-      <div className="bills-income-page">
-
-      <div className="bi-summary-bar">
-        <span>Total monthly payments</span>
-        <strong style={{ color: "var(--red)" }}>{currency.format(monthlyObligations)}</strong>
+      <div className="pp5-page-header">
+        <h1 className="type-display">Bills</h1>
+        <p className="pp5-page-subtitle">Your recurring obligations.</p>
       </div>
 
-      <section className="bi-section">
-        <div className="bi-section-head">
-          <h2>Recurring bills</h2>
-          <button type="button" className="primary-button" onClick={openAdd}>Add bill</button>
+      <section className="pp5-card-xl" style={{ marginBottom: "var(--space-7)" }}>
+        <div className="type-eyebrow" style={{ marginBottom: 12 }}>Total monthly payments</div>
+        <div className="type-headline" style={{ color: "var(--color-semantic-negative)", fontVariantNumeric: "tabular-nums" }}>
+          {currency.format(monthlyObligations)}
         </div>
-        {loading ? <p className="status">Loading...</p> : bills.length === 0 ? <p className="empty-row">No bills yet.</p> : (
-          <div className="recurring-list">
+      </section>
+
+      <section className="pp5-section">
+        <div className="pp5-section-header">
+          <h2 className="type-headline">Recurring bills</h2>
+          <button type="button" className="pp5-btn pp5-btn-primary" onClick={openAdd}>Add bill</button>
+        </div>
+
+        {loading ? (
+          <p className="pp5-empty">Loading…</p>
+        ) : bills.length === 0 ? (
+          <p className="pp5-empty">No bills yet.</p>
+        ) : (
+          <div className="pp5-list-card">
             {bills.map((b) => (
-              <div key={b._id} className="recurring-card">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p className="entry-title">
+              <div key={b._id} className="pp5-row">
+                <div className="pp5-row-left">
+                  <div className="pp5-row-primary">
                     {b.name}
-                    {b.lastPaymentDate && <span className="pill ends-pill">Ends {formatDate(b.lastPaymentDate)}</span>}
-                    {b.startDate && <span className="pill" style={{ fontSize: "0.58rem" }}>From {formatDate(b.startDate)}</span>}
-                  </p>
-                  <p className="muted">Due day {b.dueDayOfMonth}. {b.category}</p>
-                </div>
-                <div className="bill-card-right">
-                  <span className="entry-amount negative">{currency.format(b.amount)}</span>
-                  <div className="bill-card-actions">
-                    <button type="button" className="bill-icon-btn" onClick={() => openEdit(b)} title="Edit">E</button>
-                    <button type="button" className="bill-icon-btn bill-icon-del" onClick={() => handleDelete(b._id)} title="Remove">x</button>
+                    {b.lastPaymentDate && <span className="pp5-pill pp5-pill-orange">Ends {formatDate(b.lastPaymentDate)}</span>}
+                    {b.startDate && <span className="pp5-pill pp5-pill-neutral">From {formatDate(b.startDate)}</span>}
                   </div>
+                  <div className="pp5-row-secondary">Due day {b.dueDayOfMonth} · {b.category}</div>
+                </div>
+                <div className="pp5-row-right">
+                  <span className="pp5-row-amount negative">{currency.format(b.amount)}</span>
+                  <button type="button" className="pp5-icon-btn" onClick={() => openEdit(b)} title="Edit">Edit</button>
+                  <button type="button" className="pp5-icon-btn destructive" onClick={() => handleDelete(b._id)} title="Remove">×</button>
                 </div>
               </div>
             ))}
@@ -124,25 +131,56 @@ const Bills = () => {
       </section>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingBill(null); }}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>{editingBill ? "Edit bill" : "Add bill"}</h4><button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingBill(null); }}>x</button></div>
-            <form className="modal-form" onSubmit={handleSave}>
-              <label>Name<input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required /></label>
-              <label>Amount<input type="number" step="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-              <label>Due day of month<input type="number" min="1" max="31" value={form.dueDay} onChange={(e) => setForm((p) => ({ ...p, dueDay: e.target.value }))} required /></label>
-              <label>Category<select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>{BILL_CATS.map((c) => <option key={c}>{c}</option>)}</select></label>
-              <label>Start date (optional)<input type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} /><span className="muted" style={{ fontSize: "0.68rem" }}>When did this bill start?</span></label>
-              <label>End date (optional)<input type="date" value={form.lastPaymentDate} onChange={(e) => setForm((p) => ({ ...p, lastPaymentDate: e.target.value }))} /><span className="muted" style={{ fontSize: "0.68rem" }}>When does this bill end? (e.g. payment plan)</span></label>
-              <label>Final payment amount (optional)<input type="number" step="0.01" value={form.lastPaymentAmount} onChange={(e) => setForm((p) => ({ ...p, lastPaymentAmount: e.target.value }))} placeholder="If different from regular amount" /></label>
-              <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => { setShowModal(false); setEditingBill(null); }}>Cancel</button><button type="submit" className="primary-button">{editingBill ? "Save changes" : "Add bill"}</button></div>
+        <div className="pp5-modal-overlay" onClick={() => { setShowModal(false); setEditingBill(null); }}>
+          <div className="pp5-modal pp5-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">{editingBill ? "Edit bill" : "New bill"}</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => { setShowModal(false); setEditingBill(null); }}>×</button>
+            </div>
+            <form className="pp5-modal-body" onSubmit={handleSave}>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Name</label>
+                <input className="pp5-input" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Amount</label>
+                <input className="pp5-input" type="number" step="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Due day of month</label>
+                <input className="pp5-input" type="number" min="1" max="31" value={form.dueDay} onChange={(e) => setForm((p) => ({ ...p, dueDay: e.target.value }))} required />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Category</label>
+                <select className="pp5-select" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
+                  {BILL_CATS.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Start date</label>
+                <input className="pp5-input" type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} />
+                <p className="pp5-field-help">Optional. When did this bill start?</p>
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">End date</label>
+                <input className="pp5-input" type="date" value={form.lastPaymentDate} onChange={(e) => setForm((p) => ({ ...p, lastPaymentDate: e.target.value }))} />
+                <p className="pp5-field-help">Optional. For payment plans or ending subscriptions.</p>
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Final payment amount</label>
+                <input className="pp5-input" type="number" step="0.01" value={form.lastPaymentAmount} onChange={(e) => setForm((p) => ({ ...p, lastPaymentAmount: e.target.value }))} placeholder="If different from regular amount" />
+                <p className="pp5-field-help">Optional.</p>
+              </div>
+              <div className="pp5-modal-actions">
+                <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => { setShowModal(false); setEditingBill(null); }}>Cancel</button>
+                <button type="submit" className="pp5-btn pp5-btn-primary">{editingBill ? "Save changes" : "Add bill"}</button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
       {limitModal && <FreeLimitModal type={limitModal} onClose={() => setLimitModal(null)} />}
-      </div>
     </PageContainer>
   );
 };

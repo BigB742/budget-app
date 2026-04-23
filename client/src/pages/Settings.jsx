@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 import { storeUser } from "../utils/safeStorage";
 import PageContainer from "../components/PageContainer";
-
 
 const FONT_SCALES = [
   { key: "xs", scale: 0.85, base: "0.75rem" },
@@ -14,6 +13,9 @@ const FONT_SCALES = [
   { key: "xl", scale: 1.25, base: "1.1rem" },
 ];
 
+const formatDate = (d) =>
+  d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+
 const Settings = () => {
   const navigate = useNavigate();
   const { isPremium, isTrialing, isCanceled, status, subscriptionEndDate } = useSubscription();
@@ -21,7 +23,7 @@ const Settings = () => {
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
     const idx = FONT_SCALES.findIndex((s) => s.key === saved);
-    return idx >= 0 ? idx : 2; // default: md (middle)
+    return idx >= 0 ? idx : 2;
   });
 
   const [user, setUser] = useState(null);
@@ -37,7 +39,7 @@ const Settings = () => {
   const [pwError, setPwError] = useState("");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteStep, setDeleteStep] = useState("confirm"); // "confirm" | "code"
+  const [deleteStep, setDeleteStep] = useState("confirm");
   const [deleteCode, setDeleteCode] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -56,7 +58,7 @@ const Settings = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState("");
-  const [cancelResult, setCancelResult] = useState(null); // { wasTrialing, endDate, message }
+  const [cancelResult, setCancelResult] = useState(null);
 
   useEffect(() => {
     const r = document.documentElement;
@@ -94,7 +96,7 @@ const Settings = () => {
       const updated = await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify(form) });
       setUser(updated); storeUser(updated); setDirty(false);
       setSaveMsg("Saved"); setTimeout(() => setSaveMsg(""), 2000);
-    } catch (err) { setSaveMsg(err?.message || "Error"); }
+    } catch (err) { setSaveMsg(err?.message || "Couldn't save."); }
     finally { setSaving(false); }
   };
 
@@ -105,8 +107,16 @@ const Settings = () => {
     try {
       await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ passwordChange: { currentPassword: pwForm.current, newPassword: pwForm.newPw, confirmNewPassword: pwForm.confirm } }) });
       setShowPwModal(false); setPwForm({ current: "", newPw: "", confirm: "" });
-    } catch (err) { setPwError(err?.message || "Failed."); }
+    } catch (err) { setPwError(err?.message || "Couldn't update password."); }
     finally { setPwSaving(false); }
+  };
+
+  const toggle2FA = async (next) => {
+    try {
+      await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: next }) });
+      const u2 = await authFetch("/api/user/me");
+      setUser(u2); storeUser(u2);
+    } catch { /* ignore */ }
   };
 
   const initials = ((form.firstName?.[0] || "") + (form.lastName?.[0] || "")).toUpperCase() || "?";
@@ -126,167 +136,250 @@ const Settings = () => {
     else if (ua.includes("iPhone")) os = "iPhone";
     else if (ua.includes("Android")) os = "Android";
     else if (ua.includes("Windows")) os = "Windows";
-    return `${time}. ${browser}${os ? ` on ${os}` : ""}`;
+    return `${time} · ${browser}${os ? ` on ${os}` : ""}`;
   };
 
-  const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); };
+  const hasSub = isTrialing || status === "premium" || status === "premium_monthly" || status === "premium_annual";
+  const fullName = [form.firstName, form.lastName].filter(Boolean).join(" ") || (user?.email ?? "Account");
 
   return (
     <PageContainer>
-      <h1 className="heading-display" style={{ marginBottom: 32 }}>Settings</h1>
-      <div className="settings-page">
+      <div className="pp5-page-header">
+        <h1 className="type-display">Settings</h1>
+      </div>
 
-      <div className="settings-two-col">
-        {/* LEFT */}
-        <div className="settings-col">
-          {/* Appearance */}
-          <div className="settings-section">
-            <h2 className="section-title">Appearance</h2>
-            <div className="s-row"><span className="s-label">Theme</span>
-              <div className="s-pills">
+      <div className="pp5-settings">
+        {/* Account */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Account</h2>
+          {loading ? (
+            <p className="pp5-empty">Loading…</p>
+          ) : (
+            <>
+              <div className="pp5-settings-account-row">
+                <div className="pp5-settings-avatar">{initials}</div>
+                <div>
+                  <div className="pp5-settings-account-name">{fullName}</div>
+                  {user?.email && <div className="pp5-settings-account-email">{user.email}</div>}
+                </div>
+              </div>
+              <div className="pp5-settings-row">
+                <span className="pp5-settings-row-label">First name</span>
+                <span className="pp5-settings-row-value">
+                  <input value={form.firstName} onChange={(e) => handleField("firstName", e.target.value)} />
+                </span>
+              </div>
+              <div className="pp5-settings-row">
+                <span className="pp5-settings-row-label">Last name</span>
+                <span className="pp5-settings-row-value">
+                  <input value={form.lastName} onChange={(e) => handleField("lastName", e.target.value)} />
+                </span>
+              </div>
+              <div className="pp5-settings-row">
+                <span className="pp5-settings-row-label">Date of birth</span>
+                <span className="pp5-settings-row-value">
+                  <input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} />
+                </span>
+              </div>
+              {dirty && (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, alignItems: "center" }}>
+                  {saveMsg && <span className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>{saveMsg}</span>}
+                  <button type="button" className="pp5-btn pp5-btn-primary" onClick={handleSave} disabled={saving}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {/* Sign-in & security */}
+        {user && (
+          <section className="pp5-settings-section">
+            <h2 className="pp5-settings-section-title">Sign-in & security</h2>
+            <div className="pp5-settings-row">
+              <span className="pp5-settings-row-label">Email</span>
+              <span className="pp5-settings-row-value">
+                <input value={form.email} onChange={(e) => handleField("email", e.target.value)} />
+              </span>
+            </div>
+            <div className="pp5-settings-action-row">
+              <div>
+                <p className="pp5-settings-action-label">Password</p>
+                <p className="pp5-settings-action-description">Last changed {user.passwordChangedAt ? formatDate(user.passwordChangedAt) : "not recorded"}</p>
+              </div>
+              <button type="button" className="pp5-settings-action-btn teal" onClick={() => setShowPwModal(true)}>Change</button>
+            </div>
+            <div className="pp5-settings-action-row">
+              <div>
+                <p className="pp5-settings-action-label">Two-factor authentication</p>
+                <p className="pp5-settings-action-description">{user.twoFactorEnabled ? "On. Codes sent to your email at sign in." : "Off. Turn on for an extra layer of security."}</p>
+              </div>
+              <button type="button" className="pp5-settings-action-btn teal" onClick={() => toggle2FA(!user.twoFactorEnabled)}>
+                {user.twoFactorEnabled ? "Turn off" : "Turn on"}
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Subscription */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Subscription</h2>
+          {hasSub && !isCanceled && (
+            <div className="pp5-settings-action-row">
+              <div>
+                <p className="pp5-settings-action-label">PayPulse Premium</p>
+                <p className="pp5-settings-action-description">
+                  {isTrialing ? "Free trial active." : "Active plan."}
+                  {subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
+                </p>
+              </div>
+              <button type="button" className="pp5-settings-action-btn teal" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
+                Manage
+              </button>
+            </div>
+          )}
+          {isCanceled && subscriptionEndDate && (
+            <div className="pp5-settings-action-row">
+              <div>
+                <p className="pp5-settings-action-label">PayPulse Premium</p>
+                <p className="pp5-settings-action-description">Canceled. Access continues until {formatDate(subscriptionEndDate)}.</p>
+              </div>
+            </div>
+          )}
+          {!hasSub && !isCanceled && (
+            <div className="pp5-settings-action-row">
+              <div>
+                <p className="pp5-settings-action-label">Free plan</p>
+                <p className="pp5-settings-action-description">Upgrade for unlimited bills, projections, and priority support.</p>
+              </div>
+              <button type="button" className="pp5-settings-action-btn teal" onClick={() => navigate("/subscription")}>
+                Upgrade
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Appearance */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Appearance</h2>
+          <div className="pp5-settings-row">
+            <span className="pp5-settings-row-label">Theme</span>
+            <span className="pp5-settings-row-value" style={{ textAlign: "right" }}>
+              <span className="pp5-segmented">
                 {["light", "dark", "system"].map((v) => (
-                  <button key={v} type="button" className={`s-pill${theme === v ? " active" : ""}`} onClick={() => setTheme(v)}>
+                  <button key={v} type="button" className={theme === v ? "active" : ""} onClick={() => setTheme(v)}>
                     {v === "light" ? "Light" : v === "dark" ? "Dark" : "System"}
                   </button>
                 ))}
-              </div>
-            </div>
-
-            {/* Text size slider */}
-            <div style={{ marginTop: "0.75rem" }}>
-              <span className="s-label">Text size</span>
-              <div className="text-size-preview" style={{ fontSize: FONT_SCALES[fontScaleIdx].base }}>
-                This is how your text will look across the app.
-              </div>
-              <div className="text-size-slider">
-                <span className="size-a-sm">A</span>
-                <div className="slider-track" onClick={(e) => {
+              </span>
+            </span>
+          </div>
+          <div className="pp5-settings-row" style={{ alignItems: "center" }}>
+            <span className="pp5-settings-row-label">Text size</span>
+            <span className="pp5-settings-row-value" style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
+              <span className="type-caption" style={{ fontSize: 12 }}>A</span>
+              <div
+                className="pp5-slider-track"
+                onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const pct = (e.clientX - rect.left) / rect.width;
                   const idx = Math.round(pct * (FONT_SCALES.length - 1));
                   setFontScaleIdx(Math.max(0, Math.min(FONT_SCALES.length - 1, idx)));
-                }}>
-                  <div className="slider-rail">
-                    <div className="slider-fill" style={{ width: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
-                  </div>
-                  <div className="slider-ticks">
-                    {FONT_SCALES.map((_, i) => <span key={i} className={`slider-tick${i <= fontScaleIdx ? " active" : ""}`} />)}
-                  </div>
-                  <div className="slider-thumb" style={{ left: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
-                </div>
-                <span className="size-a-lg">A</span>
+                }}
+              >
+                <div className="pp5-slider-rail" />
+                <div className="pp5-slider-fill" style={{ width: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
+                <div className="pp5-slider-thumb" style={{ left: `${(fontScaleIdx / (FONT_SCALES.length - 1)) * 100}%` }} />
               </div>
+              <span className="type-body-medium" style={{ fontSize: 18 }}>A</span>
+            </span>
+          </div>
+        </section>
+
+        {/* Login history */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Login history</h2>
+          {(user?.loginHistory || []).length === 0 ? (
+            <p className="type-secondary">No recent sign-ins to show.</p>
+          ) : (
+            <div>
+              {(user.loginHistory || []).slice(0, 5).map((entry, i) => (
+                <div key={i} className="pp5-settings-row" style={{ justifyContent: "flex-start" }}>
+                  <span className="type-secondary">{formatLogin(entry)}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
+        </section>
 
-          {/* Account */}
-          <div className="settings-section">
-            <h2 className="section-title">Account</h2>
-            {loading ? <p className="status">Loading...</p> : user && (
-              <>
-                <div className="s-avatar">{initials}</div>
+        {/* Help & support */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Help & support</h2>
+          <button type="button" className="pp5-settings-link-row" onClick={() => { window.__ppLaunchTour?.(); }}>
+            <span>Take the tour</span>
+            <span className="chev">›</span>
+          </button>
+          <button type="button" className="pp5-settings-link-row" onClick={() => navigate("/app/help")}>
+            <span>Help center</span>
+            <span className="chev">›</span>
+          </button>
+          <button type="button" className="pp5-settings-link-row" onClick={() => { setShowSupportModal(true); setSupportMsg(""); }}>
+            <span>Contact support</span>
+            <span className="chev">›</span>
+          </button>
+        </section>
 
-                <h3 className="pp-subheader">Personal Information</h3>
-                <div className="s-field-list">
-                  <div className="s-field"><span className="s-field-label">First name</span><input value={form.firstName} onChange={(e) => handleField("firstName", e.target.value)} /></div>
-                  <div className="s-field"><span className="s-field-label">Last name</span><input value={form.lastName} onChange={(e) => handleField("lastName", e.target.value)} /></div>
-                  <div className="s-field"><span className="s-field-label">Date of birth</span><input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} /></div>
-                </div>
-
-                <h3 className="pp-subheader">Login & Security</h3>
-                <div className="s-field-list">
-                  <div className="s-field"><span className="s-field-label">Email</span><input value={form.email} onChange={(e) => handleField("email", e.target.value)} /></div>
-                  <div className="s-field"><span className="s-field-label">Password</span><div className="s-pw-row"><span className="s-pw-dots">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span><button type="button" className="link-button s-change-pw" onClick={() => setShowPwModal(true)}>Change</button></div></div>
-                  <div className="s-field"><span className="s-field-label">Two-factor auth</span><div className="s-pw-row">
-                    {user.twoFactorEnabled
-                      ? <><span style={{ color: "var(--teal)", fontSize: "0.82rem", fontWeight: 600 }}>Enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--red)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: false }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); storeUser(u2); } catch {} }}>Disable</button></>
-                      : <><span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Not enabled</span><button type="button" className="link-button" style={{ fontSize: "0.75rem", color: "var(--teal)" }} onClick={async () => { try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ twoFactorEnabled: true }) }); const u2 = await authFetch("/api/user/me"); setUser(u2); storeUser(u2); } catch {} }}>Enable</button></>
-                    }
-                  </div></div>
-                </div>
-                {dirty && <div className="s-save-bar"><button type="button" className="primary-button" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>{saveMsg && <span className="s-save-msg">{saveMsg}</span>}</div>}
-
-                <h3 className="pp-subheader">Subscription</h3>
-                <div className="s-sub-block">
-                  {(isTrialing || status === "premium" || status === "premium_monthly" || status === "premium_annual") && !isCanceled && (
-                    <>
-                      <p className="s-sub-status">
-                        {isTrialing ? "Free trial" : "Premium active"}
-                      </p>
-                      <button type="button" className="link-button s-cancel-btn" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
-                        Cancel subscription
-                      </button>
-                    </>
-                  )}
-                  {isCanceled && subscriptionEndDate && (
-                    <p className="s-sub-status s-sub-canceled">
-                      Subscription canceled. Access until {new Date(subscriptionEndDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                    </p>
-                  )}
-                  {!isTrialing && !isCanceled && status !== "premium" && status !== "premium_monthly" && status !== "premium_annual" && (
-                    <p className="s-sub-status" style={{ color: "var(--text-muted)" }}>Free plan</p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT */}
-        <div className="settings-col">
-
-          {/* Login history */}
-          <div className="settings-section">
-            <h2 className="section-title">Login history</h2>
-            {(user?.loginHistory || []).length === 0 ? (
-              <p className="empty-row">No login history available.</p>
-            ) : (
-              <div className="s-login-list">
-                {(user.loginHistory || []).slice(0, 5).map((entry, i) => (
-                  <div key={i} className="s-login-entry">{formatLogin(entry)}</div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Help */}
-          <div className="settings-section">
-            <h2 className="section-title">Help</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button type="button" className="ghost-button" style={{ width: "100%" }} onClick={() => { window.__ppLaunchTour?.(); }}>Take the Tour</button>
-              <a href="/app/help" style={{ color: "var(--teal)", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Help Center</a>
+        {/* Account management */}
+        <section className="pp5-settings-section">
+          <h2 className="pp5-settings-section-title">Account management</h2>
+          <div className="pp5-settings-action-row">
+            <div>
+              <p className="pp5-settings-action-label">Reset onboarding</p>
+              <p className="pp5-settings-action-description">Start the setup flow again. Your data will be preserved.</p>
             </div>
+            <button type="button" className="pp5-settings-action-btn" onClick={() => { setShowResetModal(true); setResetConfirm(""); setResetPassword(""); setResetError(""); }}>
+              Reset
+            </button>
           </div>
-
-          {/* Support */}
-          <div className="settings-section">
-            <h2 className="section-title">Support</h2>
-            <button type="button" className="secondary-button" onClick={() => { setShowSupportModal(true); setSupportMsg(""); }}>Contact Support</button>
+          <div className="pp5-settings-action-row">
+            <div>
+              <p className="pp5-settings-action-label">Delete account</p>
+              <p className="pp5-settings-action-description">Permanently remove your account and all associated data.</p>
+            </div>
+            <button type="button" className="pp5-settings-action-btn destructive" onClick={() => setShowDeleteModal(true)}>
+              Delete
+            </button>
           </div>
-
-          {/* Danger zone */}
-          <div className="settings-section danger-zone">
-            <h2 className="section-title">Danger zone</h2>
-            <button type="button" className="s-danger-btn" style={{ marginBottom: "0.5rem" }} onClick={() => { setShowResetModal(true); setResetConfirm(""); setResetPassword(""); setResetError(""); }}>Reset & Re-onboard</button>
-            <button type="button" className="s-danger-btn" onClick={() => setShowDeleteModal(true)}>Delete account</button>
-          </div>
-
-          {/* Logout (mobile) */}
-          <button type="button" className="s-mobile-logout" onClick={handleLogout}>Log out</button>
-        </div>
+        </section>
       </div>
 
       {/* Password modal */}
       {showPwModal && (
-        <div className="modal-overlay" onClick={() => setShowPwModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>Change password</h4><button type="button" className="ghost-button" onClick={() => setShowPwModal(false)}>&#x2715;</button></div>
-            <form className="modal-form" onSubmit={handlePw}>
-              <label>Current password<input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} required /></label>
-              <label>New password<input type="password" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} required /></label>
-              <label>Confirm<input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} required /></label>
-              {pwError && <div className="inline-error">{pwError}</div>}
-              <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowPwModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={pwSaving}>{pwSaving ? "..." : "Update"}</button></div>
+        <div className="pp5-modal-overlay" onClick={() => setShowPwModal(false)}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">Change password</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => setShowPwModal(false)}>×</button>
+            </div>
+            <form onSubmit={handlePw} className="pp5-modal-body">
+              <div className="pp5-field">
+                <label className="pp5-field-label">Current password</label>
+                <input type="password" className="pp5-input" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} required />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">New password</label>
+                <input type="password" className="pp5-input" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} required />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Confirm new password</label>
+                <input type="password" className="pp5-input" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} required />
+              </div>
+              {pwError && <p className="pp5-field-error">{pwError}</p>}
+              <div className="pp5-modal-actions">
+                <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowPwModal(false)}>Cancel</button>
+                <button type="submit" className="pp5-btn pp5-btn-primary" disabled={pwSaving}>{pwSaving ? "Updating…" : "Update password"}</button>
+              </div>
             </form>
           </div>
         </div>
@@ -294,124 +387,118 @@ const Settings = () => {
 
       {/* Delete modal */}
       {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>Delete account</h4><button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}>&#x2715;</button></div>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will permanently delete your account and all your data. This cannot be undone.</p>
+        <div className="pp5-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">Delete account?</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}>×</button>
+            </div>
+            <p className="pp5-modal-description">This permanently removes your account and all data. It cannot be undone.</p>
 
             {deleteStep === "confirm" && (
               <>
-                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>We will send a 6-digit confirmation code to your registered email address.</p>
-                {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
-                <div className="modal-actions" style={{ marginTop: "0.75rem" }}>
-                  <button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteError(""); }}>Cancel</button>
-                  <button type="button" className="delete-button" disabled={deleteLoading} onClick={async () => {
+                <p className="type-secondary" style={{ marginTop: 16 }}>We'll send a six-digit code to your email to confirm.</p>
+                {deleteError && <p className="pp5-field-error">{deleteError}</p>}
+                <div className="pp5-modal-actions-stack">
+                  <button type="button" className="pp5-btn pp5-btn-destructive pp5-btn-block" disabled={deleteLoading} onClick={async () => {
                     setDeleteLoading(true); setDeleteError("");
                     try {
                       await authFetch("/api/user/send-delete-code", { method: "POST" });
                       setDeleteStep("code");
-                    } catch (err) { setDeleteError(err?.message || "Failed to send code."); }
+                    } catch (err) { setDeleteError(err?.message || "Couldn't send code."); }
                     finally { setDeleteLoading(false); }
-                  }}>{deleteLoading ? "Sending..." : "Send Confirmation Code"}</button>
+                  }}>{deleteLoading ? "Sending…" : "Send confirmation code"}</button>
+                  <button type="button" className="pp5-btn pp5-btn-secondary pp5-btn-block" onClick={() => { setShowDeleteModal(false); setDeleteError(""); }}>Cancel</button>
                 </div>
               </>
             )}
 
             {deleteStep === "code" && (
-              <>
-                <p style={{ fontSize: "0.82rem", color: "var(--teal)", fontWeight: 600, margin: "0.5rem 0" }}>Code sent. Check your email (and spam folder).</p>
-                <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter 6-digit code<input type="text" maxLength="6" value={deleteCode} onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, "").slice(0, 6))} style={{ marginTop: "0.15rem", letterSpacing: "0.3em", textAlign: "center", fontSize: "1.2rem", fontWeight: 700 }} /></label>
-                {deleteError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{deleteError}</div>}
-                <div className="modal-actions" style={{ marginTop: "0.5rem" }}>
-                  <button type="button" className="ghost-button" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); setDeleteCode(""); }}>Cancel</button>
-                  <button type="button" className="link-button" style={{ fontSize: "0.75rem" }} onClick={async () => {
-                    try { await authFetch("/api/user/send-delete-code", { method: "POST" }); setDeleteError(""); } catch {}
-                  }}>Resend code</button>
-                  <button type="button" className="delete-button" disabled={deleteCode.length !== 6 || deleteLoading} onClick={async () => {
+              <div className="pp5-modal-body" style={{ marginTop: 16 }}>
+                <p className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>Code sent. Check your email.</p>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Six-digit code</label>
+                  <input
+                    type="text"
+                    maxLength="6"
+                    className="pp5-input"
+                    value={deleteCode}
+                    onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    style={{ letterSpacing: "0.3em", textAlign: "center", fontSize: 20, fontWeight: 600 }}
+                  />
+                </div>
+                {deleteError && <p className="pp5-field-error">{deleteError}</p>}
+                <div className="pp5-modal-actions-stack">
+                  <button type="button" className="pp5-btn pp5-btn-destructive pp5-btn-block" disabled={deleteCode.length !== 6 || deleteLoading} onClick={async () => {
                     setDeleteLoading(true); setDeleteError("");
                     try {
                       await authFetch("/api/user/me", { method: "DELETE", body: JSON.stringify({ code: deleteCode }) });
                       localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/");
-                    } catch (err) { setDeleteError(err?.message || "Failed to delete account."); }
+                    } catch (err) { setDeleteError(err?.message || "Couldn't delete account."); }
                     finally { setDeleteLoading(false); }
-                  }}>{deleteLoading ? "Deleting..." : "Delete my account"}</button>
+                  }}>{deleteLoading ? "Deleting…" : "Delete my account"}</button>
+                  <button type="button" className="pp5-btn pp5-btn-text pp5-btn-block" onClick={async () => {
+                    try { await authFetch("/api/user/send-delete-code", { method: "POST" }); setDeleteError(""); } catch {}
+                  }}>Resend code</button>
+                  <button type="button" className="pp5-btn pp5-btn-secondary pp5-btn-block" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); setDeleteCode(""); }}>Cancel</button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
       )}
+
       {/* Cancel subscription modal */}
       {showCancelModal && (
-        <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4>Cancel subscription</h4>
-              <button type="button" className="ghost-button" onClick={() => setShowCancelModal(false)}>&#x2715;</button>
+        <div className="pp5-modal-overlay" onClick={() => setShowCancelModal(false)}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">Manage subscription</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => setShowCancelModal(false)}>×</button>
             </div>
-
             {!cancelResult ? (
               <>
-                <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", margin: "0.5rem 0 0.75rem" }}>
+                <p className="pp5-modal-description">
                   {isTrialing
-                    ? "Are you sure? Your trial will end and you won't be charged. You'll lose premium access immediately after the trial end date."
-                    : "Are you sure? You'll keep premium access until the end of your current billing period, then revert to the free plan."}
+                    ? "Cancel your trial? You won't be charged, and premium access ends on the trial end date."
+                    : "Cancel your subscription? You'll keep premium access until the end of your current billing period."}
                 </p>
-                {cancelError && <div className="inline-error" style={{ marginBottom: "0.5rem" }}>{cancelError}</div>}
-                <div className="modal-actions">
-                  <button type="button" className="ghost-button" onClick={() => setShowCancelModal(false)}>Keep subscription</button>
-                  <button
-                    type="button"
-                    className="delete-button"
-                    disabled={cancelLoading}
-                    onClick={async () => {
-                      setCancelLoading(true);
-                      setCancelError("");
+                {cancelError && <p className="pp5-field-error">{cancelError}</p>}
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowCancelModal(false)}>Keep subscription</button>
+                  <button type="button" className="pp5-btn pp5-btn-destructive" disabled={cancelLoading} onClick={async () => {
+                    setCancelLoading(true); setCancelError("");
+                    try {
+                      const data = await authFetch("/api/stripe/subscription", { method: "DELETE" });
+                      setCancelResult(data);
                       try {
-                        const data = await authFetch("/api/stripe/subscription", { method: "DELETE" });
-                        setCancelResult(data);
-                        // Refresh user in localStorage so useSubscription picks up the new status
-                        try {
-                          const refreshed = await authFetch("/api/user/me");
-                          storeUser(refreshed);
-                          setUser(refreshed);
-                        } catch { /* ignore */ }
-                      } catch (err) {
-                        setCancelError(err?.message || "Failed to cancel subscription.");
-                      } finally {
-                        setCancelLoading(false);
-                      }
-                    }}
-                  >
-                    {cancelLoading ? "Canceling..." : "Yes, cancel"}
-                  </button>
+                        const refreshed = await authFetch("/api/user/me");
+                        storeUser(refreshed); setUser(refreshed);
+                      } catch {}
+                    } catch (err) { setCancelError(err?.message || "Couldn't cancel subscription."); }
+                    finally { setCancelLoading(false); }
+                  }}>{cancelLoading ? "Canceling…" : "Cancel subscription"}</button>
                 </div>
               </>
             ) : (
               <>
                 {cancelResult.endDate ? (
                   <>
-                    <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--teal)", margin: "0.75rem 0 0.25rem" }}>
-                      {cancelResult.wasTrialing
-                        ? "Trial canceled. You won't be charged."
-                        : "Subscription canceled."}
+                    <p className="type-subtitle" style={{ color: "var(--color-accent-teal)", margin: "16px 0 8px" }}>
+                      {cancelResult.wasTrialing ? "Trial canceled." : "Subscription canceled."}
                     </p>
-                    <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
+                    <p className="pp5-modal-description">
                       {cancelResult.wasTrialing ? "Trial ends " : "Access continues until "}
-                      <strong>
-                        {new Date(cancelResult.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                      </strong>.
+                      <strong style={{ color: "var(--color-text-primary)" }}>{formatDate(cancelResult.endDate)}</strong>.
                     </p>
                   </>
                 ) : (
-                  // No active subscription to cancel — show the server's friendly
-                  // message instead of a raw error.
-                  <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: "0.75rem 0" }}>
+                  <p className="pp5-modal-description" style={{ marginTop: 16 }}>
                     {cancelResult.message || "No active subscription found."}
                   </p>
                 )}
-                <div className="modal-actions">
-                  <button type="button" className="primary-button" onClick={() => { setShowCancelModal(false); setCancelResult(null); }}>Close</button>
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-primary" onClick={() => { setShowCancelModal(false); setCancelResult(null); }}>Close</button>
                 </div>
               </>
             )}
@@ -421,32 +508,40 @@ const Settings = () => {
 
       {/* Reset account modal */}
       {showResetModal && (
-        <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>Reset account</h4><button type="button" className="ghost-button" onClick={() => setShowResetModal(false)}>&#x2715;</button></div>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0" }}>This will delete all your financial data including bills, income, expenses, and savings. Your account will remain but you will go through onboarding again. This cannot be undone.</p>
-            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.5rem" }}>Type RESET to confirm<input value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="RESET" style={{ marginTop: "0.15rem" }} /></label>
-            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontWeight: 600, fontSize: "0.82rem" }}>Enter your password<input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} style={{ marginTop: "0.15rem" }} /></label>
-            {resetError && <div className="inline-error" style={{ marginTop: "0.5rem" }}>{resetError}</div>}
-            <div className="modal-actions" style={{ marginTop: "0.5rem" }}>
-              <button type="button" className="ghost-button" onClick={() => setShowResetModal(false)}>Cancel</button>
-              <button type="button" className="delete-button" disabled={resetConfirm !== "RESET" || !resetPassword || resetLoading} onClick={async () => {
+        <div className="pp5-modal-overlay" onClick={() => setShowResetModal(false)}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">Reset onboarding?</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => setShowResetModal(false)}>×</button>
+            </div>
+            <p className="pp5-modal-description">This removes your financial data — bills, income, expenses, and savings. Your account stays, and you'll go through setup again.</p>
+            <div className="pp5-modal-body" style={{ marginTop: 20 }}>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Type RESET to confirm</label>
+                <input className="pp5-input" value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="RESET" />
+              </div>
+              <div className="pp5-field">
+                <label className="pp5-field-label">Password</label>
+                <input type="password" className="pp5-input" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} />
+              </div>
+              {resetError && <p className="pp5-field-error">{resetError}</p>}
+            </div>
+            <div className="pp5-modal-actions">
+              <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowResetModal(false)}>Cancel</button>
+              <button type="button" className="pp5-btn pp5-btn-destructive" disabled={resetConfirm !== "RESET" || !resetPassword || resetLoading} onClick={async () => {
                 setResetLoading(true); setResetError("");
                 try {
                   await authFetch("/api/user/reset-account", { method: "POST", body: JSON.stringify({ password: resetPassword }) });
-                  // Update local session so ProtectedRoute routes to onboarding
                   const stored = JSON.parse(localStorage.getItem("user") || "{}");
                   stored.onboardingComplete = false;
                   stored.currentBalance = 0;
                   stored.totalSavings = 0;
                   storeUser(stored);
                   setShowResetModal(false);
-                  // Hard redirect — forces ProtectedRoute to re-mount and fetch
-                  // the fresh profile, which will now have onboardingComplete: false
                   window.location.href = "/onboarding";
-                } catch (err) { setResetError(err?.message || "Failed to reset account."); }
+                } catch (err) { setResetError(err?.message || "Couldn't reset."); }
                 finally { setResetLoading(false); }
-              }}>{resetLoading ? "Resetting..." : "Reset my account"}</button>
+              }}>{resetLoading ? "Resetting…" : "Reset"}</button>
             </div>
           </div>
         </div>
@@ -454,34 +549,47 @@ const Settings = () => {
 
       {/* Support modal */}
       {showSupportModal && (
-        <div className="modal-overlay" onClick={() => setShowSupportModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h4>Contact Support</h4><button type="button" className="ghost-button" onClick={() => setShowSupportModal(false)}>&#x2715;</button></div>
+        <div className="pp5-modal-overlay" onClick={() => setShowSupportModal(false)}>
+          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pp5-modal-header">
+              <h4 className="pp5-modal-title">Contact support</h4>
+              <button type="button" className="pp5-modal-close" onClick={() => setShowSupportModal(false)}>×</button>
+            </div>
             {supportMsg ? (
-              <div style={{ padding: "1rem 0", textAlign: "center" }}>
-                <p style={{ color: "var(--teal)", fontWeight: 600 }}>{supportMsg}</p>
-                <button type="button" className="primary-button" style={{ marginTop: "0.75rem" }} onClick={() => setShowSupportModal(false)}>Close</button>
-              </div>
+              <>
+                <p className="pp5-modal-description" style={{ color: "var(--color-accent-teal)" }}>{supportMsg}</p>
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-primary" onClick={() => setShowSupportModal(false)}>Close</button>
+                </div>
+              </>
             ) : (
-              <form className="modal-form" onSubmit={async (e) => {
+              <form className="pp5-modal-body" onSubmit={async (e) => {
                 e.preventDefault();
                 setSupportSaving(true);
                 try {
                   await authFetch("/api/user/support-ticket", { method: "POST", body: JSON.stringify(supportForm) });
-                  setSupportMsg("Your message has been sent. We'll get back to you via email.");
+                  setSupportMsg("Your message was sent. We'll reply by email.");
                   setSupportForm({ subject: "", message: "" });
-                } catch { setSupportMsg("Failed to send. Please try again."); }
+                } catch { setSupportMsg("Couldn't send. Try again."); }
                 finally { setSupportSaving(false); }
               }}>
-                <label>Subject<input value={supportForm.subject} onChange={(e) => setSupportForm((p) => ({ ...p, subject: e.target.value }))} placeholder="What do you need help with?" required /></label>
-                <label>Message<textarea rows="4" value={supportForm.message} onChange={(e) => setSupportForm((p) => ({ ...p, message: e.target.value }))} placeholder="Describe your issue..." required style={{ width: "100%", resize: "vertical", fontFamily: "inherit", fontSize: "0.85rem", padding: "0.5rem", borderRadius: "var(--radius)", border: "1px solid var(--card-border)", background: "var(--bg)", color: "var(--text)" }} /></label>
-                <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowSupportModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={supportSaving}>{supportSaving ? "Sending..." : "Send"}</button></div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Subject</label>
+                  <input className="pp5-input" value={supportForm.subject} onChange={(e) => setSupportForm((p) => ({ ...p, subject: e.target.value }))} placeholder="What do you need help with?" required />
+                </div>
+                <div className="pp5-field">
+                  <label className="pp5-field-label">Message</label>
+                  <textarea rows="4" className="pp5-textarea" value={supportForm.message} onChange={(e) => setSupportForm((p) => ({ ...p, message: e.target.value }))} placeholder="Describe what's happening." required />
+                </div>
+                <div className="pp5-modal-actions">
+                  <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => setShowSupportModal(false)}>Cancel</button>
+                  <button type="submit" className="pp5-btn pp5-btn-primary" disabled={supportSaving}>{supportSaving ? "Sending…" : "Send"}</button>
+                </div>
               </form>
             )}
           </div>
         </div>
       )}
-      </div>
     </PageContainer>
   );
 };
