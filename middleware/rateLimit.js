@@ -15,6 +15,24 @@
 
 const rateLimit = require("express-rate-limit");
 const { ipKeyGenerator } = require("express-rate-limit");
+const { reportEvent } = require("../utils/observability");
+
+// Shared 429 handler — emits a structured observability event on every
+// rate-limit hit so a sudden spike (under attack, or a buggy client
+// retrying in a tight loop) is visible in the same place as other
+// production telemetry. We don't include req.ip in the payload because
+// we anonymize IPs elsewhere (authRoutes.js hashIP) and the limiter
+// itself is already keyed on the right thing.
+function makeHandler(name, message) {
+  return function rateLimitHandler(req, res, _next, options) {
+    reportEvent("rate_limit.hit", {
+      limiter: name,
+      route: req?.path,
+      method: req?.method,
+    }, "warning");
+    res.status(options.statusCode).json({ error: message });
+  };
+}
 
 const standardOptions = {
   standardHeaders: true,  // RateLimit-* headers
@@ -29,7 +47,7 @@ const loginLimiter = rateLimit({
   ...standardOptions,
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: "Too many login attempts. Try again in 15 minutes." },
+  handler: makeHandler("loginIp", "Too many login attempts. Try again in 15 minutes."),
 });
 
 // 10 / 15min per EMAIL — paired with loginLimiter to defeat distributed
@@ -42,7 +60,7 @@ const loginEmailLimiter = rateLimit({
   ...standardOptions,
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: "Too many login attempts for this account. Try again in 15 minutes." },
+  handler: makeHandler("loginEmail", "Too many login attempts for this account. Try again in 15 minutes."),
   keyGenerator: (req, res) => {
     const email = req.body && typeof req.body.email === "string"
       ? req.body.email.toLowerCase().trim()
@@ -59,7 +77,7 @@ const signupLimiter = rateLimit({
   ...standardOptions,
   windowMs: 60 * 60 * 1000,
   max: 5,
-  message: { error: "Too many signup attempts. Try again in an hour." },
+  handler: makeHandler("signupIp", "Too many signup attempts. Try again in an hour."),
 });
 
 // 10 / 15min per IP — verify-email + resend-verification. A user might
@@ -68,7 +86,7 @@ const verifyEmailLimiter = rateLimit({
   ...standardOptions,
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: "Too many verification attempts. Try again in 15 minutes." },
+  handler: makeHandler("verifyEmailIp", "Too many verification attempts. Try again in 15 minutes."),
 });
 
 // 5 / hour per EMAIL — forgot-password / reset-password. Keyed by the
@@ -80,7 +98,7 @@ const passwordResetLimiter = rateLimit({
   ...standardOptions,
   windowMs: 60 * 60 * 1000,
   max: 5,
-  message: { error: "Too many password reset requests for this email. Try again in an hour." },
+  handler: makeHandler("passwordResetEmail", "Too many password reset requests for this email. Try again in an hour."),
   keyGenerator: (req, res) => {
     const email = req.body && typeof req.body.email === "string"
       ? req.body.email.toLowerCase().trim()
@@ -96,7 +114,7 @@ const apiLimiter = rateLimit({
   ...standardOptions,
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { error: "Too many requests. Slow down and try again shortly." },
+  handler: makeHandler("apiIp", "Too many requests. Slow down and try again shortly."),
 });
 
 module.exports = {
