@@ -58,7 +58,7 @@ const SubscriptionSuccess = () => {
         )}
         {status === "success" && (
           <>
-            <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem", color: "#22C55E" }}>&#x2713;</div>
+            <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem", color: "var(--color-semantic-positive)" }}>&#x2713;</div>
             <h1>You're now a PayPulse Premium member!</h1>
             <p className="muted">Redirecting you to your dashboard...</p>
           </>

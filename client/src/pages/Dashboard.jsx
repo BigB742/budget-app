@@ -351,20 +351,20 @@ const Dashboard = () => {
               <h3 className="sb-mini-title">This paycheck</h3>
               <ul className="sb-mini-list">
                 <li className="sb-mini-row">
-                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "#EF4444" }} />Bills</span>
+                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "var(--color-semantic-negative)" }} />Bills</span>
                   <span className="sb-mini-amount">{currency.format(summary.totalBills || 0)}</span>
                 </li>
                 {(spendingCats || []).slice(0, 2).map((c) => (
                   <li key={c.category} className="sb-mini-row">
                     <span className="sb-mini-name">
-                      <span className="sb-mini-dot" style={{ background: c.category === "Food" ? "#F59E0B" : "#14B8A6" }} />
+                      <span className="sb-mini-dot" style={{ background: c.category === "Food" ? "var(--color-premium-gold)" : "var(--color-accent-teal)" }} />
                       {c.category}
                     </span>
                     <span className="sb-mini-amount">{currency.format(c.total || 0)}</span>
                   </li>
                 ))}
                 <li className="sb-mini-row sb-mini-row-total">
-                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "#14B8A6" }} />Available</span>
+                  <span className="sb-mini-name"><span className="sb-mini-dot" style={{ background: "var(--color-accent-teal)" }} />Available</span>
                   <span className="sb-mini-amount sb-mini-available">{currency.format(summary.balance || 0)}</span>
                 </li>
               </ul>
