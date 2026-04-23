@@ -13,8 +13,7 @@ import SpendingBreakdown from "../components/SpendingBreakdown";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
 import { IconPlus, IconClose } from "../components/AppIcons";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 // Primary chip categories for the quick-add sheet — the ones 95% of
 // expenses fall into. "Other" is always present as a fallback and forces

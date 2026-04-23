@@ -6,8 +6,8 @@ import { useIncomeSources } from "../hooks/useIncomeSources";
 import { useSubscription } from "../hooks/useSubscription";
 import { useDataCache } from "../context/DataCache";
 import FreeLimitModal from "../components/FreeLimitModal";
+import { currency } from "../utils/currency";
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const formatFrequency = (f) => f === "biweekly" ? "Bi-weekly" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st & 15th" : f === "monthly" ? "Monthly" : f;
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
@@ -189,7 +189,7 @@ const BillsIncome = () => {
               <div className="recurring-list">
                 {sources.map((s) => (
                   <div key={s._id} className="recurring-card">
-                    <div><p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p><p className="muted">{formatFrequency(s.frequency)} &middot; Next: {formatDate(s.nextPayDate)}</p></div>
+                    <div><p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p><p className="muted">{formatFrequency(s.frequency)}. Next pay {formatDate(s.nextPayDate)}</p></div>
                     <span className="entry-amount positive">{currency.format(s.amount)}</span>
                   </div>
                 ))}
@@ -230,7 +230,7 @@ const BillsIncome = () => {
                       {b.lastPaymentDate && <span className="pill ends-pill">Ends {formatDate(b.lastPaymentDate)}</span>}
                       {b.startDate && <span className="pill" style={{ fontSize: "0.58rem" }}>From {formatDate(b.startDate)}</span>}
                     </p>
-                    <p className="muted">Day {b.dueDayOfMonth} &middot; {b.category}</p>
+                    <p className="muted">Due day {b.dueDayOfMonth}. {b.category}</p>
                   </div>
                   <div className="bill-card-right">
                     <span className="entry-amount negative">{currency.format(b.amount)}</span>

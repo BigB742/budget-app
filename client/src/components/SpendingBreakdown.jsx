@@ -4,10 +4,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 
 import { getCategoryColor } from "../utils/categoryColors";
+import { currency } from "../utils/currency";
 
 const getColor = getCategoryColor;
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const Donut = ({ data, height = 140 }) => {
   if (!data.length) return null;

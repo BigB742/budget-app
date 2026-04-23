@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { authFetch } from "../apiClient";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const OnboardingIncome = () => {
   const navigate = useNavigate();
@@ -149,7 +148,7 @@ const OnboardingIncome = () => {
                         )}
                       </div>
                       <p className="muted">
-                        {currency.format(source.amount)} &middot; {source.frequency} &middot; next:{" "}
+                        {currency.format(source.amount)} paid {source.frequency}. Next pay{" "}
                         {source.nextPayDate?.slice(0, 10)}
                       </p>
                     </div>

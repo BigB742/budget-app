@@ -78,9 +78,9 @@ const TopNav = ({ onLogout }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // No badge for free/trial/past_due users — keep the nav clean.
-  // Premium users get a subtle crown next to their avatar.
-  const showCrown = isPremium;
+  // Premium users get a gold ring around their avatar — no crown, no
+  // text badge, no label. Just the ring and their initials.
+  const isPremiumRing = isPremium;
 
   return (
     <header className="pp-top" role="banner">
@@ -120,14 +120,13 @@ const TopNav = ({ onLogout }) => {
           <div className="pp-top-avatar-wrap" ref={avatarRef}>
             <button
               type="button"
-              className={`pp-top-avatar${showCrown ? " pp-top-avatar-premium" : ""}`}
+              className={`pp-top-avatar${isPremiumRing ? " pp-top-avatar-premium" : ""}`}
               onClick={() => setAvatarOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={avatarOpen}
               aria-label="Account menu"
             >
               {initials}
-              {showCrown && <span className="pp-top-crown" aria-label="Premium">👑</span>}
             </button>
             {avatarOpen && (
               <div className="pp-top-avatar-menu" role="menu">

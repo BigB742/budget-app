@@ -128,13 +128,25 @@ router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
     const entry = plan.payments.find((p) => p.id === req.params.paymentId);
     if (!entry) return res.status(404).json({ message: "Payment entry not found." });
 
-    // Support explicit paid: false to unmark
+    // Support explicit paid: false to fully unmark — restores the
+    // installment to its originally scheduled pay period (via its
+    // unchanged `date` field) and clears all paid metadata.
     if (req.body?.paid === false) {
       entry.paid = false;
+      entry.datePaid = undefined;
       entry.paidDate = undefined;
+      entry.paidEarly = false;
     } else {
+      // Mark paid: datePaid = today. paidEarly = true if today is
+      // strictly before the scheduled date (paid ahead of schedule).
+      const today = new Date();
+      const todayYMD = today.getUTCFullYear() * 10000 + (today.getUTCMonth() + 1) * 100 + today.getUTCDate();
+      const scheduledDate = new Date(entry.date);
+      const scheduledYMD = scheduledDate.getUTCFullYear() * 10000 + (scheduledDate.getUTCMonth() + 1) * 100 + scheduledDate.getUTCDate();
       entry.paid = true;
-      entry.paidDate = new Date();
+      entry.datePaid = today;
+      entry.paidDate = today; // legacy mirror
+      entry.paidEarly = todayYMD < scheduledYMD;
     }
     await plan.save();
     res.json(plan);

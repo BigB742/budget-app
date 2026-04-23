@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 // Format dates using UTC components so a date stored as noon UTC doesn't
 // shift when the browser is behind UTC (US timezones).

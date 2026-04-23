@@ -20,8 +20,8 @@ const classifyPayPeriod = (expenseDate, currentPeriod) => {
 };
 
 import { getCategoryColor } from "../utils/categoryColors";
+import { currency } from "../utils/currency";
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const CATEGORIES = ["All categories", "Dining Out", "Entertainment", "Food", "Gas", "Groceries", "Gym", "Health", "Home", "Shopping", "Subscriptions", "Travel", "Other"];
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest first" },

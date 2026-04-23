@@ -5,8 +5,7 @@ import { useToast } from "../context/ToastContext";
 import { useCelebration } from "../context/CelebrationContext";
 import { getFirstName } from "../utils/userHelpers";
 import SavingsAmountModal from "../components/SavingsAmountModal";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const Savings = () => {
   const cache = useDataCache();

@@ -4,8 +4,8 @@ import { formatDate } from "../utils/dateUtils";
 import { useSubscription } from "../hooks/useSubscription";
 import { useToast } from "../context/ToastContext";
 import FreeLimitModal from "../components/FreeLimitModal";
+import { currency } from "../utils/currency";
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
 const emptyForm = { name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" };
@@ -106,7 +106,7 @@ const Bills = () => {
                     {b.lastPaymentDate && <span className="pill ends-pill">Ends {formatDate(b.lastPaymentDate)}</span>}
                     {b.startDate && <span className="pill" style={{ fontSize: "0.58rem" }}>From {formatDate(b.startDate)}</span>}
                   </p>
-                  <p className="muted">Day {b.dueDayOfMonth} &middot; {b.category}</p>
+                  <p className="muted">Due day {b.dueDayOfMonth}. {b.category}</p>
                 </div>
                 <div className="bill-card-right">
                   <span className="entry-amount negative">{currency.format(b.amount)}</span>

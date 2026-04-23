@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const SavingsPanel = () => {
   const cache = useDataCache();

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { authFetch } from "../apiClient";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const calcPayoff = (balance, apr, payment, extraMonthly = 0) => {
   if (balance <= 0 || payment <= 0) return { months: 0, totalInterest: 0 };

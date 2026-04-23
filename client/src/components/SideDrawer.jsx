@@ -107,7 +107,7 @@ const SideDrawer = ({ open, onClose, onLogout }) => {
           <div className="pp-drawer-status">
             <span>Subscription</span>
             {isPremium && <span className="pp-status-pill premium">Premium</span>}
-            {isTrialing && <span className="pp-status-pill trial">Trial · {trialDaysLeft}d</span>}
+            {isTrialing && <span className="pp-status-pill trial">Trial</span>}
             {isFree && <span className="pp-status-pill free">Free</span>}
           </div>
           <button type="button" className="pp-drawer-logout" onClick={onLogout}>

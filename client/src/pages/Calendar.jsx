@@ -4,9 +4,7 @@ import { useSubscription } from "../hooks/useSubscription";
 import { useDataCache } from "../context/DataCache";
 import { useToast } from "../context/ToastContext";
 import { getFirstName } from "../utils/userHelpers";
-import AdSlot from "../components/AdSlot";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -491,8 +489,6 @@ const Calendar = () => {
         </div>
       )}
 
-      <AdSlot placement="banner" />
-
       {/* Day detail modal */}
       {selectedDay && (
         <div className="modal-overlay" onClick={() => setSelectedDay(null)}>
@@ -559,7 +555,7 @@ const Calendar = () => {
                         }}>Undo</button>
                       )}
                       {!isPaid && (
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", rowGap: "0.25rem" }}>
                           <button type="button" className="link-button cal-edit-btn" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit</button>
                           <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "var(--teal)" }} onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Mark as paid</button>
                           <button type="button" className="link-button" style={{ fontSize: "0.72rem", color: "#8B5CF6" }} onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>

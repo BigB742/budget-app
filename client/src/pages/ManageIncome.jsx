@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
-
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+import { currency } from "../utils/currency";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -148,7 +147,7 @@ const ManageIncome = () => {
                   <div key={s._id} className="recurring-card">
                     <div>
                       <p className="entry-title">{s.name}{s.isPrimary && <span className="pill primary-pill">Primary</span>}</p>
-                      <p className="muted">{formatFreq(s.frequency)} &middot; Next: {formatDate(s.nextPayDate)}</p>
+                      <p className="muted">{formatFreq(s.frequency)}. Next pay {formatDate(s.nextPayDate)}</p>
                     </div>
                     <div className="recurring-actions">
                       <span className="entry-amount positive">{currency.format(s.amount)}</span>
@@ -170,7 +169,7 @@ const ManageIncome = () => {
                   <div key={ot._id} className="recurring-card">
                     <div>
                       <p className="entry-title">{ot.name}</p>
-                      <p className="muted">{formatDate(ot.date)}{ot.note ? ` — ${ot.note}` : ""}</p>
+                      <p className="muted">{formatDate(ot.date)}{ot.note ? `. ${ot.note}` : ""}</p>
                     </div>
                     <div className="recurring-actions">
                       <span className="entry-amount positive">{currency.format(ot.amount)}</span>

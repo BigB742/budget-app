@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { authFetch } from "../apiClient";
+import { currency } from "../utils/currency";
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
 
 const AdminPanel = () => {
