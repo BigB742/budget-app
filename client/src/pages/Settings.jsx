@@ -19,7 +19,6 @@ const formatDate = (d) =>
 const Settings = () => {
   const navigate = useNavigate();
   const { isPremium, isTrialing, isCanceled, status, subscriptionEndDate } = useSubscription();
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "system");
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
     const idx = FONT_SCALES.findIndex((s) => s.key === saved);
@@ -60,12 +59,13 @@ const Settings = () => {
   const [cancelError, setCancelError] = useState("");
   const [cancelResult, setCancelResult] = useState(null);
 
+  // Dark-only until a light-mode palette ships. Force the theme here
+  // so returning users who had "system" / "light" saved in localStorage
+  // don't land in an unstyled state.
   useEffect(() => {
-    const r = document.documentElement;
-    if (theme === "system") r.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    else r.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", "dark");
+    localStorage.setItem("theme", "dark");
+  }, []);
 
   useEffect(() => {
     const fs = FONT_SCALES[fontScaleIdx];
@@ -149,51 +149,56 @@ const Settings = () => {
       </div>
 
       <div className="pp5-settings">
-        {/* Account */}
+        {/* 1. Account */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Account</h2>
           {loading ? (
             <p className="pp5-empty">Loading…</p>
           ) : (
-            <>
-              <div className="pp5-settings-account-row">
-                <div className="pp5-settings-avatar">{initials}</div>
-                <div>
-                  <div className="pp5-settings-account-name">{fullName}</div>
-                  {user?.email && <div className="pp5-settings-account-email">{user.email}</div>}
-                </div>
+            <div className="pp5-settings-account-row" style={{ borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
+              <div className="pp5-settings-avatar">{initials}</div>
+              <div>
+                <div className="pp5-settings-account-name">{fullName}</div>
+                {user?.email && <div className="pp5-settings-account-email">{user.email}</div>}
               </div>
-              <div className="pp5-settings-row">
-                <span className="pp5-settings-row-label">First name</span>
-                <span className="pp5-settings-row-value">
-                  <input value={form.firstName} onChange={(e) => handleField("firstName", e.target.value)} />
-                </span>
-              </div>
-              <div className="pp5-settings-row">
-                <span className="pp5-settings-row-label">Last name</span>
-                <span className="pp5-settings-row-value">
-                  <input value={form.lastName} onChange={(e) => handleField("lastName", e.target.value)} />
-                </span>
-              </div>
-              <div className="pp5-settings-row">
-                <span className="pp5-settings-row-label">Date of birth</span>
-                <span className="pp5-settings-row-value">
-                  <input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} />
-                </span>
-              </div>
-              {dirty && (
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, alignItems: "center" }}>
-                  {saveMsg && <span className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>{saveMsg}</span>}
-                  <button type="button" className="pp5-btn pp5-btn-primary" onClick={handleSave} disabled={saving}>
-                    {saving ? "Saving…" : "Save changes"}
-                  </button>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </section>
 
-        {/* Sign-in & security */}
+        {/* 2. Personal information */}
+        {!loading && (
+          <section className="pp5-settings-section">
+            <h2 className="pp5-settings-section-title">Personal information</h2>
+            <div className="pp5-settings-row">
+              <span className="pp5-settings-row-label">First name</span>
+              <span className="pp5-settings-row-value">
+                <input value={form.firstName} onChange={(e) => handleField("firstName", e.target.value)} placeholder="—" />
+              </span>
+            </div>
+            <div className="pp5-settings-row">
+              <span className="pp5-settings-row-label">Last name</span>
+              <span className="pp5-settings-row-value">
+                <input value={form.lastName} onChange={(e) => handleField("lastName", e.target.value)} placeholder="—" />
+              </span>
+            </div>
+            <div className="pp5-settings-row">
+              <span className="pp5-settings-row-label">Date of birth</span>
+              <span className="pp5-settings-row-value">
+                <input type="date" value={form.dateOfBirth} onChange={(e) => handleField("dateOfBirth", e.target.value)} />
+              </span>
+            </div>
+            {dirty && (
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, alignItems: "center" }}>
+                {saveMsg && <span className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>{saveMsg}</span>}
+                <button type="button" className="pp5-btn pp5-btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 3. Sign-in & security */}
         {user && (
           <section className="pp5-settings-section">
             <h2 className="pp5-settings-section-title">Sign-in & security</h2>
@@ -222,7 +227,7 @@ const Settings = () => {
           </section>
         )}
 
-        {/* Subscription */}
+        {/* 4. Subscription — plain-text status + single manage action */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Subscription</h2>
           {hasSub && !isCanceled && (
@@ -233,8 +238,12 @@ const Settings = () => {
                   Active plan.{subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
                 </p>
               </div>
-              <button type="button" className="pp5-settings-action-btn teal" onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}>
-                Manage
+              <button
+                type="button"
+                className="pp5-settings-action-btn teal"
+                onClick={() => { setShowCancelModal(true); setCancelError(""); setCancelResult(null); }}
+              >
+                Manage subscription
               </button>
             </div>
           )}
@@ -259,20 +268,12 @@ const Settings = () => {
           )}
         </section>
 
-        {/* Appearance */}
+        {/* 5. Appearance — only Dark ships; no light palette exists yet */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Appearance</h2>
           <div className="pp5-settings-row">
             <span className="pp5-settings-row-label">Theme</span>
-            <span className="pp5-settings-row-value" style={{ textAlign: "right" }}>
-              <span className="pp5-segmented">
-                {["light", "dark", "system"].map((v) => (
-                  <button key={v} type="button" className={theme === v ? "active" : ""} onClick={() => setTheme(v)}>
-                    {v === "light" ? "Light" : v === "dark" ? "Dark" : "System"}
-                  </button>
-                ))}
-              </span>
-            </span>
+            <span className="pp5-settings-row-value" style={{ color: "var(--color-text-secondary)" }}>Dark</span>
           </div>
           <div className="pp5-settings-row" style={{ alignItems: "center" }}>
             <span className="pp5-settings-row-label">Text size</span>
@@ -296,7 +297,7 @@ const Settings = () => {
           </div>
         </section>
 
-        {/* Login history */}
+        {/* 6. Login history */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Login history</h2>
           {(user?.loginHistory || []).length === 0 ? (
@@ -312,18 +313,13 @@ const Settings = () => {
           )}
         </section>
 
-        {/* Help & support */}
+        {/* 7. Help & support */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Help & support</h2>
           <button
             type="button"
             className="pp5-settings-link-row"
             onClick={() => {
-              // Belt-and-suspenders: clear the completion flag in both
-              // localStorage and the backend so the tour can launch
-              // cleanly, then either invoke the global launcher (if
-              // AppShell is mounted) or route to the dashboard with a
-              // pending flag that AppShell's effect picks up on mount.
               try {
                 const u = JSON.parse(localStorage.getItem("user") || "{}");
                 if (u && typeof u === "object") {
@@ -353,7 +349,7 @@ const Settings = () => {
           </button>
         </section>
 
-        {/* Account management */}
+        {/* 8. Account management — neutral framing, Delete is the only red action */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Account management</h2>
           <div className="pp5-settings-action-row">
