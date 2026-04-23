@@ -47,3 +47,6 @@ Thumbs.db
 
 # Launch docs (local-only working notes, not versioned)
 docs/launch/
+
+# Local Claude Code settings (per-developer permissions allowlist)
+.claude/settings.local.json
