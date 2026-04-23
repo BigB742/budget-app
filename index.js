@@ -154,39 +154,43 @@ app.use(async (req, res, next) => {
   }
 });
 
-// One-time migration on first warm boot: auto-verify legacy users with existing data
-// and zero out the deprecated user.totalSavings field for users who already
-// have SavingsGoal records (prevents dashboard double-counting). Runs once
-// per instance, non-blocking.
-setImmediate(async () => {
-  try {
-    await connectDB();
-    const User = require("./models/User");
-    const IncomeSource = require("./models/IncomeSource");
-    const SavingsGoal = require("./models/SavingsGoal");
+// One-time data migrations. These run on every cold start when enabled,
+// each doing an unbounded find()+save() loop — fine for a small user base
+// but adds linear startup latency once you have hundreds of users on
+// Vercel serverless. Gated behind ONE_TIME_MIGRATION_ENABLED so you can
+// flip the flag on, deploy once, verify in logs, then turn it off.
+if (process.env.ONE_TIME_MIGRATION_ENABLED === "true") {
+  setImmediate(async () => {
+    try {
+      await connectDB();
+      const User = require("./models/User");
+      const IncomeSource = require("./models/IncomeSource");
+      const SavingsGoal = require("./models/SavingsGoal");
 
-    const unverified = await User.find({ $or: [{ emailVerified: false }, { emailVerified: { $exists: false } }] });
-    for (const u of unverified) {
-      const hasData = await IncomeSource.countDocuments({ user: u._id });
-      if (hasData > 0) {
-        u.emailVerified = true;
-        u.onboardingComplete = true;
-        await u.save();
+      const unverified = await User.find({ $or: [{ emailVerified: false }, { emailVerified: { $exists: false } }] });
+      for (const u of unverified) {
+        const hasData = await IncomeSource.countDocuments({ user: u._id });
+        if (hasData > 0) {
+          u.emailVerified = true;
+          u.onboardingComplete = true;
+          await u.save();
+        }
       }
-    }
 
-    // Zero out legacy user.totalSavings for users whose savings now live in
-    // the SavingsGoal collection. This cleans up anyone onboarded before the
-    // dashboard double-count fix — their SavingsGoal row is the truth now.
-    const withLegacySavings = await User.find({ totalSavings: { $gt: 0 } }).select("_id");
-    for (const u of withLegacySavings) {
-      const goalCount = await SavingsGoal.countDocuments({ userId: u._id });
-      if (goalCount > 0) {
-        await User.updateOne({ _id: u._id }, { $set: { totalSavings: 0 } });
+      // Zero out legacy user.totalSavings for users whose savings now live in
+      // the SavingsGoal collection. This cleans up anyone onboarded before the
+      // dashboard double-count fix — their SavingsGoal row is the truth now.
+      const withLegacySavings = await User.find({ totalSavings: { $gt: 0 } }).select("_id");
+      for (const u of withLegacySavings) {
+        const goalCount = await SavingsGoal.countDocuments({ userId: u._id });
+        if (goalCount > 0) {
+          await User.updateOne({ _id: u._id }, { $set: { totalSavings: 0 } });
+        }
       }
-    }
-  } catch { /* migration non-critical */ }
-});
+      console.log("[Migration] One-time migrations completed. Unset ONE_TIME_MIGRATION_ENABLED in env and redeploy.");
+    } catch (err) { console.error("[Migration] failed:", err.message); }
+  });
+}
 
 app.get("/", (req, res) => {
   res.send("PayPulse API is running");
