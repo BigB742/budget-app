@@ -40,7 +40,9 @@ const GLOSSARY = [
   { term: "Bill", def: "A recurring charge that hits every month on a set date \u2014 rent, phone, subscriptions. Add it once and PayPulse tracks it forever." },
   { term: "Expense", def: "Anything you spend outside your scheduled bills. Gas, food, a haircut. Log it so your balance stays accurate." },
   { term: "Payment Plan", def: "A purchase split into payments on specific dates \u2014 like Klarna or a personal agreement. Add the dates and amounts and PayPulse handles the rest." },
+  { term: "Plans Due", def: "The total of all payment-plan installments scheduled before your next paycheck. PayPulse subtracts this from your spendable balance so the money is reserved for the dates it\u2019s actually due." },
   { term: "Savings", def: "Money you move from your spendable balance into a savings goal. It\u2019s still yours \u2014 you can withdraw it anytime and it comes back as income." },
+  { term: "Savings Deposit", def: "A transfer from your spendable balance into a savings goal. Logged as an outflow on your calendar but not as an expense, since the money is still yours." },
   { term: "Income", def: "Your paycheck plus any extra money that came in. All income feeds your spendable balance." },
   { term: "Negative Balance", def: "Your bills cost more than what\u2019s left in your current pay period. Your next paycheck will reset it \u2014 but it\u2019s a signal to watch your spending." },
 ];
