@@ -14,6 +14,7 @@ import PageContainer from "../components/PageContainer";
 import { useCurrentPayPeriodDays } from "../hooks/useCurrentPayPeriodDays";
 
 import { IconPlus, IconClose } from "../components/AppIcons";
+import AnimatedNumber from "../components/AnimatedNumber";
 import { currency } from "../utils/currency";
 
 // Primary chip categories for the quick-add sheet — the ones 95% of
@@ -182,35 +183,56 @@ const Dashboard = () => {
   return (
     <PageContainer>
       <div className="dashboard-page">
-      {/* Hero */}
-      <section className="hero">
+      {/* Hero — C.3 refinement: radial glow behind the balance, AnimatedNumber counts up on mount */}
+      <section className="hero hero-c3 hero-glow">
         {summaryLoading && <p className="hero-loading">Loading...</p>}
         {summary && (
           <>
-            <p className="hero-label">You can spend</p>
-            <p className={`hero-balance${(summary.balance || 0) >= 500 ? " healthy" : (summary.balance || 0) < 100 ? " warning" : ""}`}>
-              {currency.format(summary.balance || 0)}
+            <span className="type-eyebrow hero-c3-eyebrow">You can spend</span>
+            <p
+              className={`type-hero hero-c3-value${(summary.balance || 0) < 0 ? " is-negative" : ""}`}
+            >
+              <AnimatedNumber value={summary.balance || 0} />
             </p>
-            <p className="hero-sub">
+            <p className="type-secondary hero-c3-sub">
               {summary.empty ? "Set up your income to see your real balance" : `After all bills through ${formatReadableDate(summary.periodLabel?.end)}`}
             </p>
             {summary.nextPaycheckBalance != null && summary.nextPayDateLabel && (
-              <div className="hero-next-pill">
-                Next paycheck ({formatReadableDate(summary.nextPayDateLabel)}): <strong>{currency.format(summary.nextPaycheckBalance)}</strong>
+              <div className="hero-c3-pill">
+                Next paycheck ({formatReadableDate(summary.nextPayDateLabel)}):
+                <strong>{currency.format(summary.nextPaycheckBalance)}</strong>
               </div>
             )}
           </>
         )}
       </section>
 
-      {/* Stat cards */}
+      {/* Stat cards \u2014 values animate up on mount via AnimatedNumber. Keeps them feeling alive,
+          especially when returning to the dashboard after adding an expense. */}
       {summary && (
-        <div className="stat-grid">
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/bills")}><span className="stat-label">Bills to pay</span><span className="stat-value bills">{currency.format(summary.totalBills || 0)}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/payment-plans")}><span className="stat-label">Plans due</span><span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>{currency.format(summary.totalPaymentPlansDue || 0)}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/expenses")}><span className="stat-label">Spent this period</span><span className="stat-value">{currency.format(summary.totalExpenses || 0)}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/calendar")}><span className="stat-label">Days left</span><span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span></button>
-          <button type="button" className="stat-card stat-card-clickable" onClick={() => navigate("/app/savings")}><span className="stat-label">Savings</span><span className="stat-value teal">{currency.format(summary.totalSaved || 0)}</span></button>
+        <div className="stat-grid stagger-list">
+          <button type="button" className="stat-card stat-card-clickable pp-press has-inset-highlight" onClick={() => navigate("/app/bills")}>
+            <span className="stat-label">Bills to pay</span>
+            <span className="stat-value bills"><AnimatedNumber value={summary.totalBills || 0} /></span>
+          </button>
+          <button type="button" className="stat-card stat-card-clickable pp-press has-inset-highlight" onClick={() => navigate("/app/payment-plans")}>
+            <span className="stat-label">Plans due</span>
+            <span className={`stat-value${(summary.totalPaymentPlansDue || 0) > 0 ? " bills" : ""}`}>
+              <AnimatedNumber value={summary.totalPaymentPlansDue || 0} />
+            </span>
+          </button>
+          <button type="button" className="stat-card stat-card-clickable pp-press has-inset-highlight" onClick={() => navigate("/app/expenses")}>
+            <span className="stat-label">Spent this period</span>
+            <span className="stat-value"><AnimatedNumber value={summary.totalExpenses || 0} /></span>
+          </button>
+          <button type="button" className="stat-card stat-card-clickable pp-press has-inset-highlight" onClick={() => navigate("/app/calendar")}>
+            <span className="stat-label">Days left</span>
+            <span className="stat-value">{summary.daysUntilNextPaycheck ?? "\u2014"}</span>
+          </button>
+          <button type="button" className="stat-card stat-card-clickable pp-press has-inset-highlight" onClick={() => navigate("/app/savings")}>
+            <span className="stat-label">Savings</span>
+            <span className="stat-value teal"><AnimatedNumber value={summary.totalSaved || 0} /></span>
+          </button>
         </div>
       )}
 
@@ -290,7 +312,7 @@ const Dashboard = () => {
                 ) : allPassed ? (
                   <div className="empty-state"><p>You're all caught up for {monthName}!</p></div>
                 ) : showAllDays ? (
-                  <ul className="activity-list">
+                  <ul className="activity-list stagger-list">
                     {monthBills.map((b, i) => (
                       <li key={i} className="up-row up-bill" onClick={() => setSelectedDay(b.day)}>
                         <span className="up-accent up-accent-red" />
