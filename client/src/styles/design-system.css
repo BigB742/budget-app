@@ -1569,318 +1569,9 @@ img, video, iframe, canvas, svg { max-width: 100%; }
 .hc-acc-arrow { font-size: 18px; color: var(--text-muted); flex-shrink: 0; margin-left: 12px; }
 .hc-acc-body { padding: 0 16px 14px; font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
 
-/* ═══════════════════════════════════════════════════════════════════
-   SAVINGS PAGE v2 — redesigned goal-tracker
-   ═══════════════════════════════════════════════════════════════════ */
-.savings-page-v2 {
-  max-width: 720px !important;
-  margin: 0 auto !important;
-  padding: 24px 20px 48px !important;
-  width: 100% !important;
-}
-.sv-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
-.sv-title {
-  font-size: 28px;
-  font-weight: 500;
-  color: var(--text);
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-.sv-subtitle {
-  font-size: 14px;
-  color: var(--text-muted);
-  margin: 4px 0 0;
-}
-
-/* Total Saved card */
-.sv-total-card {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sv-total-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.sv-total-value {
-  font-size: 36px;
-  font-weight: 500;
-  color: var(--teal);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Empty state */
-.sv-empty {
-  background: var(--card);
-  border: 1px dashed var(--card-border-2);
-  border-radius: 12px;
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-muted);
-}
-.sv-empty p { margin: 0; font-size: 14px; line-height: 1.5; }
-
-/* Goal card */
-.sv-card {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 20px;
-  transition: border-color 200ms ease-out;
-}
-.sv-card:hover { border-color: var(--card-border-2); }
-
-.sv-top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 8px;
-}
-.sv-name {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--text);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-  transition: color 200ms ease-out;
-}
-.sv-name:hover { color: var(--teal); }
-.sv-name-input {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--card-2);
-  border: 1px solid var(--teal);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-family: inherit;
-  outline: none;
-  width: 100%;
-  max-width: 280px;
-}
-
-/* Overflow menu */
-.sv-menu-wrap { position: relative; }
-.sv-menu-trigger {
-  width: 32px; height: 32px;
-  border-radius: 8px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 200ms ease-out, color 200ms ease-out;
-}
-.sv-menu-trigger:hover { background: var(--card-2); color: var(--text); }
-.sv-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 160px;
-  background: var(--card-2);
-  border: 1px solid var(--card-border-2);
-  border-radius: 10px;
-  padding: 4px;
-  z-index: 20;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
-  animation: pp-fade-in 180ms ease-out both;
-}
-.sv-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-family: inherit;
-  cursor: pointer;
-  border-radius: 6px;
-}
-.sv-menu button:hover { background: var(--card-border); color: var(--text); }
-
-/* Progress bar */
-.sv-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.sv-bar {
-  flex: 1;
-  height: 12px;
-  background: var(--card-2);
-  border-radius: 6px;
-  overflow: hidden;
-  position: relative;
-}
-.sv-bar-fill {
-  height: 100%;
-  background: var(--teal);
-  border-radius: 6px;
-  transition: width 300ms ease-out;
-}
-.sv-set-target-btn {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: color 200ms ease-out;
-}
-.sv-set-target-btn:hover { color: var(--teal); }
-.sv-reached-badge {
-  background: rgba(0, 201, 167, 0.15);
-  color: var(--teal);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-/* Bottom row: amounts + actions */
-.sv-bottom-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.sv-amounts {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-.sv-current {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.sv-target-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 14px;
-  cursor: pointer;
-  font-family: inherit;
-  padding: 0;
-  font-variant-numeric: tabular-nums;
-  transition: color 200ms ease-out;
-}
-.sv-target-btn:hover { color: var(--text); }
-.sv-no-target {
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-/* Action buttons */
-.sv-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.sv-btn {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 200ms ease-out;
-}
-.sv-btn-add {
-  background: var(--teal);
-  color: #fff;
-  border: none;
-}
-.sv-btn-add:hover { background: #14b8a6; }
-.sv-btn-withdraw {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--card-border-2);
-}
-.sv-btn-withdraw:hover { border-color: var(--text-muted); color: var(--text); }
-
-/* Focus rings for accessibility */
-.sv-btn:focus-visible,
-.sv-name:focus-visible,
-.sv-target-btn:focus-visible,
-.sv-menu-trigger:focus-visible {
-  outline: 2px solid var(--teal);
-  outline-offset: 2px;
-}
-
-/* Mobile layout */
-@media (max-width: 639px) {
-  .sv-bottom-row { flex-direction: column; align-items: stretch; }
-  .sv-actions { justify-content: flex-end; }
-  .sv-total-value { font-size: 32px; }
-}
-
-/* Payment Plan modal — stacked payment row layout */
-.pp-payment-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  background: var(--card-2);
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-}
-.pp-payment-fields {
-  display: flex;
-  gap: 8px;
-}
-.pp-payment-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-@media (max-width: 480px) {
-  .pp-payment-fields { flex-direction: column; }
-}
-
-/* Give focus rings a11y visibility */
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--teal);
-  outline-offset: 2px;
-}
-
+/* Legacy .savings-page-v2 and .sv-* classes removed in C.3: the
+   current Savings page renders on .sv-p4-* primitives (see below).
+   No JSX references remain to these classes. */
 /* ═══════════════════════════════════════════════════════════════════════
    TOP NAV (replaces sidebar + bottom tabs)
    64px dark navy bar across the full width on every breakpoint.
@@ -1965,7 +1656,7 @@ textarea:focus-visible {
   color: var(--text);
 }
 .pp-top-link.active {
-  background: rgba(20, 184, 166, 0.12);
+  background: transparent;
   color: var(--teal);
   font-weight: 600;
 }
@@ -2256,62 +1947,10 @@ textarea:focus-visible {
   }
 }
 
-/* Typography scale */
-.heading-display {
-  font-size: 48px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
-  margin: 0;
-}
-.heading-section {
-  font-size: 28px;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-  margin: 0;
-}
-.heading-card {
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.3;
-  color: var(--color-text);
-  margin: 0;
-}
-.text-body {
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--color-text);
-}
-.text-secondary {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.4;
-  color: var(--color-text-muted);
-}
-.text-label {
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-.text-caption {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.3;
-  color: var(--color-text-muted);
-}
-
-/* Heading-display shrinks gracefully on small viewports */
-@media (max-width: 640px) {
-  .heading-display { font-size: 36px; }
-  .heading-section { font-size: 22px; }
-}
+/* Legacy Phase-4 typography classes (.heading-display/-section/-card,
+   .text-body/-secondary/-label/-caption) were superseded by the Phase-5
+   .type-* scale further below and had no remaining JSX users. Removed
+   in C.3 to keep the stylesheet honest. */
 
 /* Card primitive — the elevated surface used throughout Phase 4. */
 .pp-card {
@@ -2598,21 +2237,6 @@ textarea:focus-visible {
   color: var(--color-text);
 }
 
-/* Empty state */
-.sv-p4-empty {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
-  padding: 64px 40px;
-  text-align: center;
-}
-.sv-p4-empty p {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  line-height: 1.5;
-}
-
 /* Skeleton */
 .sv-p4-skeleton {
   background: var(--color-bg-elevated);
@@ -2631,27 +2255,35 @@ textarea:focus-visible {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  animation: pp-fade-in 200ms ease-out both;
+  padding: 24px;
+  animation: pp-fade-in 200ms var(--ease-out-soft) both;
 }
 .p4-modal-card {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 440px;
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  max-width: 480px;
   width: 100%;
-  animation: p4-modal-in 200ms ease-out both;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              0 40px 80px rgba(0, 0, 0, 0.5);
+  animation: p4-modal-in 300ms var(--ease-out-soft) both;
+}
+@media (max-width: 479px) {
+  .p4-modal-card { padding: 28px 20px; border-radius: var(--radius-lg); }
 }
 @keyframes p4-modal-in {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .p4-modal-title {
   font-size: 28px;
@@ -2679,12 +2311,12 @@ textarea:focus-visible {
   display: block;
   width: 100%;
   height: 48px;
-  padding: 0 14px;
-  font-size: 16px;
-  color: var(--color-text);
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 17px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-variant-numeric: tabular-nums;
   box-sizing: border-box;
@@ -2692,8 +2324,8 @@ textarea:focus-visible {
 }
 .p4-field-input:focus {
   outline: none;
-  border-color: var(--teal);
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.3);
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
 }
 .p4-field-help {
   display: block;
@@ -2864,6 +2496,7 @@ textarea:focus-visible {
   --color-accent-teal:     #14B8A6;
   --color-accent-orange:   #F97316;
   --color-accent-orange-hover: #FB8C3A;
+  --color-accent-purple:   #8B5CF6;
   --color-semantic-positive: #14B8A6;
   --color-semantic-negative: #e8584c;
 
@@ -3103,18 +2736,35 @@ textarea:focus-visible {
   color: var(--color-accent-teal) !important;
   background: transparent !important;
 }
-.pp-top-link.active::after {
-  content: "";
+/* Legacy per-link pseudo-underline retired in favor of the animated
+   sliding underline rendered by the nav container below. */
+.pp-top-link.active::after { content: none !important; }
+.pp-top-link svg { width: 16px; height: 16px; }
+
+/* Animated nav underline — positioned absolutely inside .pp-top-nav
+   (which must be position: relative), its left/width are driven by
+   useLayoutEffect in TopNav.jsx, so it slides between active items. */
+.pp-top-nav { position: relative; }
+.pp-top-underline {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 0;
   bottom: -8px;
   height: 2px;
   background: var(--color-accent-teal);
   border-radius: 1px;
-  transition: all 300ms var(--ease-standard);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(0);
+  transition:
+    transform 300ms var(--ease-out-soft),
+    width 300ms var(--ease-out-soft),
+    opacity 200ms var(--ease-out-soft);
+  will-change: transform, width;
 }
-.pp-top-link svg { width: 16px; height: 16px; }
+.pp-top-underline.is-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .pp-top-underline { transition: opacity 150ms linear; }
+}
 
 .pp-top-avatar {
   width: 32px !important;
@@ -3362,7 +3012,7 @@ textarea:focus-visible {
 .pp5-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   z-index: 1000;
@@ -3370,7 +3020,7 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: pp5-modal-fade 200ms var(--ease-standard) both;
+  animation: pp5-modal-fade 200ms var(--ease-out-soft) both;
 }
 @keyframes pp5-modal-fade {
   from { opacity: 0; }
@@ -3385,13 +3035,18 @@ textarea:focus-visible {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: pp5-modal-in 250ms var(--ease-standard) both;
+  animation: pp5-modal-in 300ms var(--ease-out-soft) both;
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              0 40px 80px rgba(0, 0, 0, 0.5);
 }
 .pp5-modal-wide { max-width: 600px; }
+@media (max-width: 479px) {
+  .pp5-modal { padding: 28px 20px; border-radius: var(--radius-lg); }
+}
 @keyframes pp5-modal-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .pp5-modal-header {
   margin-bottom: var(--space-5);
@@ -3979,5 +3634,469 @@ textarea:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .pp-container { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   C.3 — STAGGER LIST ENTRANCE
+   Apply .stagger-list to a parent whose children should rise into view
+   one after another. Keeps motion quiet (8px translate, ~30ms stagger)
+   so lists feel alive without feeling animated-for-animation's-sake.
+   ═══════════════════════════════════════════════════════════════════ */
+@keyframes pp-stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-list > * {
+  opacity: 0;
+  animation: pp-stagger-in var(--duration-entrance) var(--ease-out-soft) forwards;
+}
+.stagger-list > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-list > *:nth-child(2)  { animation-delay: 30ms; }
+.stagger-list > *:nth-child(3)  { animation-delay: 60ms; }
+.stagger-list > *:nth-child(4)  { animation-delay: 90ms; }
+.stagger-list > *:nth-child(5)  { animation-delay: 120ms; }
+.stagger-list > *:nth-child(6)  { animation-delay: 150ms; }
+.stagger-list > *:nth-child(7)  { animation-delay: 180ms; }
+.stagger-list > *:nth-child(8)  { animation-delay: 210ms; }
+.stagger-list > *:nth-child(9)  { animation-delay: 240ms; }
+.stagger-list > *:nth-child(10) { animation-delay: 270ms; }
+.stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .stagger-list > * { animation: none; opacity: 1; }
+}
+
+/* Alias — the design-system uses .pp-inset-highlight historically,
+   but the C.3 brief standardized on .has-inset-highlight. Expose both
+   so either form works without a global sweep. */
+.has-inset-highlight {
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+
+/* Skeleton shimmer — used by <Skeleton /> while data is loading. */
+@keyframes pp-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-elevated) 0%,
+    var(--color-bg-subtle) 50%,
+    var(--color-bg-elevated) 100%
+  );
+  background-size: 200% 100%;
+  animation: pp-skeleton-shimmer 1.5s infinite linear;
+  border-radius: var(--radius-md);
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--color-bg-elevated); }
+}
+
+/* Hero glow — radial wash sitting behind a hero number so the balance
+   reads as luminous without a drop-shadow. Apply to the hero container
+   via position: relative, and add .hero-glow as a ::before pseudo
+   (or as a sibling absolute element). Teal by default. */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20% auto -20%;
+  height: 340px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 184, 166, 0.14) 0%,
+    rgba(20, 184, 166, 0.04) 40%,
+    transparent 70%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+.hero-glow--neutral::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 70%
+  );
+}
+
+/* ─── C.3 — Dashboard hero refinements ─────────────────────────────
+   The hero balance sits directly on the page background — no card
+   wrapper. The ::before glow anchors the eye, the tabular numerals
+   keep the digit widths stable as AnimatedNumber counts up. */
+.hero-c3 {
+  text-align: center;
+  margin: 0 0 var(--space-10);
+}
+.hero-c3 .hero-c3-eyebrow {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+.hero-c3 .hero-c3-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  display: inline-block;
+}
+.hero-c3 .hero-c3-value.is-negative { color: var(--color-semantic-negative); }
+.hero-c3 .hero-c3-sub {
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+}
+.hero-c3 .hero-c3-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-4);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.06);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.hero-c3 .hero-c3-pill strong {
+  color: var(--color-accent-teal);
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .hero-c3 { margin-bottom: var(--space-8); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIDE SHEET (C.3) — slide-in panel, right edge, universal spec
+   ═══════════════════════════════════════════════════════════════════ */
+.pp-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease-out-soft);
+}
+.pp-sheet-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pp-sheet {
+  --pp-sheet-width: 480px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--pp-sheet-width);
+  max-width: 100vw;
+  background: var(--color-bg-elevated);
+  border-left: 1px solid var(--color-border-subtle);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight),
+              -24px 0 64px rgba(0, 0, 0, 0.4);
+  z-index: 210;
+  transform: translateX(100%);
+  transition: transform 300ms var(--ease-out-soft);
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.pp-sheet.open { transform: translateX(0); }
+
+@media (max-width: 767px) {
+  .pp-sheet { width: 100vw; }
+}
+
+.pp-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 32px 32px 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.pp-sheet-header-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-sheet-title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.pp-sheet-subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+.pp-sheet-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 160ms, color 160ms;
+}
+.pp-sheet-close:hover {
+  background: var(--color-bg-elevated-2);
+  color: var(--color-text-primary);
+}
+
+.pp-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+@media (max-width: 479px) {
+  .pp-sheet-header { padding: 24px 20px 16px; }
+  .pp-sheet-body { padding: 20px 20px 32px; }
+}
+
+/* Sections within the sheet */
+.pp-sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pp-sheet-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pp-sheet-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+.pp-sheet-section-total {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  transition: background 160ms, border-color 160ms;
+}
+.pp-sheet-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.pp-sheet-row-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-sheet-row-meta {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+.pp-sheet-row-amt {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.pp-sheet-row-amt.is-paid {
+  text-decoration: line-through;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+.pp-sheet-row-amt.is-positive { color: var(--color-accent-teal); }
+.pp-sheet-row-amt.is-negative { color: var(--color-semantic-negative); }
+
+.pp-sheet-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.pp-sheet-row-action {
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent-teal);
+  cursor: pointer;
+  font-family: inherit;
+}
+.pp-sheet-row-action:hover { text-decoration: underline; }
+.pp-sheet-row-action.is-muted { color: var(--color-text-secondary); }
+.pp-sheet-row-action.is-danger { color: var(--color-semantic-negative); }
+
+.pp-sheet-row.is-paid { opacity: 0.7; }
+.pp-sheet-row.is-paid .pp-sheet-row-name { color: var(--color-text-secondary); }
+
+.pp-sheet-empty {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 8px 2px;
+  margin: 0;
+}
+
+/* Inline form inside the sheet (mark paid, override, add income/expense) */
+.pp-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+.pp-sheet-form-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.pp-sheet-form-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: -6px 0 0;
+}
+.pp-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pp-sheet-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.pp-sheet-field-input,
+.pp-sheet-field select,
+.pp-sheet-field input {
+  height: 44px;
+  padding: 0 14px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.pp-sheet-field-input:focus,
+.pp-sheet-field input:focus,
+.pp-sheet-field select:focus {
+  outline: none;
+  border-color: var(--color-accent-teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}
+.pp-sheet-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.pp-sheet-btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, color 160ms;
+}
+.pp-sheet-btn-primary {
+  background: var(--color-accent-teal);
+  color: #04110F;
+  font-weight: 600;
+}
+.pp-sheet-btn-primary:hover { filter: brightness(1.08); }
+.pp-sheet-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.pp-sheet-btn-ghost {
+  background: transparent;
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.pp-sheet-btn-ghost:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* Snapshot card inside the sheet (paychecks) */
+.pp-sheet-snapshot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: var(--color-bg-elevated-2);
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 var(--color-inset-highlight);
+}
+.pp-sheet-snapshot-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-teal);
+  margin: 0 0 4px;
+}
+.pp-sheet-snapshot-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.pp-sheet-snapshot-row span:last-child { color: var(--color-text-primary); font-weight: 500; }
+.pp-sheet-snapshot-row.is-positive span:last-child { color: var(--color-accent-teal); }
+.pp-sheet-snapshot-row.is-negative span:last-child { color: var(--color-semantic-negative); }
+.pp-sheet-snapshot-row.is-total {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-sheet,
+  .pp-sheet-backdrop { transition: none; }
 }
 

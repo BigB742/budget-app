@@ -8,7 +8,7 @@ import { useDataCache } from "../context/DataCache";
 import FreeLimitModal from "../components/FreeLimitModal";
 import { currency } from "../utils/currency";
 
-const formatFrequency = (f) => f === "biweekly" ? "Every two weeks" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "1st and 15th" : f === "monthly" ? "Monthly" : f;
+const formatFrequency = (f) => f === "biweekly" ? "Every two weeks" : f === "weekly" ? "Weekly" : f === "twicemonthly" ? "Twice a month, 1st and 15th" : f === "monthly" ? "Monthly" : f;
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
 const emptyForm = { name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" };
@@ -202,9 +202,9 @@ const BillsIncome = () => {
               <div className="recurring-list">
                 {oneTimeIncomes.map((ot) => (
                   <div key={ot._id} className="recurring-card">
-                    <div><p className="entry-title" style={{ color: "#8B5CF6" }}>{ot.name}</p><p className="muted">{formatDate(ot.date)}</p></div>
+                    <div><p className="entry-title" style={{ color: "var(--color-accent-purple)" }}>{ot.name}</p><p className="muted">{formatDate(ot.date)}</p></div>
                     <div className="recurring-actions">
-                      <span className="entry-amount" style={{ color: "#8B5CF6" }}>{currency.format(ot.amount)}</span>
+                      <span className="entry-amount" style={{ color: "var(--color-accent-purple)" }}>{currency.format(ot.amount)}</span>
                       <button type="button" className="bill-icon-btn" onClick={() => handleDeleteOneTime(ot._id)} title="Remove">x</button>
                     </div>
                   </div>

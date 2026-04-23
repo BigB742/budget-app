@@ -141,12 +141,11 @@ const PaymentPlans = () => {
 
   return (
     <PageContainer>
-      <div className="pp5-page-header">
-        <h1 className="type-display">Plans</h1>
-        <p className="pp5-page-subtitle">Installment payment schedules.</p>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-7)" }}>
+      <div className="pp5-page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h1 className="type-display">Payment plans</h1>
+          <p className="pp5-page-subtitle">Installment payment schedules.</p>
+        </div>
         <button type="button" className="pp5-btn pp5-btn-primary" onClick={openAdd}>Add plan</button>
       </div>
 
@@ -155,17 +154,19 @@ const PaymentPlans = () => {
       ) : plans.length === 0 ? (
         <p className="pp5-empty">No payment plans yet.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+        <div className="stagger-list" style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
           {plans.map((plan) => {
             const remaining = plan.payments.filter((p) => !p.paid).length;
             const total = plan.payments.length;
+            const paidCount = total - remaining;
+            const pct = total > 0 ? (paidCount / total) * 100 : 0;
             return (
-              <div key={plan._id} className="pp5-card-xl">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: "var(--space-5)", flexWrap: "wrap" }}>
+              <div key={plan._id} className="pp5-card-xl has-inset-highlight">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
                   <div>
                     <div className="type-title">{plan.name}</div>
                     <div className="type-secondary" style={{ marginTop: 4 }}>
-                      {remaining} of {total} payment{total !== 1 ? "s" : ""} remaining
+                      {paidCount} of {total} payment{total !== 1 ? "s" : ""} paid
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
@@ -173,6 +174,29 @@ const PaymentPlans = () => {
                     <button type="button" className="pp5-btn pp5-btn-text" style={{ color: "var(--color-semantic-negative)" }} onClick={() => handleDelete(plan._id)}>Delete</button>
                   </div>
                 </div>
+
+                {total > 0 && (
+                  <div
+                    style={{
+                      height: 4,
+                      borderRadius: 2,
+                      background: "var(--color-bg-subtle)",
+                      overflow: "hidden",
+                      marginBottom: "var(--space-5)",
+                    }}
+                    aria-hidden="true"
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${pct}%`,
+                        background: "var(--color-accent-teal)",
+                        transition: "width 400ms var(--ease-out-soft)",
+                      }}
+                    />
+                  </div>
+                )}
+
                 <div>
                   {plan.payments
                     .slice()

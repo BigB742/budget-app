@@ -15,13 +15,13 @@ const PillTooltip = ({ active, payload }) => {
   const p = payload[0];
   return (
     <div style={{
-      background: "#0D1117",
-      color: "#F0F6FC",
+      background: "var(--color-bg-base)",
+      color: "var(--color-text-primary)",
       padding: "5px 10px",
       borderRadius: 6,
       fontSize: 12,
       fontWeight: 500,
-      border: "1px solid #21262D",
+      border: "1px solid var(--color-border-subtle)",
       whiteSpace: "nowrap",
       pointerEvents: "none",
     }}>

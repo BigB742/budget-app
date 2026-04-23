@@ -31,7 +31,6 @@ const AddExpenseModal = ({ onClose, onSaved }) => {
     setSaving(true); setError("");
     try {
       await authFetch("/api/expenses", { method: "POST", body: JSON.stringify({ date: form.date, amount: Number(form.amount), category: form.category, description: form.description }) });
-      // Check first-expense-of-period toast
       try {
         const p = cache?.summary?.period;
         if (p?.start && p?.end) {
@@ -53,17 +52,42 @@ const AddExpenseModal = ({ onClose, onSaved }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header"><h4>Add Expense</h4><button type="button" className="ghost-button" onClick={onClose}>x</button></div>
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <label>Date<input type="date" name="date" value={form.date} onChange={handleChange} required /></label>
-          <label>Description<input type="text" name="description" placeholder="e.g. Coffee, Lunch" value={form.description} onChange={handleChange} /></label>
-          <label>Amount<input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" value={form.amount} onChange={handleChange} required /></label>
-          <label>Category<select name="category" value={form.category} onChange={handleChange}>{CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
-          {isOther && <label>Specify (required)<input type="text" name="description" placeholder="e.g. Birthday gift, parking, donation..." value={form.description} onChange={handleChange} required /></label>}
-          {error && <div className="inline-error">{error}</div>}
-          <div className="modal-actions"><button type="button" className="ghost-button" onClick={onClose}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving..." : "Save Expense"}</button></div>
+    <div className="pp5-modal-overlay" onClick={onClose}>
+      <div className="pp5-modal has-inset-highlight" onClick={(e) => e.stopPropagation()}>
+        <div className="pp5-modal-header">
+          <h4 className="pp5-modal-title">Add expense</h4>
+          <button type="button" className="pp5-modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <form className="pp5-modal-body" onSubmit={handleSubmit}>
+          <div className="pp5-field">
+            <label className="pp5-field-label">Date</label>
+            <input className="pp5-input" type="date" name="date" value={form.date} onChange={handleChange} required />
+          </div>
+          <div className="pp5-field">
+            <label className="pp5-field-label">Description</label>
+            <input className="pp5-input" type="text" name="description" placeholder="e.g. Coffee, Lunch" value={form.description} onChange={handleChange} />
+          </div>
+          <div className="pp5-field">
+            <label className="pp5-field-label">Amount</label>
+            <input className="pp5-input" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" value={form.amount} onChange={handleChange} required />
+          </div>
+          <div className="pp5-field">
+            <label className="pp5-field-label">Category</label>
+            <select className="pp5-select" name="category" value={form.category} onChange={handleChange}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {isOther && (
+            <div className="pp5-field">
+              <label className="pp5-field-label">Specify (required)</label>
+              <input className="pp5-input" type="text" name="description" placeholder="e.g. Birthday gift, parking, donation…" value={form.description} onChange={handleChange} required />
+            </div>
+          )}
+          {error && <p className="pp5-field-error">{error}</p>}
+          <div className="pp5-modal-actions">
+            <button type="button" className="pp5-btn pp5-btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="pp5-btn pp5-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save expense"}</button>
+          </div>
         </form>
       </div>
     </div>
