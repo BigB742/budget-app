@@ -124,7 +124,9 @@ async function sumExpensesInPeriod(userId, start, end) {
   const expenseDocs = await Expense.find({
     $and: [
       { $or: [{ user: userId }, { userId }] },
-      { category: { $ne: "Savings" } },
+      // Case-insensitive: legacy rows with "savings"/"SAVINGS" casing
+      // are still transfers, not spending, and must not count here.
+      { category: { $not: /^savings$/i } },
       {
         $or: [
           { date: { $gte: from, $lte: to } },

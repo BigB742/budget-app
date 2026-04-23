@@ -410,7 +410,7 @@ router.get("/expense-categories", authRequired, async (req, res) => {
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
-        { category: { $ne: "Savings" } }, // Savings are transfers, never spending
+        { category: { $not: /^savings$/i } }, // Savings are transfers, never spending (case-insensitive)
         { date: { $gte: from, $lte: to } },
       ],
     });
@@ -697,7 +697,7 @@ router.get("/year-to-date", authRequired, async (req, res) => {
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
-        { category: { $ne: "Savings" } }, // YTD spending chart: savings are transfers, not spending
+        { category: { $not: /^savings$/i } }, // YTD spending chart: savings are transfers, not spending (case-insensitive)
         {
           $or: [
             { date: { $gte: yearFrom, $lte: yearTo } },
@@ -801,7 +801,7 @@ router.get("/monthly-breakdown", authRequired, async (req, res) => {
     const expenseDocs = await Expense.find({
       $and: [
         { $or: [{ user: req.userId }, { userId: req.userId }] },
-        { category: { $ne: "Savings" } },
+        { category: { $not: /^savings$/i } },
         {
           $or: [
             { date: { $gte: monthFrom, $lte: monthTo } },

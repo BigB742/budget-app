@@ -316,7 +316,31 @@ const Settings = () => {
         {/* Help & support */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Help & support</h2>
-          <button type="button" className="pp5-settings-link-row" onClick={() => { window.__ppLaunchTour?.(); }}>
+          <button
+            type="button"
+            className="pp5-settings-link-row"
+            onClick={() => {
+              // Belt-and-suspenders: clear the completion flag in both
+              // localStorage and the backend so the tour can launch
+              // cleanly, then either invoke the global launcher (if
+              // AppShell is mounted) or route to the dashboard with a
+              // pending flag that AppShell's effect picks up on mount.
+              try {
+                const u = JSON.parse(localStorage.getItem("user") || "{}");
+                if (u && typeof u === "object") {
+                  u.tourCompleted = false;
+                  localStorage.setItem("user", JSON.stringify(u));
+                }
+              } catch { /* ignore */ }
+              authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ tourCompleted: false }) }).catch(() => {});
+              if (typeof window.__ppLaunchTour === "function") {
+                window.__ppLaunchTour();
+              } else {
+                sessionStorage.setItem("pp_tourPending", "1");
+                navigate("/app");
+              }
+            }}
+          >
             <span>Take the tour</span>
             <span className="chev">›</span>
           </button>

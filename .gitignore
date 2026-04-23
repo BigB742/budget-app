@@ -44,3 +44,6 @@ Thumbs.db
 # Local scratch / one-shot scripts (keep them out of the repo)
 /tmp/
 /scratch/
+
+# Launch docs (local-only working notes, not versioned)
+docs/launch/
