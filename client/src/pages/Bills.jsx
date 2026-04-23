@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import FreeLimitModal from "../components/FreeLimitModal";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
+import AnimatedNumber from "../components/AnimatedNumber";
 
 const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
 
@@ -90,11 +91,16 @@ const Bills = () => {
         <p className="pp5-page-subtitle">Your recurring obligations.</p>
       </div>
 
-      <section className="pp5-card-xl" style={{ marginBottom: "var(--space-7)" }}>
+      <section className="pp5-card-xl has-inset-highlight" style={{ marginBottom: "var(--space-7)" }}>
         <div className="type-eyebrow" style={{ marginBottom: 12 }}>Total monthly payments</div>
         <div className="type-headline" style={{ color: "var(--color-semantic-negative)", fontVariantNumeric: "tabular-nums" }}>
-          {currency.format(monthlyObligations)}
+          <AnimatedNumber value={monthlyObligations} />
         </div>
+        {bills.length > 0 && (
+          <div className="type-secondary" style={{ marginTop: 8 }}>
+            {bills.length} {bills.length === 1 ? "bill" : "bills"}
+          </div>
+        )}
       </section>
 
       <section className="pp5-section">
@@ -108,7 +114,7 @@ const Bills = () => {
         ) : bills.length === 0 ? (
           <p className="pp5-empty">No bills yet.</p>
         ) : (
-          <div className="pp5-list-card">
+          <div className="pp5-list-card stagger-list">
             {bills.map((b) => (
               <div key={b._id} className="pp5-row">
                 <div className="pp5-row-left">

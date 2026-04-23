@@ -3,6 +3,7 @@ import { authFetch } from "../apiClient";
 import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
+import AnimatedNumber from "../components/AnimatedNumber";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -131,17 +132,19 @@ const ManageIncome = () => {
         <p className="pp5-page-subtitle">What you earn.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: "var(--space-7)" }}>
+      <div className="stagger-list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: "var(--space-7)" }}>
         {cache?.summary?.nextPayDate && (
-          <div className="pp5-card">
+          <div className="pp5-card has-inset-highlight">
             <div className="type-eyebrow" style={{ marginBottom: 12 }}>Next payday</div>
-            <div className="type-title" style={{ color: "var(--color-accent-teal)" }}>{formatDate(cache.summary.nextPayDate)}</div>
+            <div className="type-headline" style={{ color: "var(--color-accent-teal)" }}>{formatDate(cache.summary.nextPayDate)}</div>
           </div>
         )}
         {projected && (
-          <div className="pp5-card">
+          <div className="pp5-card has-inset-highlight">
             <div className="type-eyebrow" style={{ marginBottom: 12 }}>Projected this year</div>
-            <div className="type-title" style={{ color: "var(--color-accent-teal)", fontVariantNumeric: "tabular-nums" }}>{currency.format(projected.projected)}</div>
+            <div className="type-headline" style={{ color: "var(--color-accent-teal)", fontVariantNumeric: "tabular-nums" }}>
+              <AnimatedNumber value={projected.projected} />
+            </div>
           </div>
         )}
       </div>
@@ -157,7 +160,7 @@ const ManageIncome = () => {
               <h2 className="type-headline">Recurring income</h2>
             </div>
             {sources.length === 0 ? <p className="pp5-empty">No recurring income yet.</p> : (
-              <div className="pp5-list-card">
+              <div className="pp5-list-card stagger-list">
                 {sources.map((s) => (
                   <div key={s._id} className="pp5-row">
                     <div className="pp5-row-left">
@@ -183,7 +186,7 @@ const ManageIncome = () => {
               <h2 className="type-headline">One-time income</h2>
             </div>
             {oneTime.length === 0 ? <p className="pp5-empty">No one-time income yet.</p> : (
-              <div className="pp5-list-card">
+              <div className="pp5-list-card stagger-list">
                 {oneTime.map((ot) => (
                   <div key={ot._id} className="pp5-row">
                     <div className="pp5-row-left">
