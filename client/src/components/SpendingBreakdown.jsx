@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { authFetch } from "../apiClient";
 
@@ -152,6 +153,9 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
             ))}
           </ul>
 
+          <Link to="/app/expenses" className="sb-view-all">
+            View all expenses &rarr;
+          </Link>
         </>
       )}
     </section>

@@ -4,8 +4,8 @@ import { storeUser } from "../utils/safeStorage";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Biweekly" },
-  { value: "twicemonthly", label: "Semi-Monthly" },
+  { value: "biweekly", label: "Every two weeks" },
+  { value: "twicemonthly", label: "Twice a month, 1st and 15th" },
   { value: "monthly", label: "Monthly" },
 ];
 

@@ -127,7 +127,7 @@ const Landing = () => (
           <h3>Tell us your paycheck</h3>
           <p>
             Enter how much you bring home and when you get paid.
-            Biweekly, weekly, twice a month. We handle it all.
+            Weekly, every two weeks, twice a month. We handle it all.
             Takes about 30 seconds.
           </p>
         </div>
