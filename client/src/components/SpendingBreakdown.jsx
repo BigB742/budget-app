@@ -85,7 +85,7 @@ const SpendingBreakdown = ({ expensesByCategory = [], summary }) => {
   const paycheckSlices = useMemo(() => {
     if (!summary) return [];
     const slices = [];
-    if (summary.totalBills > 0) slices.push({ name: "Bills", value: summary.totalBills, color: "#EF4444" });
+    if (summary.totalBills > 0) slices.push({ name: "Bills", value: summary.totalBills, color: getColor("Bills") });
     (expensesByCategory || []).forEach((c) => {
       if (c.total > 0) slices.push({ name: c.category, value: c.total, color: getColor(c.category) });
     });

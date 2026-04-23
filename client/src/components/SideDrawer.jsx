@@ -106,9 +106,12 @@ const SideDrawer = ({ open, onClose, onLogout }) => {
         <div className="pp-drawer-footer">
           <div className="pp-drawer-status">
             <span>Subscription</span>
-            {isPremium && <span className="pp-status-pill premium">Premium</span>}
-            {isTrialing && <span className="pp-status-pill trial">Trial</span>}
-            {isFree && <span className="pp-status-pill free">Free</span>}
+            {/* Trialing users have full Premium access, so the chrome-level
+                pill reads Premium — we don't surface "Trial" as a separate
+                countdown state here; the Subscription page owns that
+                messaging. */}
+            {(isPremium || isTrialing) && <span className="pp-status-pill premium">Premium</span>}
+            {isFree && !isTrialing && <span className="pp-status-pill free">Free</span>}
           </div>
           <button type="button" className="pp-drawer-logout" onClick={onLogout}>
             <IconLogout />

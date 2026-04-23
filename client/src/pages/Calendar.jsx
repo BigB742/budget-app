@@ -441,8 +441,9 @@ const Calendar = () => {
                 const isPayday = paydaySet.has(key);
                 const isToday = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
                 // Split savings from spending — savings show in teal, expenses in red
-                const savingsEntries = de.filter((x) => x.category === "Savings");
-                const spendingEntries = de.filter((x) => x.category !== "Savings");
+                const isSavings = (x) => /^savings$/i.test(x.category || "");
+                const savingsEntries = de.filter(isSavings);
+                const spendingEntries = de.filter((x) => !isSavings(x));
                 const expTotal = spendingEntries.reduce((s, x) => s + Number(x.amount || 0), 0);
                 const savTotal = savingsEntries.reduce((s, x) => s + Number(x.amount || 0), 0);
 
@@ -631,24 +632,37 @@ const Calendar = () => {
 
             <div className="cal-detail-section">
               <h5>Expenses</h5>
-              {dayExpenses.length === 0 && daySavingsDeposits.length === 0 ? (
-                <p className="empty-row">No expenses.</p>
-              ) : (
-                <>
-                  {dayExpenses.map((exp, i) => (
-                    <div key={exp._id || i} className="cal-detail-row">
-                      <span>{exp.description || exp.category || "Expense"}</span>
-                      <span className="cal-detail-amt">{currency.format(exp.amount)}</span>
-                    </div>
-                  ))}
-                  {daySavingsDeposits.map((t) => (
-                    <div key={t._id} className="cal-detail-row">
-                      <span>{t.goalNameSnapshot}</span>
-                      <span className="cal-detail-amt" style={{ color: "var(--red)" }}>{currency.format(t.amount)}</span>
-                    </div>
-                  ))}
-                </>
-              )}
+              {(() => {
+                // Savings deposits live in SavingsTransaction, not Expense,
+                // but legacy users may have quick-added a Savings-chip
+                // expense. Filter those out of the red expenses list so
+                // they aren't mis-rendered as spending.
+                const spendingOnly = dayExpenses.filter(
+                  (exp) => !/^savings$/i.test(exp.category || "")
+                );
+                if (spendingOnly.length === 0 && daySavingsDeposits.length === 0) {
+                  return <p className="empty-row">No expenses.</p>;
+                }
+                return (
+                  <>
+                    {spendingOnly.map((exp, i) => (
+                      <div key={exp._id || i} className="cal-detail-row">
+                        <span>{exp.description || exp.category || "Expense"}</span>
+                        <span className="cal-detail-amt">{currency.format(exp.amount)}</span>
+                      </div>
+                    ))}
+                    {daySavingsDeposits.map((t) => (
+                      <div key={t._id} className="cal-detail-row">
+                        <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ color: "var(--teal)", fontWeight: 600 }}>{t.goalNameSnapshot}</span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary, #8B949E)" }}>Savings deposit</span>
+                        </span>
+                        <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>{"\u2212"}{currency.format(t.amount)}</span>
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
 
             {/* One-time income + savings withdrawals */}

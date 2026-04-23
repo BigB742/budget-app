@@ -30,7 +30,7 @@ const SORT_OPTIONS = [
   { value: "highest", label: "Highest amount" },
   { value: "lowest", label: "Lowest amount" },
 ];
-const QUICK_TABS = ["This period", "Last period", "This year", "All time"];
+const QUICK_TABS = ["All time", "This period", "Last 3 months", "This year"];
 
 const todayISO = () => {
   const d = new Date();
@@ -103,17 +103,23 @@ const ExpenseHistory = () => {
     let from = "";
     let to = "";
 
+    const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = new Date();
+
     if (tab === "This period" && p?.start && p?.end) {
       const s = new Date(p.start);
       const e = new Date(p.end);
-      from = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
-      to = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
-    } else if (tab === "Last period" && pp?.start && pp?.end) {
-      from = pp.start;
-      to = pp.end;
+      from = toYMD(s);
+      to = toYMD(e);
+    } else if (tab === "Last 3 months") {
+      // Rolling 90-day window ending today.
+      const start = new Date(today);
+      start.setDate(start.getDate() - 90);
+      from = toYMD(start);
+      to = toYMD(today);
     } else if (tab === "This year") {
-      from = `${new Date().getFullYear()}-01-01`;
-      to = "";
+      from = `${today.getFullYear()}-01-01`;
+      to = toYMD(today);
     }
     // "All time" → from="" to="" → no date filter
     setFilters((prev) => ({ ...prev, from, to }));

@@ -324,6 +324,9 @@ router.post("/webhook", async (req, res) => {
         user.isPremium = false;
         user.stripeSubscriptionId = null;
         user.subscriptionEndDate = undefined;
+        // Stamp the moment Stripe confirmed the cancellation so the DB
+        // carries an audit trail of when the user actually dropped off.
+        user.subscriptionCancelledAt = new Date();
         await user.save();
         console.log("[Stripe Webhook] customer.subscription.deleted — user", String(user._id), "canceled, isPremium=false, stripeSubscriptionId cleared");
         try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }

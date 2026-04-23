@@ -2,28 +2,31 @@
 // calendar entry dot, and expense row indicator in the app. If you need
 // to recolor a category, update it HERE — nowhere else.
 //
-// Order matters: this is the display/legend order when we render a full
-// legend. Savings is intentionally the only category that uses the brand
-// teal (teal is reserved for savings/positive signals everywhere else).
+// Every category has a distinct hue so the donut chart legend reads as a
+// clean rainbow with no two adjacent slices colliding. Savings is the
+// only category that uses the brand teal; teal is reserved for savings /
+// positive signals everywhere else in the app.
 
 export const CATEGORY_COLORS = {
-  Shopping:       "#3B82F6", // medium blue
-  Savings:        "#00C9A7", // brand teal — reserved for savings/positive only
-  Bills:          "#E53935", // red
-  Subscriptions:  "#7C3AED", // purple
-  "Dining Out":   "#F97316", // orange
-  Groceries:      "#84CC16", // lime green
-  Gas:            "#F59E0B", // amber
-  Health:         "#EC4899", // pink
-  Gym:            "#06B6D4", // cyan
-  Entertainment:  "#6366F1", // indigo
-  Travel:         "#0EA5E9", // sky blue
-  Home:           "#92400E", // warm brown
-  Food:           "#FB7185", // coral
-  Other:          "#6B7280", // gray
+  Food:            "#FB7185", // coral-red
+  Shopping:        "#3B82F6", // blue
+  Transportation:  "#F59E0B", // amber
+  Bills:           "#7C3AED", // purple
+  Entertainment:   "#D946EF", // magenta
+  Savings:         "#00C9A7", // brand teal — reserved for savings/positive only
+  Subscriptions:   "#6366F1", // indigo
+  Health:          "#10B981", // green
+  Education:       "#F97316", // orange
+  Travel:          "#06B6D4", // cyan
+  Gas:             "#FBBF24", // yellow
+  Groceries:       "#84CC16", // lime
+  Gym:             "#EC4899", // pink
+  Home:            "#92400E", // brown-tan
+  "Dining Out":    "#EF4444", // warm red
+  Other:           "#6B7280", // gray
   // Payment Plans category lives here so the donut chart can render it
   // with a distinct lavender that doesn't collide with anything above.
-  "Payment Plans": "#A78BFA",
+  "Payment Plans": "#A78BFA", // lavender
 };
 
 // Fallback for a category name we've never seen before. Deterministic by

@@ -25,6 +25,10 @@ const UserSchema = new mongoose.Schema(
     // When the subscription access actually ends (for canceled subs, this is
     // the Stripe current_period_end — user keeps premium access until then).
     subscriptionEndDate: { type: Date },
+    // Audit timestamp set when Stripe confirms the subscription was fully
+    // deleted (customer.subscription.deleted webhook). Useful for churn
+    // analytics and distinguishes "user ended" from "payment failed".
+    subscriptionCancelledAt: { type: Date },
     notificationPrefs: {
       billReminders: { type: Boolean, default: true },
       paydayReminders: { type: Boolean, default: true },

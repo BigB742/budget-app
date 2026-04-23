@@ -25,7 +25,7 @@ router.get("/period-counts", authRequired, async (req, res) => {
       const to = new Date(budget.end.getFullYear(), budget.end.getMonth(), budget.end.getDate(), 23, 59, 59, 999);
       const count = await Expense.countDocuments({
         $or: [{ user: req.userId }, { userId: req.userId }],
-        category: { $ne: "Savings" },
+        category: { $not: /^savings$/i },
         date: { $gte: from, $lte: to },
       });
       result.push({
@@ -60,7 +60,7 @@ router.get("/", authRequired, async (req, res) => {
       // the spending list. Explicit category queries (like the Savings page
       // filtering to category=Savings) still work because this only applies
       // when no category was passed.
-      query.category = { $ne: "Savings" };
+      query.category = { $not: /^savings$/i };
     }
     if (search) query.description = { $regex: search, $options: "i" };
 
