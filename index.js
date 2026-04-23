@@ -26,6 +26,7 @@ const { checkSubscriptionStatus } = require("./middleware/subscription");
 const { sanitizeRequest } = require("./middleware/sanitize");
 const {
   loginLimiter,
+  loginEmailLimiter,
   signupLimiter,
   verifyEmailLimiter,
   passwordResetLimiter,
@@ -199,12 +200,16 @@ app.get("/api/feature-flags", async (req, res) => {
 // Rate limiting on auth endpoints — applied BEFORE the route handlers so
 // abusive callers are blocked before they hit Mongo or bcrypt. See
 // middleware/rateLimit.js for the rationale on each tier.
-app.use("/api/auth/login", loginLimiter);
+// Login + 2FA endpoints get TWO limiters: per-IP (caps any single source)
+// and per-email (caps total attempts on a given account regardless of how
+// many IPs the attacker rotates through). Either limiter tripping returns
+// 429.
+app.use("/api/auth/login", loginLimiter, loginEmailLimiter);
 app.use("/api/auth/signup", signupLimiter);
 app.use("/api/auth/verify-email", verifyEmailLimiter);
 app.use("/api/auth/resend-verification", verifyEmailLimiter);
-app.use("/api/auth/send-2fa", loginLimiter);
-app.use("/api/auth/verify-2fa", loginLimiter);
+app.use("/api/auth/send-2fa", loginLimiter, loginEmailLimiter);
+app.use("/api/auth/verify-2fa", loginLimiter, loginEmailLimiter);
 app.use("/api/auth/forgot-password", passwordResetLimiter);
 app.use("/api/auth/reset-password", passwordResetLimiter);
 
