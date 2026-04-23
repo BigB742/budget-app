@@ -1556,6 +1556,285 @@ img, video, iframe, canvas, svg { max-width: 100%; }
 .hc-acc-arrow { font-size: 18px; color: var(--text-muted); flex-shrink: 0; margin-left: 12px; }
 .hc-acc-body { padding: 0 16px 14px; font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
 
+/* ═══════════════════════════════════════════════════════════════════
+   SAVINGS PAGE v2 — redesigned goal-tracker
+   ═══════════════════════════════════════════════════════════════════ */
+.savings-page-v2 {
+  max-width: 720px !important;
+  margin: 0 auto !important;
+  padding: 24px 20px 48px !important;
+  width: 100% !important;
+}
+.sv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.sv-title {
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.sv-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+/* Total Saved card */
+.sv-total-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sv-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sv-total-value {
+  font-size: 36px;
+  font-weight: 500;
+  color: var(--teal);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty state */
+.sv-empty {
+  background: var(--card);
+  border: 1px dashed var(--card-border-2);
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.sv-empty p { margin: 0; font-size: 14px; line-height: 1.5; }
+
+/* Goal card */
+.sv-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: border-color 200ms ease-out;
+}
+.sv-card:hover { border-color: var(--card-border-2); }
+
+.sv-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+.sv-name {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: color 200ms ease-out;
+}
+.sv-name:hover { color: var(--teal); }
+.sv-name-input {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--card-2);
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  max-width: 280px;
+}
+
+/* Overflow menu */
+.sv-menu-wrap { position: relative; }
+.sv-menu-trigger {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 200ms ease-out, color 200ms ease-out;
+}
+.sv-menu-trigger:hover { background: var(--card-2); color: var(--text); }
+.sv-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  background: var(--card-2);
+  border: 1px solid var(--card-border-2);
+  border-radius: 10px;
+  padding: 4px;
+  z-index: 20;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  animation: pp-fade-in 180ms ease-out both;
+}
+.sv-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.sv-menu button:hover { background: var(--card-border); color: var(--text); }
+
+/* Progress bar */
+.sv-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sv-bar {
+  flex: 1;
+  height: 12px;
+  background: var(--card-2);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+.sv-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 6px;
+  transition: width 300ms ease-out;
+}
+.sv-set-target-btn {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 200ms ease-out;
+}
+.sv-set-target-btn:hover { color: var(--teal); }
+.sv-reached-badge {
+  background: rgba(0, 201, 167, 0.15);
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Bottom row: amounts + actions */
+.sv-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sv-amounts {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.sv-current {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.sv-target-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+  transition: color 200ms ease-out;
+}
+.sv-target-btn:hover { color: var(--text); }
+.sv-no-target {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Action buttons */
+.sv-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sv-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 200ms ease-out;
+}
+.sv-btn-add {
+  background: var(--teal);
+  color: #fff;
+  border: none;
+}
+.sv-btn-add:hover { background: #14b8a6; }
+.sv-btn-withdraw {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--card-border-2);
+}
+.sv-btn-withdraw:hover { border-color: var(--text-muted); color: var(--text); }
+
+/* Focus rings for accessibility */
+.sv-btn:focus-visible,
+.sv-name:focus-visible,
+.sv-target-btn:focus-visible,
+.sv-menu-trigger:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* Mobile layout */
+@media (max-width: 639px) {
+  .sv-bottom-row { flex-direction: column; align-items: stretch; }
+  .sv-actions { justify-content: flex-end; }
+  .sv-total-value { font-size: 32px; }
+}
+
 /* Payment Plan modal — stacked payment row layout */
 .pp-payment-row {
   display: flex;

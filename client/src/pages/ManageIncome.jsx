@@ -20,7 +20,7 @@ const ManageIncome = () => {
   const [showModal, setShowModal] = useState(false);
   const [incomeType, setIncomeType] = useState("recurring");
   const [recForm, setRecForm] = useState({ name: "", amount: "", frequency: "biweekly", nextPayDate: "" });
-  const [otForm, setOtForm] = useState({ name: "", amount: "", date: "", note: "" });
+  const [otForm, setOtForm] = useState({ name: "", amount: "", date: "" });
   const [editingSource, setEditingSource] = useState(null);
   const [editingOneTime, setEditingOneTime] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -83,11 +83,11 @@ const ManageIncome = () => {
     setSaving(true);
     try {
       if (editingOneTime) {
-        await authFetch(`/api/one-time-income/${editingOneTime}`, { method: "PUT", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date, note: otForm.note }) });
+        await authFetch(`/api/one-time-income/${editingOneTime}`, { method: "PUT", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date }) });
       } else {
-        await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date, note: otForm.note }) });
+        await authFetch("/api/one-time-income", { method: "POST", body: JSON.stringify({ name: otForm.name, amount: Number(otForm.amount), date: otForm.date }) });
       }
-      setOtForm({ name: "", amount: "", date: "", note: "" });
+      setOtForm({ name: "", amount: "", date: "" });
       setEditingOneTime(null);
       setShowModal(false);
       load();
@@ -101,7 +101,6 @@ const ManageIncome = () => {
       name: ot.name || "",
       amount: String(ot.amount || ""),
       date: ot.date ? new Date(ot.date).toISOString().slice(0, 10) : "",
-      note: ot.note || "",
     });
     setIncomeType("onetime");
     setShowModal(true);
@@ -180,7 +179,7 @@ const ManageIncome = () => {
                   <div key={ot._id} className="recurring-card">
                     <div>
                       <p className="entry-title">{ot.name}</p>
-                      <p className="muted">{formatDate(ot.date)}{ot.note ? `. ${ot.note}` : ""}</p>
+                      <p className="muted">{formatDate(ot.date)}</p>
                     </div>
                     <div className="recurring-actions">
                       <span className="entry-amount positive">{currency.format(ot.amount)}</span>
@@ -227,7 +226,6 @@ const ManageIncome = () => {
                 <label>Source name<input value={otForm.name} onChange={(e) => setOtForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. FAFSA, Tax return, Uncle" required /></label>
                 <label>Amount<input type="number" step="0.01" value={otForm.amount} onChange={(e) => setOtForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
                 <label>Date received<input type="date" value={otForm.date} onChange={(e) => setOtForm((p) => ({ ...p, date: e.target.value }))} required /></label>
-                <label>Note (optional)<input value={otForm.note} onChange={(e) => setOtForm((p) => ({ ...p, note: e.target.value }))} /></label>
                 <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "..." : "Save"}</button></div>
               </form>
             )}

@@ -58,6 +58,7 @@ const Calendar = () => {
   const [oneTimeIncomes, setOneTimeIncomes] = useState([]);
   const [paydayDates, setPaydayDates] = useState([]);
   const [paymentPlans, setPaymentPlans] = useState([]);
+  const [savingsTxns, setSavingsTxns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
@@ -90,13 +91,14 @@ const Calendar = () => {
       const from = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-01`;
       const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
       const to = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-      const [b, e, o, bp, oti, pp] = await Promise.all([
+      const [b, e, o, bp, oti, pp, sv] = await Promise.all([
         authFetch("/api/bills"),
         authFetch(`/api/expenses?from=${from}&to=${to}`),
         authFetch(`/api/payment-overrides?from=${from}&to=${to}`),
         authFetch(`/api/bill-payments?from=${from}&to=${to}`).catch(() => []),
         authFetch(`/api/one-time-income?from=${from}&to=${to}`).catch(() => []),
         authFetch("/api/payment-plans").catch(() => []),
+        authFetch(`/api/savings/transactions?startDate=${from}&endDate=${to}`).catch(() => []),
       ]);
       setBills(Array.isArray(b) ? b : []);
       setExpenses(Array.isArray(e) ? e : []);
@@ -104,6 +106,7 @@ const Calendar = () => {
       setBillPayments(Array.isArray(bp) ? bp : []);
       setOneTimeIncomes(Array.isArray(oti) ? oti : []);
       setPaymentPlans(Array.isArray(pp) ? pp : []);
+      setSavingsTxns(Array.isArray(sv) ? sv : []);
       // Load paydays from backend
       authFetch(`/api/summary/paydays?from=${from}&to=${to}`).then((d) => setPaydayDates(d?.paydays || [])).catch(() => setPaydayDates([]));
     } catch (err) { console.error(err); }
@@ -189,6 +192,30 @@ const Calendar = () => {
     });
     return map;
   }, [paymentPlans]);
+
+  // Savings transactions by day — separate deposit/withdrawal lookups
+  const savingsDepositsByDay = useMemo(() => {
+    const map = {};
+    savingsTxns.forEach((t) => {
+      if (t.type !== "deposit") return;
+      const dt = new Date(t.date);
+      const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    });
+    return map;
+  }, [savingsTxns]);
+  const savingsWithdrawalsByDay = useMemo(() => {
+    const map = {};
+    savingsTxns.forEach((t) => {
+      if (t.type !== "withdrawal") return;
+      const dt = new Date(t.date);
+      const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    });
+    return map;
+  }, [savingsTxns]);
 
   // Bill payments lookup: "billId_YYYY-MM-DD" => payment object
   const paidMap = useMemo(() => {
@@ -362,6 +389,8 @@ const Calendar = () => {
 
   const dayBills = selectedDay ? billsByDay[selectedDay] || [] : [];
   const dayExpenses = selectedDay ? expensesByDay[selectedDay] || [] : [];
+  const daySavingsDeposits = selectedDay ? savingsDepositsByDay[selectedDay] || [] : [];
+  const daySavingsWithdrawals = selectedDay ? savingsWithdrawalsByDay[selectedDay] || [] : [];
   const dayIncomes = selectedDay ? incomeByDay[selectedDay] || [] : [];
   const isSelectedPayday = selectedDay ? paydaySet.has(selectedDay) : false;
 
@@ -614,24 +643,40 @@ const Calendar = () => {
 
             <div className="cal-detail-section">
               <h5>Expenses</h5>
-              {dayExpenses.length === 0 ? (
+              {dayExpenses.length === 0 && daySavingsDeposits.length === 0 ? (
                 <p className="empty-row">No expenses.</p>
-              ) : dayExpenses.map((exp, i) => (
-                <div key={exp._id || i} className="cal-detail-row">
-                  <span>{exp.description || exp.category || "Expense"}</span>
-                  <span className="cal-detail-amt">{currency.format(exp.amount)}</span>
-                </div>
-              ))}
+              ) : (
+                <>
+                  {dayExpenses.map((exp, i) => (
+                    <div key={exp._id || i} className="cal-detail-row">
+                      <span>{exp.description || exp.category || "Expense"}</span>
+                      <span className="cal-detail-amt">{currency.format(exp.amount)}</span>
+                    </div>
+                  ))}
+                  {daySavingsDeposits.map((t) => (
+                    <div key={t._id} className="cal-detail-row">
+                      <span>{t.goalNameSnapshot}</span>
+                      <span className="cal-detail-amt" style={{ color: "var(--red)" }}>{currency.format(t.amount)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
-            {/* One-time income */}
-            {dayIncomes.length > 0 && (
+            {/* One-time income + savings withdrawals */}
+            {(dayIncomes.length > 0 || daySavingsWithdrawals.length > 0) && (
               <div className="cal-detail-section">
                 <h5>Income</h5>
                 {dayIncomes.map((inc) => (
                   <div key={inc._id} className="cal-detail-row">
                     <span style={{ color: "#8B5CF6", fontWeight: 600 }}>{inc.name}</span>
                     <span className="cal-detail-amt" style={{ color: "#8B5CF6" }}>+{currency.format(inc.amount)}</span>
+                  </div>
+                ))}
+                {daySavingsWithdrawals.map((t) => (
+                  <div key={t._id} className="cal-detail-row">
+                    <span style={{ color: "var(--teal)", fontWeight: 600 }}>{t.goalNameSnapshot}</span>
+                    <span className="cal-detail-amt" style={{ color: "var(--teal)" }}>+{currency.format(t.amount)}</span>
                   </div>
                 ))}
               </div>

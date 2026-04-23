@@ -123,7 +123,14 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     //             + incomeReceivedThisPeriod
     //             − billsDueThisPeriod          (unpaid scheduled bills)
     //             − paymentPlansDueThisPeriod   (see rules below)
-    //             − scheduledSavingsContributions
+    //
+    // Savings transactions are NOT subtracted separately in this
+    // formula. Each deposit already decrements user.currentBalance by
+    // its amount at transaction time (see routes/savingsV2Routes.js
+    // and routes/savingsRoutes.js), so the effect is already baked
+    // into the starting `currentBalance` the formula reads. Adding a
+    // separate savingsDepositsThisPeriod term here would double-count
+    // and break Jose's test dashboard.
     //
     // Payment plan installment counting rules:
     //   1. paid === false → deduct from period containing scheduled `date`

@@ -203,6 +203,7 @@ protectedRouter.use("/expenses", expenseRoutes);
 protectedRouter.use("/user", userRoutes);
 protectedRouter.use("/summary", summaryRoutes);
 protectedRouter.use("/savings-goals", savingsRoutes);
+protectedRouter.use("/savings", require("./routes/savingsV2Routes"));
 protectedRouter.use("/investments", investmentRoutes);
 protectedRouter.use("/income-sources", incomeSourceRoutes);
 protectedRouter.use("/payment-overrides", paymentOverrideRoutes);
