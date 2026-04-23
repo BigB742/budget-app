@@ -32,6 +32,26 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Try again in 15 minutes." },
 });
 
+// 10 / 15min per EMAIL — paired with loginLimiter to defeat distributed
+// credential-stuffing. The IP limiter alone allows a botnet rotating IPs
+// to hammer one known email indefinitely (10 tries per IP × N IPs). Keying
+// on email caps total attempts on any single account regardless of source
+// IP. When body.email is missing/non-string we fall back to the IP so the
+// limiter still applies to malformed requests instead of bypassing.
+const loginEmailLimiter = rateLimit({
+  ...standardOptions,
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many login attempts for this account. Try again in 15 minutes." },
+  keyGenerator: (req, res) => {
+    const email = req.body && typeof req.body.email === "string"
+      ? req.body.email.toLowerCase().trim()
+      : "";
+    if (email) return `email:${email}`;
+    return `ip:${ipKeyGenerator(req, res)}`;
+  },
+});
+
 // 5 / hour per IP — signup. Tighter than login because account creation
 // is genuinely rare for a real user (they sign up once) and abuse is
 // usually automated. Slows email enumeration and account-creation spam.
@@ -81,6 +101,7 @@ const apiLimiter = rateLimit({
 
 module.exports = {
   loginLimiter,
+  loginEmailLimiter,
   signupLimiter,
   verifyEmailLimiter,
   passwordResetLimiter,
