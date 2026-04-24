@@ -24,12 +24,21 @@ export const DataCacheProvider = ({ children }) => {
   // Returns true if the cache for the given key is still fresh
   const isFresh = (key) => Date.now() - lastFetchedAt.current[key] < CACHE_TTL_MS;
 
-  // Send the browser's local calendar date to the API so the server
-  // doesn't use its own UTC "today" and flip pay-period boundaries a
-  // day early for users west of UTC on Vercel.
+  // Send today's LA calendar date to the API. PayPulse pins everything
+  // to America/Los_Angeles regardless of where the user's browser
+  // happens to be (see server resolveToday). This keeps the client and
+  // server in agreement on "what day is it."
   const todayParam = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Los_Angeles",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === "year").value;
+    const m = parts.find((p) => p.type === "month").value;
+    const d = parts.find((p) => p.type === "day").value;
+    return `${y}-${m}-${d}`;
   };
 
   const fetchSummary = useCallback(async (force = false) => {

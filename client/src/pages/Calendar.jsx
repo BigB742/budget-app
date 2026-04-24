@@ -285,8 +285,17 @@ const Calendar = () => {
     setSnapshotLoading(true);
     setSnapshot(null);
     try {
-      const now = new Date();
-      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      // LA-pinned "today" — matches server resolveToday.
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+      const y = parts.find((p) => p.type === "year").value;
+      const m = parts.find((p) => p.type === "month").value;
+      const dd = parts.find((p) => p.type === "day").value;
+      const localDate = `${y}-${m}-${dd}`;
       const data = await authFetch(`/api/summary/projected-balance?paydayDate=${dateKey}&localDate=${localDate}`);
       setSnapshot(data);
     } catch (err) {

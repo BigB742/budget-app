@@ -26,9 +26,31 @@ const fmtDate = (d) => {
     .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+// PayPulse pins "today" to America/Los_Angeles so the overdue prompt
+// doesn't fire a day early for users whose browser clock is ahead of LA.
+// This is the same convention the server uses on /paycheck-current and
+// /projected-balance (see routes/summaryRoutes.js resolveToday).
+const APP_TZ = "America/Los_Angeles";
+const todayParts = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  return {
+    year: Number(parts.find((p) => p.type === "year").value),
+    month: Number(parts.find((p) => p.type === "month").value),
+    day: Number(parts.find((p) => p.type === "day").value),
+  };
+};
 const todayYMD = () => {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const { year, month, day } = todayParts();
+  return year * 10000 + month * 100 + day;
+};
+const todayInAppTz = () => {
+  const { year, month, day } = todayParts();
+  return new Date(year, month - 1, day);
 };
 
 const toYMD = (d) => {
@@ -76,7 +98,9 @@ const OverdueCheckModal = () => {
       (Array.isArray(bills) ? bills : []).forEach((b) => {
         const day = b.dueDayOfMonth || b.dueDay;
         if (!day) return;
-        const now = new Date();
+        // Use LA-pinned "today" to build this month's due date so the
+        // overdue prompt tracks LA calendar days, not browser-local.
+        const now = todayInAppTz();
         const thisMonthDue = new Date(now.getFullYear(), now.getMonth(), day);
         const dueYMD = toYMD(thisMonthDue);
         // Only consider bills due in the current period range up to today

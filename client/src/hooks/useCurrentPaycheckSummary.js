@@ -36,8 +36,17 @@ export const useCurrentPaycheckSummary = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const d = new Date();
-        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        // LA-pinned "today" — matches server resolveToday.
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Los_Angeles",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(new Date());
+        const y = parts.find((p) => p.type === "year").value;
+        const m = parts.find((p) => p.type === "month").value;
+        const dd = parts.find((p) => p.type === "day").value;
+        const localDate = `${y}-${m}-${dd}`;
         const data = await authFetch(`/api/summary/paycheck-current?localDate=${localDate}`);
         if (isMounted) {
           // Update module-level cache

@@ -23,6 +23,39 @@ const {
 
 const router = express.Router();
 
+// PayPulse is pinned to America/Los_Angeles regardless of where the
+// server runs (Vercel = UTC) or where the user's browser clock claims
+// to be. All pay-period math uses "today in LA" so the dashboard never
+// flips a calendar day early for users west of UTC, and so two users
+// in different timezones see the same pay period on the same wall
+// clock moment. The client can still override with ?localDate=YYYY-MM-DD
+// for testing, but the default is LA.
+const APP_TZ = "America/Los_Angeles";
+function todayInAppTz() {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = fmt.formatToParts(new Date());
+  const y = Number(parts.find((p) => p.type === "year").value);
+  const m = Number(parts.find((p) => p.type === "month").value);
+  const d = Number(parts.find((p) => p.type === "day").value);
+  return new Date(y, m - 1, d);
+}
+function resolveToday(req) {
+  const ld = req.query.localDate;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(ld || ""))) {
+    return new Date(
+      Number(ld.slice(0, 4)),
+      Number(ld.slice(5, 7)) - 1,
+      Number(ld.slice(8, 10)),
+    );
+  }
+  return todayInAppTz();
+}
+
 // GET /paycheck-current — current budget period summary using income sources
 router.get("/paycheck-current", authRequired, async (req, res) => {
   try {
@@ -49,20 +82,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const sources = await IncomeSource.find({ user: req.userId, isActive: true });
     if (!sources.length) return res.json(await buildEmptyResponse());
 
-    // Accept the client's local date as ?localDate=YYYY-MM-DD. Vercel
-    // runs in UTC, so `new Date()` at 9pm Pacific 4/23 is already 4am
-    // UTC 4/24 on the server — which flipped the pay-period boundary a
-    // calendar day early and produced the "server thinks it is 4/24"
-    // bug. When a client-supplied date is present and well-formed,
-    // parse it as local midnight and use it as "today" for period math.
-    const localDateParam = req.query.localDate;
-    const today = /^\d{4}-\d{2}-\d{2}$/.test(String(localDateParam || ""))
-      ? new Date(
-          Number(localDateParam.slice(0, 4)),
-          Number(localDateParam.slice(5, 7)) - 1,
-          Number(localDateParam.slice(8, 10))
-        )
-      : new Date();
+    // "Today" is pinned to America/Los_Angeles via resolveToday —
+    // server clock (UTC on Vercel) is ignored. Client can override
+    // with ?localDate=YYYY-MM-DD for testing.
+    const today = resolveToday(req);
     const budget = getBudgetPeriod(sources, today);
     if (!budget) return res.json(await buildEmptyResponse());
 
@@ -506,17 +529,8 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     const initialBalance = Number(userDoc?.currentBalance) || 0;
     const userCreatedAt = userDoc?.createdAt ? new Date(userDoc.createdAt) : new Date(0);
 
-    // Same UTC/local-timezone guard as /paycheck-current — prefer the
-    // client-supplied local date so "today" matches what the user sees
-    // on their clock, not the Vercel server's UTC clock.
-    const ldParam = req.query.localDate;
-    const today = /^\d{4}-\d{2}-\d{2}$/.test(String(ldParam || ""))
-      ? new Date(
-          Number(ldParam.slice(0, 4)),
-          Number(ldParam.slice(5, 7)) - 1,
-          Number(ldParam.slice(8, 10))
-        )
-      : new Date();
+    // Same LA-pinned "today" as /paycheck-current.
+    const today = resolveToday(req);
     const todayNorm = startOfDay(today);
     let currentPeriod = getBudgetPeriod(sources, today);
     if (!currentPeriod) {
