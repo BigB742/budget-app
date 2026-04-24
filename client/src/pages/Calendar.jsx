@@ -488,14 +488,17 @@ const Calendar = () => {
                       const paid = isBillPaid(b._id, key);
                       const priorToTracking = isBillBeforeTracking(key);
                       const amount = currency.format(getEffectiveAmount(b, key));
-                      if (paid || priorToTracking) {
-                        return (
-                          <span key={b._id} className="cal-paid-tag" title="Paid">
-                            <s>{amount}</s>
-                          </span>
-                        );
-                      }
-                      return <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{amount}</span>;
+                      // §8: paid bills display the amount with strike-
+                      // through; no "Paid" pill, no separate badge. The
+                      // bill-dot + class carry the state.
+                      const cls = paid || priorToTracking
+                        ? "cal-bill-tag pp-amount pp-amount--paid"
+                        : "cal-bill-tag";
+                      return (
+                        <span key={b._id} className={cls} title={paid ? "Paid" : undefined}>
+                          <span className="cal-bill-dot" />{amount}
+                        </span>
+                      );
                     })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
@@ -507,9 +510,12 @@ const Calendar = () => {
                       <span className="cal-income-tag"><span className="cal-income-dot" />+{currency.format((incomeByDay[key] || []).reduce((s, i) => s + Number(i.amount || 0), 0))}</span>
                     )}
                     {(ppByDay[key] || []).map((pp, pi) => (
-                      pp.paid
-                        ? <span key={pi} className="cal-paid-tag">Paid</span>
-                        : <span key={pi} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(pp.amount)}</span>
+                      <span
+                        key={pi}
+                        className={`cal-bill-tag${pp.paid ? " pp-amount pp-amount--paid" : ""}`}
+                      >
+                        <span className="cal-bill-dot" />{currency.format(pp.amount)}
+                      </span>
                     ))}
                   </button>
                 );
@@ -662,15 +668,20 @@ const Calendar = () => {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
                     <div className="pp-sheet-row-main">
                       <span className="pp-sheet-row-name">{b.name}</span>
+                      {/* §8: strikethrough on the amount already
+                          communicates "paid". Meta line now carries
+                          the paid-date or the context; no "Paid" text. */}
                       {payment ? (
-                        <span className="pp-sheet-row-meta">Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        <span className="pp-sheet-row-meta">
+                          {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
                       ) : priorToTracking ? (
-                        <span className="pp-sheet-row-meta">Paid before tracking started</span>
+                        <span className="pp-sheet-row-meta">Before tracking started</span>
                       ) : hasOverride ? (
                         <span className="pp-sheet-row-meta">Edited for this month</span>
                       ) : null}
                     </div>
-                    <span className={`pp-sheet-row-amt${isPaid ? " is-paid" : ""}`}>{currency.format(amt)}</span>
+                    <span className={`pp-sheet-row-amt pp-amount${isPaid ? " pp-amount--paid is-paid" : ""}`}>{currency.format(amt)}</span>
                   </div>
                   <div className="pp-sheet-row-actions">
                     <PaidToggle
@@ -804,7 +815,8 @@ const Calendar = () => {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
                   <div className="pp-sheet-row-main">
                     <span className="pp-sheet-row-name">{pp.planName}</span>
-                    {pp.paid && <span className="pp-sheet-row-meta">Paid</span>}
+                    {/* §8: strikethrough on the amount is the paid
+                        indicator; no "Paid" meta text. */}
                   </div>
                   <span className={`pp-sheet-row-amt pp-amount${pp.paid ? " pp-amount--paid is-paid" : ""}`}>
                     {currency.format(pp.amount)}
