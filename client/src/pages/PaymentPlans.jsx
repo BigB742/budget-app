@@ -4,6 +4,7 @@ import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 import Modal from "../components/ui/Modal";
+import PaidToggle from "../components/ui/PaidToggle";
 import PlanForm, { emptyPlanValues, toPlanFormValues } from "../components/PlanForm";
 
 const fmtDate = (d) => {
@@ -58,20 +59,15 @@ const PaymentPlans = () => {
     } catch { /* ignore */ }
   };
 
-  const handleMarkPaid = async (planId, paymentId) => {
-    try {
-      await authFetch(`/api/payment-plans/${planId}/payments/${paymentId}`, { method: "PATCH" });
-      loadPlans();
-      cache?.fetchSummary?.(true);
-    } catch { /* ignore */ }
-  };
-
-  const handleUnmarkPaid = async (planId, paymentId) => {
-    try {
-      await authFetch(`/api/payment-plans/${planId}/payments/${paymentId}`, { method: "PATCH", body: JSON.stringify({ paid: false }) });
-      loadPlans();
-      cache?.fetchSummary?.(true);
-    } catch { /* ignore */ }
+  const togglePaid = async (planId, paymentId, nextPaid) => {
+    // §7 canonical endpoint — both paths end in the same togglePaymentPaid
+    // helper so paidEarly stays correct.
+    await authFetch(`/api/payment-plans/${planId}/payments/${paymentId}/paid`, {
+      method: "PATCH",
+      body: JSON.stringify({ paid: nextPaid }),
+    });
+    loadPlans();
+    cache?.fetchSummary?.(true);
   };
 
   return (
@@ -136,29 +132,28 @@ const PaymentPlans = () => {
                   {plan.payments
                     .slice()
                     .sort((a, b) => new Date(a.date) - new Date(b.date))
-                    .map((p) => (
-                      <div key={p.id} className="pp5-row" style={{ padding: "16px 0" }}>
-                        <div className="pp5-row-primary" style={{
-                          color: p.paid ? "var(--color-text-tertiary)" : "var(--color-text-primary)",
-                          textDecoration: p.paid ? "line-through" : "none",
-                        }}>
-                          {fmtDate(p.date)}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                          <span className="pp5-row-amount" style={{
+                    .map((p) => {
+                      const label = `${plan.name} payment, ${currency.format(p.amount)}, due ${fmtDate(p.date)}`;
+                      return (
+                        <div key={p.id} className="pp5-row" style={{ padding: "16px 0" }}>
+                          <div className="pp5-row-primary" style={{
                             color: p.paid ? "var(--color-text-tertiary)" : "var(--color-text-primary)",
-                            textDecoration: p.paid ? "line-through" : "none",
                           }}>
-                            {currency.format(p.amount)}
-                          </span>
-                          {!p.paid ? (
-                            <button type="button" className="pp5-btn pp5-btn-teal" onClick={() => handleMarkPaid(plan._id, p.id)}>Mark paid</button>
-                          ) : (
-                            <button type="button" className="pp5-btn pp5-btn-text" onClick={() => handleUnmarkPaid(plan._id, p.id)}>Undo</button>
-                          )}
+                            {fmtDate(p.date)}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                            <span className={`pp5-row-amount pp-amount${p.paid ? " pp-amount--paid" : ""}`}>
+                              {currency.format(p.amount)}
+                            </span>
+                            <PaidToggle
+                              paid={!!p.paid}
+                              label={label}
+                              onToggle={() => togglePaid(plan._id, p.id, !p.paid)}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             );
