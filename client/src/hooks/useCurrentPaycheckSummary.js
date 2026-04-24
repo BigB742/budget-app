@@ -36,7 +36,9 @@ export const useCurrentPaycheckSummary = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await authFetch("/api/summary/paycheck-current");
+        const d = new Date();
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const data = await authFetch(`/api/summary/paycheck-current?localDate=${localDate}`);
         if (isMounted) {
           // Update module-level cache
           _cachedSummary = data;

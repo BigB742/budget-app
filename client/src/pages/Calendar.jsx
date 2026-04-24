@@ -285,7 +285,9 @@ const Calendar = () => {
     setSnapshotLoading(true);
     setSnapshot(null);
     try {
-      const data = await authFetch(`/api/summary/projected-balance?paydayDate=${dateKey}`);
+      const now = new Date();
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const data = await authFetch(`/api/summary/projected-balance?paydayDate=${dateKey}&localDate=${localDate}`);
       setSnapshot(data);
     } catch (err) {
       console.error("Snapshot error:", err);

@@ -24,12 +24,20 @@ export const DataCacheProvider = ({ children }) => {
   // Returns true if the cache for the given key is still fresh
   const isFresh = (key) => Date.now() - lastFetchedAt.current[key] < CACHE_TTL_MS;
 
+  // Send the browser's local calendar date to the API so the server
+  // doesn't use its own UTC "today" and flip pay-period boundaries a
+  // day early for users west of UTC on Vercel.
+  const todayParam = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const fetchSummary = useCallback(async (force = false) => {
     if (!force && isFresh("summary") && summary) {
       return summary;
     }
     try {
-      const data = await authFetch("/api/summary/paycheck-current");
+      const data = await authFetch(`/api/summary/paycheck-current?localDate=${todayParam()}`);
       setSummary(data);
       lastFetchedAt.current.summary = Date.now();
       return data;
@@ -77,7 +85,7 @@ export const DataCacheProvider = ({ children }) => {
   const getSnapshot = useCallback(async (dateKey) => {
     if (snapshotCache.current.has(dateKey)) return snapshotCache.current.get(dateKey);
     try {
-      const data = await authFetch(`/api/summary/projected-balance?paydayDate=${dateKey}`);
+      const data = await authFetch(`/api/summary/projected-balance?paydayDate=${dateKey}&localDate=${todayParam()}`);
       snapshotCache.current.set(dateKey, data);
       return data;
     } catch { return null; }
