@@ -122,11 +122,13 @@ h1, h2, h3, h4, h5, h6 {
    anymore, so no bottom reservation. Horizontal padding is owned by
    the per-page wrappers. */
 .shell-main {
-  padding: 64px 0 24px;
+  /* §9 — 64px reserves the height of the fixed TopNav. The 24px below
+     is the universal gap between nav bottom and first content. Per-
+     page wrappers MUST NOT add more top padding on top of this. */
+  padding: calc(64px + 24px) 0 24px;
   min-height: 100vh;
   animation: pp-fade-in 150ms ease-out both;
   box-sizing: border-box;
-  /* Center the content column in split-screen and ultra-wide viewports */
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -1928,22 +1930,25 @@ img, video, iframe, canvas, svg { max-width: 100%; }
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: 40px 16px 64px;
+  /* §9 — top padding is 0 here because .shell-main already carries the
+     universal 24px gap from the TopNav. Horizontal + bottom padding
+     unchanged. */
+  padding: 0 16px 64px;
   font-feature-settings: "tnum";
 }
 @media (min-width: 480px) {
-  .pp-container { padding: 40px 24px 64px; }
+  .pp-container { padding: 0 24px 64px; }
 }
 @media (min-width: 768px) {
   .pp-container {
     max-width: 90%;
-    padding: 64px 32px 96px;
+    padding: 0 32px 96px;
   }
 }
 @media (min-width: 1280px) {
   .pp-container {
     max-width: 1120px;
-    padding: 64px 48px 96px;
+    padding: 0 48px 96px;
   }
 }
 
@@ -2664,17 +2669,20 @@ img, video, iframe, canvas, svg { max-width: 100%; }
   width: 100%;
   max-width: 1024px;
   margin: 0 auto;
-  padding: 96px 48px 128px;
+  /* §9 — top padding forced to 0 because .shell-main owns the
+     universal 24px TopNav → content gap. Horizontal + bottom padding
+     unchanged. */
+  padding: 0 48px 128px;
   box-sizing: border-box;
 }
 @media (max-width: 1279px) {
-  .pp-container { max-width: 100%; padding: 80px 32px 96px; }
+  .pp-container { max-width: 100%; padding: 0 32px 96px; }
 }
 @media (max-width: 767px) {
-  .pp-container { padding: 64px 24px 80px; }
+  .pp-container { padding: 0 24px 80px; }
 }
 @media (max-width: 479px) {
-  .pp-container { padding: 56px 20px 64px; }
+  .pp-container { padding: 0 20px 64px; }
 }
 
 /* Neutralize legacy .dashboard-page / .calendar-page etc. max-widths
