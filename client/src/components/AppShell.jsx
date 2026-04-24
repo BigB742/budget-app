@@ -4,7 +4,7 @@ import { DataCacheProvider } from "../context/DataCache";
 import SessionTimeout from "./SessionTimeout";
 import TopNav from "./TopNav";
 import TourOverlay from "./TourOverlay";
-import OverdueCheckModal from "./OverdueCheckModal";
+import OutstandingQueueModal from "../features/outstanding/OutstandingQueueModal";
 
 const AppShell = () => {
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ const AppShell = () => {
 
         <SessionTimeout />
         {showTour && <TourOverlay onFinish={() => setShowTour(false)} />}
-        {!showTour && <OverdueCheckModal />}
+        {!showTour && <OutstandingQueueModal />}
       </div>
     </DataCacheProvider>
   );

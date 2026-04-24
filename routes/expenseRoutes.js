@@ -4,6 +4,7 @@ const Expense = require("../models/Expense");
 const IncomeSource = require("../models/IncomeSource");
 const { authRequired } = require("../middleware/auth");
 const { getBudgetPeriod } = require("../utils/paycheckUtils");
+const { isSameLocalDay } = require("../utils/date");
 
 const router = express.Router();
 
@@ -121,6 +122,13 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(400).json({ message: "Invalid amount." });
     }
 
+    // §6 auto-mark-paid rule: if the expense is dated today (user's
+    // local calendar day), it's already money spent — mark paid
+    // immediately. Future-dated expenses stay unpaid until the user
+    // confirms them via the outstanding queue or the row toggle.
+    const paid = isSameLocalDay(expenseDate, new Date());
+    const markedPaidAt = paid ? new Date() : null;
+
     const expense = await Expense.create({
       user: req.userId,
       userId: req.userId,
@@ -128,6 +136,8 @@ router.post("/", authRequired, async (req, res) => {
       amount: numericAmount,
       category: category || "Other",
       description: description || note,
+      paid,
+      markedPaidAt,
     });
     res.status(201).json(expense);
   } catch (error) {
@@ -187,6 +197,39 @@ router.put("/:id", authRequired, async (req, res) => {
   } catch (error) {
     console.error("Error updating expense", error);
     res.status(500).json({ message: "Failed to update expense" });
+  }
+});
+
+// PATCH /:id/paid — toggle the paid flag on an expense. Unlike bills
+// and plans, expenses don't have a paidEarly concept; the $or on
+// user/userId mirrors the other expense routes so legacy docs are
+// editable too. Spendable-balance recalc is not strictly needed on an
+// expense paid-toggle (the amount already reduced spendable at create
+// time). We still bump markedPaidAt for the audit trail.
+router.patch("/:id/paid", authRequired, async (req, res) => {
+  try {
+    const { paid } = req.body || {};
+    if (typeof paid !== "boolean") {
+      return res.status(400).json({ message: "paid (boolean) is required." });
+    }
+    const updated = await Expense.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        $or: [{ user: req.userId }, { userId: req.userId }],
+      },
+      {
+        $set: {
+          paid,
+          markedPaidAt: paid ? new Date() : null,
+        },
+      },
+      { new: true },
+    );
+    if (!updated) return res.status(404).json({ message: "Expense not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error("Error patching expense paid:", err);
+    res.status(500).json({ message: "Failed to update paid status" });
   }
 });
 

@@ -110,38 +110,62 @@ router.delete("/:id", authRequired, async (req, res) => {
   }
 });
 
-// PATCH /:id/payments/:paymentId — toggle paid status
+// Shared toggle logic — used by both
+//   PATCH /:id/payments/:paymentId         (legacy path)
+//   PATCH /:id/payments/:paymentId/paid    (§6 canonical path)
+// so the paidEarly routing lives in exactly one place.
+async function togglePaymentPaid(userId, planId, paymentId, paid) {
+  const plan = await PaymentPlan.findOne({ _id: planId, userId });
+  if (!plan) { const e = new Error("Plan not found."); e.status = 404; throw e; }
+  const entry = plan.payments.find((p) => p.id === paymentId);
+  if (!entry) { const e = new Error("Payment entry not found."); e.status = 404; throw e; }
+
+  if (paid === false) {
+    entry.paid = false;
+    entry.datePaid = undefined;
+    entry.paidDate = undefined;
+    entry.paidEarly = false;
+  } else {
+    const today = new Date();
+    const todayYMD = today.getUTCFullYear() * 10000 + (today.getUTCMonth() + 1) * 100 + today.getUTCDate();
+    const scheduledDate = new Date(entry.date);
+    const scheduledYMD = scheduledDate.getUTCFullYear() * 10000 + (scheduledDate.getUTCMonth() + 1) * 100 + scheduledDate.getUTCDate();
+    entry.paid = true;
+    entry.datePaid = today;
+    entry.paidDate = today;
+    entry.paidEarly = todayYMD < scheduledYMD;
+  }
+  await plan.save();
+  return plan;
+}
+
+// PATCH /:id/payments/:paymentId — legacy toggle (defaults to "mark
+// paid" when body.paid is absent; kept for existing callers).
 router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
   try {
-    const plan = await PaymentPlan.findOne({ _id: req.params.id, userId: req.userId });
-    if (!plan) return res.status(404).json({ message: "Plan not found." });
-
-    const entry = plan.payments.find((p) => p.id === req.params.paymentId);
-    if (!entry) return res.status(404).json({ message: "Payment entry not found." });
-
-    // Support explicit paid: false to fully unmark — restores the
-    // installment to its originally scheduled pay period (via its
-    // unchanged `date` field) and clears all paid metadata.
-    if (req.body?.paid === false) {
-      entry.paid = false;
-      entry.datePaid = undefined;
-      entry.paidDate = undefined;
-      entry.paidEarly = false;
-    } else {
-      // Mark paid: datePaid = today. paidEarly = true if today is
-      // strictly before the scheduled date (paid ahead of schedule).
-      const today = new Date();
-      const todayYMD = today.getUTCFullYear() * 10000 + (today.getUTCMonth() + 1) * 100 + today.getUTCDate();
-      const scheduledDate = new Date(entry.date);
-      const scheduledYMD = scheduledDate.getUTCFullYear() * 10000 + (scheduledDate.getUTCMonth() + 1) * 100 + scheduledDate.getUTCDate();
-      entry.paid = true;
-      entry.datePaid = today;
-      entry.paidDate = today; // legacy mirror
-      entry.paidEarly = todayYMD < scheduledYMD;
-    }
-    await plan.save();
+    const paid = req.body?.paid === false ? false : true;
+    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid);
     res.json(plan);
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    console.error("Error updating payment status:", err.message);
+    res.status(500).json({ message: "Failed to update payment status." });
+  }
+});
+
+// PATCH /:id/payments/:paymentId/paid — §6 canonical path. Explicit
+// { paid: boolean } contract. Delegates to the same helper so paidEarly
+// is computed identically.
+router.patch("/:id/payments/:paymentId/paid", authRequired, async (req, res) => {
+  try {
+    const { paid } = req.body || {};
+    if (typeof paid !== "boolean") {
+      return res.status(400).json({ message: "paid (boolean) is required." });
+    }
+    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid);
+    res.json(plan);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
     console.error("Error updating payment status:", err.message);
     res.status(500).json({ message: "Failed to update payment status." });
   }
