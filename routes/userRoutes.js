@@ -61,7 +61,7 @@ router.put("/me", authRequired, async (req, res) => {
       firstName, lastName, email, dateOfBirth, phone,
       incomeSettings, passwordChange, notificationPrefs,
       locale, twoFactorEnabled, currentBalance, incomeType, totalSavings,
-      tourCompleted,
+      tourCompleted, tourCompletedAt,
     } = req.body || {};
 
     const user = await User.findById(userId);
@@ -76,7 +76,18 @@ router.put("/me", authRequired, async (req, res) => {
     if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth;
     if (locale !== undefined) user.locale = locale;
     if (twoFactorEnabled !== undefined) user.twoFactorEnabled = !!twoFactorEnabled;
-    if (tourCompleted !== undefined) user.tourCompleted = !!tourCompleted;
+    if (tourCompleted !== undefined) {
+      user.tourCompleted = !!tourCompleted;
+      // When the client marks the tour complete, stamp the timestamp;
+      // when it clears it (Take-tour button in Settings), wipe both.
+      if (tourCompleted) {
+        user.tourCompletedAt = tourCompletedAt ? new Date(tourCompletedAt) : new Date();
+      } else {
+        user.tourCompletedAt = null;
+      }
+    } else if (tourCompletedAt !== undefined) {
+      user.tourCompletedAt = tourCompletedAt ? new Date(tourCompletedAt) : null;
+    }
     if (currentBalance !== undefined) {
       const n = Number(currentBalance);
       if (Number.isFinite(n)) user.currentBalance = n;

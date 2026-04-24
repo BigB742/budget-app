@@ -82,6 +82,11 @@ const UserSchema = new mongoose.Schema(
     resetCode: { type: String },
     resetCodeExpiry: { type: Date },
     tourCompleted: { type: Boolean, default: false },
+    // §10 — timestamp stamped when the tour finishes. Lets the client
+    // distinguish "never ran" from "completed" without relying on the
+    // boolean alone, and lets Settings' "Take tour" clear it to
+    // unambiguously re-arm the flow.
+    tourCompletedAt: { type: Date, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorOTP: { type: String },
     twoFactorOTPExpiry: { type: Date },

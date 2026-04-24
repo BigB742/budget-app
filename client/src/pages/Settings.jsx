@@ -355,18 +355,36 @@ const Settings = () => {
             type="button"
             className="pp5-settings-link-row"
             onClick={() => {
+              // Take tour (§10 + session addendum). Clear the
+              // completion flag in localStorage + backend so the user
+              // doesn't bounce back into "already completed" state,
+              // then arm the pp_tourPending flag BEFORE navigating. The
+              // Dashboard mount effect picks it up and opens the tour.
+              // Setting the flag before navigation guards against the
+              // earlier race where window.__ppLaunchTour was sometimes
+              // undefined or stale.
               try {
                 const u = JSON.parse(localStorage.getItem("user") || "{}");
                 if (u && typeof u === "object") {
                   u.tourCompleted = false;
+                  u.tourCompletedAt = null;
                   localStorage.setItem("user", JSON.stringify(u));
                 }
               } catch { /* ignore */ }
-              authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ tourCompleted: false }) }).catch(() => {});
-              if (typeof window.__ppLaunchTour === "function") {
-                window.__ppLaunchTour();
+              authFetch("/api/user/me", {
+                method: "PUT",
+                body: JSON.stringify({ tourCompleted: false, tourCompletedAt: null }),
+              }).catch(() => {});
+              sessionStorage.setItem("pp_tourPending", "1");
+              if (window.location.pathname === "/app") {
+                if (typeof window.__ppLaunchTour === "function") {
+                  window.__ppLaunchTour();
+                } else {
+                  // Force a brief reload of the Dashboard route so the
+                  // mount effect in AppShell picks up pp_tourPending.
+                  navigate("/app");
+                }
               } else {
-                sessionStorage.setItem("pp_tourPending", "1");
                 navigate("/app");
               }
             }}
