@@ -7,6 +7,7 @@ import { getFirstName } from "../utils/userHelpers";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 import SideSheet from "../components/SideSheet";
+import PaidToggle from "../components/ui/PaidToggle";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -181,7 +182,9 @@ const Calendar = () => {
     return map;
   }, [oneTimeIncomes]);
 
-  // Payment plans flattened by day
+  // Payment plans flattened by day. planId + paymentId are preserved so
+  // the SideSheet can drive the §7 PaidToggle directly against the
+  // canonical PATCH endpoint.
   const ppByDay = useMemo(() => {
     const map = {};
     paymentPlans.forEach((plan) => {
@@ -189,7 +192,13 @@ const Calendar = () => {
         const dt = new Date(p.date);
         const key = toKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
         if (!map[key]) map[key] = [];
-        map[key].push({ planName: plan.name, amount: p.amount, paid: p.paid });
+        map[key].push({
+          planId: plan._id,
+          paymentId: p.id,
+          planName: plan.name,
+          amount: p.amount,
+          paid: p.paid,
+        });
       });
     });
     return map;
@@ -479,14 +488,17 @@ const Calendar = () => {
                       const paid = isBillPaid(b._id, key);
                       const priorToTracking = isBillBeforeTracking(key);
                       const amount = currency.format(getEffectiveAmount(b, key));
-                      if (paid || priorToTracking) {
-                        return (
-                          <span key={b._id} className="cal-paid-tag" title="Paid">
-                            <s>{amount}</s>
-                          </span>
-                        );
-                      }
-                      return <span key={b._id} className="cal-bill-tag"><span className="cal-bill-dot" />{amount}</span>;
+                      // §8: paid bills display the amount with strike-
+                      // through; no "Paid" pill, no separate badge. The
+                      // bill-dot + class carry the state.
+                      const cls = paid || priorToTracking
+                        ? "cal-bill-tag pp-amount pp-amount--paid"
+                        : "cal-bill-tag";
+                      return (
+                        <span key={b._id} className={cls} title={paid ? "Paid" : undefined}>
+                          <span className="cal-bill-dot" />{amount}
+                        </span>
+                      );
                     })}
                     {expTotal > 0 && (
                       <span className="cal-exp-tag"><span className="cal-exp-dot" />{currency.format(expTotal)}</span>
@@ -498,9 +510,12 @@ const Calendar = () => {
                       <span className="cal-income-tag"><span className="cal-income-dot" />+{currency.format((incomeByDay[key] || []).reduce((s, i) => s + Number(i.amount || 0), 0))}</span>
                     )}
                     {(ppByDay[key] || []).map((pp, pi) => (
-                      pp.paid
-                        ? <span key={pi} className="cal-paid-tag">Paid</span>
-                        : <span key={pi} className="cal-bill-tag"><span className="cal-bill-dot" />{currency.format(pp.amount)}</span>
+                      <span
+                        key={pi}
+                        className={`cal-bill-tag${pp.paid ? " pp-amount pp-amount--paid" : ""}`}
+                      >
+                        <span className="cal-bill-dot" />{currency.format(pp.amount)}
+                      </span>
                     ))}
                   </button>
                 );
@@ -653,40 +668,48 @@ const Calendar = () => {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
                     <div className="pp-sheet-row-main">
                       <span className="pp-sheet-row-name">{b.name}</span>
+                      {/* §8: strikethrough on the amount already
+                          communicates "paid". Meta line now carries
+                          the paid-date or the context; no "Paid" text. */}
                       {payment ? (
-                        <span className="pp-sheet-row-meta">Paid {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        <span className="pp-sheet-row-meta">
+                          {new Date(payment.paidDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
                       ) : priorToTracking ? (
-                        <span className="pp-sheet-row-meta">Paid before tracking started</span>
+                        <span className="pp-sheet-row-meta">Before tracking started</span>
                       ) : hasOverride ? (
                         <span className="pp-sheet-row-meta">Edited for this month</span>
                       ) : null}
                     </div>
-                    <span className={`pp-sheet-row-amt${isPaid ? " is-paid" : ""}`}>{currency.format(amt)}</span>
+                    <span className={`pp-sheet-row-amt pp-amount${isPaid ? " pp-amount--paid is-paid" : ""}`}>{currency.format(amt)}</span>
                   </div>
-                  {isPaid && payment && (
-                    <div className="pp-sheet-row-actions">
-                      <button
-                        type="button"
-                        className="pp-sheet-row-action is-muted"
-                        onClick={async () => {
-                          try {
-                            await authFetch(`/api/bill-payments/${payment._id}`, { method: "DELETE" });
-                            loadData();
-                            cache?.fetchSummary?.(true);
-                          } catch { /* ignore */ }
-                        }}
-                      >
-                        Unmark paid
-                      </button>
-                    </div>
-                  )}
-                  {!isPaid && (
-                    <div className="pp-sheet-row-actions">
-                      <button type="button" className="pp-sheet-row-action" onClick={() => { setMarkingPaid(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Mark as paid</button>
-                      <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit amount</button>
-                      <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>
-                    </div>
-                  )}
+                  <div className="pp-sheet-row-actions">
+                    <PaidToggle
+                      paid={isPaid}
+                      label={`${b.name}, ${currency.format(amt)}, due ${selectedDay}`}
+                      onToggle={async () => {
+                        try {
+                          await authFetch(`/api/bills/${b._id}/paid`, {
+                            method: "PATCH",
+                            body: JSON.stringify({
+                              paid: !isPaid,
+                              dueDate: selectedDay,
+                              paidDate: todayKey(),
+                              paidAmount: Number(amt),
+                            }),
+                          });
+                          loadData();
+                          cache?.fetchSummary?.(true);
+                        } catch { /* ignore */ }
+                      }}
+                    />
+                    {!isPaid && (
+                      <>
+                        <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setEditBill(b); setOverrideForm({ amount: String(amt), note: "" }); }}>Edit amount</button>
+                        <button type="button" className="pp-sheet-row-action is-muted" onClick={() => { setPayingEarly(b); setPaidForm({ paidDate: todayKey(), note: "", amount: String(amt) }); }}>Pay early</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -788,12 +811,35 @@ const Calendar = () => {
             <p className="pp-sheet-empty">No plan payments due.</p>
           ) : (
             dayPlanPayments.map((pp, i) => (
-              <div key={i} className={`pp-sheet-row${pp.paid ? " is-paid" : ""}`}>
-                <div className="pp-sheet-row-main">
-                  <span className="pp-sheet-row-name">{pp.planName}</span>
-                  {pp.paid && <span className="pp-sheet-row-meta">Paid</span>}
+              <div key={pp.paymentId || i} className={`pp-sheet-row${pp.paid ? " is-paid" : ""}`} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
+                  <div className="pp-sheet-row-main">
+                    <span className="pp-sheet-row-name">{pp.planName}</span>
+                    {/* §8: strikethrough on the amount is the paid
+                        indicator; no "Paid" meta text. */}
+                  </div>
+                  <span className={`pp-sheet-row-amt pp-amount${pp.paid ? " pp-amount--paid is-paid" : ""}`}>
+                    {currency.format(pp.amount)}
+                  </span>
                 </div>
-                <span className={`pp-sheet-row-amt${pp.paid ? " is-paid" : ""}`}>{currency.format(pp.amount)}</span>
+                {pp.planId && pp.paymentId && (
+                  <div className="pp-sheet-row-actions">
+                    <PaidToggle
+                      paid={!!pp.paid}
+                      label={`${pp.planName} payment, ${currency.format(pp.amount)}, due ${selectedDay}`}
+                      onToggle={async () => {
+                        try {
+                          await authFetch(`/api/payment-plans/${pp.planId}/payments/${pp.paymentId}/paid`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ paid: !pp.paid }),
+                          });
+                          loadData();
+                          cache?.fetchSummary?.(true);
+                        } catch { /* ignore */ }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -811,12 +857,34 @@ const Calendar = () => {
             <p className="pp-sheet-empty">No expenses.</p>
           ) : (
             daySpendingOnly.map((exp, i) => (
-              <div key={exp._id || i} className="pp-sheet-row">
-                <div className="pp-sheet-row-main">
-                  <span className="pp-sheet-row-name">{exp.description || exp.category || "Expense"}</span>
-                  {exp.category && <span className="pp-sheet-row-meta">{exp.category}</span>}
+              <div key={exp._id || i} className={`pp-sheet-row${exp.paid ? " is-paid" : ""}`} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
+                  <div className="pp-sheet-row-main">
+                    <span className="pp-sheet-row-name">{exp.description || exp.category || "Expense"}</span>
+                    {exp.category && <span className="pp-sheet-row-meta">{exp.category}</span>}
+                  </div>
+                  <span className={`pp-sheet-row-amt pp-amount${exp.paid ? " pp-amount--paid is-paid" : ""}`}>
+                    {currency.format(exp.amount)}
+                  </span>
                 </div>
-                <span className="pp-sheet-row-amt">{currency.format(exp.amount)}</span>
+                {exp._id && (
+                  <div className="pp-sheet-row-actions">
+                    <PaidToggle
+                      paid={!!exp.paid}
+                      label={`${exp.description || exp.category || "Expense"}, ${currency.format(exp.amount)}`}
+                      onToggle={async () => {
+                        try {
+                          await authFetch(`/api/expenses/${exp._id}/paid`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ paid: !exp.paid }),
+                          });
+                          loadData();
+                          cache?.fetchSummary?.(true);
+                        } catch { /* ignore */ }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}

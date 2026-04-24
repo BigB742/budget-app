@@ -4,6 +4,7 @@ import { authFetch } from "../apiClient";
 import { useSubscription } from "../hooks/useSubscription";
 import { storeUser } from "../utils/safeStorage";
 import PageContainer from "../components/PageContainer";
+import Modal from "../components/ui/Modal";
 
 const FONT_SCALES = [
   { key: "xs", scale: 0.85, base: "0.75rem" },
@@ -18,7 +19,9 @@ const formatDate = (d) =>
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { isPremium, isTrialing, isCanceled, status, subscriptionEndDate } = useSubscription();
+  const { isPremium, isTrialing, isCanceled, isCanceledButActive, status, subscriptionEndDate } = useSubscription();
+  const [reactivating, setReactivating] = useState(false);
+  const [reactivateError, setReactivateError] = useState("");
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
     const idx = FONT_SCALES.findIndex((s) => s.key === saved);
@@ -227,7 +230,14 @@ const Settings = () => {
           </section>
         )}
 
-        {/* 4. Subscription — plain-text status + single manage action */}
+        {/* 4. Subscription — plain-text status + single manage action.
+             §5.5 table:
+               trialing / active / premium      → Manage subscription
+               cancelled AND cancelAt > now     → Reactivate + grace msg
+               cancelled AND cancelAt <= now    → Get Premium (webhook
+                                                  will have flipped us
+                                                  to free in practice)
+               free                             → Get Premium          */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Subscription</h2>
           {hasSub && !isCanceled && (
@@ -235,7 +245,9 @@ const Settings = () => {
               <div>
                 <p className="pp5-settings-action-label">PayPulse Premium</p>
                 <p className="pp5-settings-action-description">
-                  Active plan.{subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
+                  {isTrialing
+                    ? `Trial. ${subscriptionEndDate ? `Trial ends ${formatDate(subscriptionEndDate)}.` : ""}`
+                    : `Active plan.${subscriptionEndDate ? ` Renews ${formatDate(subscriptionEndDate)}.` : ""}`}
                 </p>
               </div>
               <button
@@ -247,22 +259,45 @@ const Settings = () => {
               </button>
             </div>
           )}
-          {isCanceled && subscriptionEndDate && (
+          {isCanceledButActive && (
             <div className="pp5-settings-action-row">
               <div>
                 <p className="pp5-settings-action-label">PayPulse Premium</p>
-                <p className="pp5-settings-action-description">Canceled. Access continues until {formatDate(subscriptionEndDate)}.</p>
+                <p className="pp5-settings-action-description">
+                  Your premium access ends {formatDate(subscriptionEndDate)}.
+                </p>
+                {reactivateError && <p className="pp5-field-error">{reactivateError}</p>}
               </div>
+              <button
+                type="button"
+                className="pp5-settings-action-btn teal"
+                disabled={reactivating}
+                onClick={async () => {
+                  setReactivating(true);
+                  setReactivateError("");
+                  try {
+                    await authFetch("/api/stripe/reactivate-subscription", { method: "POST" });
+                    const refreshed = await authFetch("/api/user/me");
+                    storeUser(refreshed); setUser(refreshed);
+                  } catch (err) {
+                    setReactivateError(err?.message || "Couldn't reactivate.");
+                  } finally {
+                    setReactivating(false);
+                  }
+                }}
+              >
+                {reactivating ? "Reactivating…" : "Reactivate"}
+              </button>
             </div>
           )}
-          {!hasSub && !isCanceled && (
+          {!hasSub && !isCanceledButActive && (
             <div className="pp5-settings-action-row">
               <div>
                 <p className="pp5-settings-action-label">Free plan</p>
                 <p className="pp5-settings-action-description">Upgrade for unlimited bills, projections, and priority support.</p>
               </div>
               <button type="button" className="pp5-settings-action-btn teal" onClick={() => navigate("/subscription")}>
-                Upgrade
+                Get Premium
               </button>
             </div>
           )}
@@ -320,18 +355,36 @@ const Settings = () => {
             type="button"
             className="pp5-settings-link-row"
             onClick={() => {
+              // Take tour (§10 + session addendum). Clear the
+              // completion flag in localStorage + backend so the user
+              // doesn't bounce back into "already completed" state,
+              // then arm the pp_tourPending flag BEFORE navigating. The
+              // Dashboard mount effect picks it up and opens the tour.
+              // Setting the flag before navigation guards against the
+              // earlier race where window.__ppLaunchTour was sometimes
+              // undefined or stale.
               try {
                 const u = JSON.parse(localStorage.getItem("user") || "{}");
                 if (u && typeof u === "object") {
                   u.tourCompleted = false;
+                  u.tourCompletedAt = null;
                   localStorage.setItem("user", JSON.stringify(u));
                 }
               } catch { /* ignore */ }
-              authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ tourCompleted: false }) }).catch(() => {});
-              if (typeof window.__ppLaunchTour === "function") {
-                window.__ppLaunchTour();
+              authFetch("/api/user/me", {
+                method: "PUT",
+                body: JSON.stringify({ tourCompleted: false, tourCompletedAt: null }),
+              }).catch(() => {});
+              sessionStorage.setItem("pp_tourPending", "1");
+              if (window.location.pathname === "/app") {
+                if (typeof window.__ppLaunchTour === "function") {
+                  window.__ppLaunchTour();
+                } else {
+                  // Force a brief reload of the Dashboard route so the
+                  // mount effect in AppShell picks up pp_tourPending.
+                  navigate("/app");
+                }
               } else {
-                sessionStorage.setItem("pp_tourPending", "1");
                 navigate("/app");
               }
             }}
@@ -373,15 +426,17 @@ const Settings = () => {
         </section>
       </div>
 
-      {/* Password modal */}
-      {showPwModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowPwModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Change password</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowPwModal(false)}>×</button>
-            </div>
-            <form onSubmit={handlePw} className="pp5-modal-body">
+      <Modal
+        isOpen={showPwModal}
+        onClose={() => setShowPwModal(false)}
+        titleId="pw-modal-title"
+        size="md"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="pw-modal-title" className="pp5-modal-title">Change password</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowPwModal(false)} aria-label="Close">×</button>
+        </div>
+        <form onSubmit={handlePw} className="pp5-modal-body">
               <div className="pp5-field">
                 <label className="pp5-field-label">Current password</label>
                 <input type="password" className="pp5-input" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} required />
@@ -400,19 +455,22 @@ const Settings = () => {
                 <button type="submit" className="pp5-btn pp5-btn-primary" disabled={pwSaving}>{pwSaving ? "Updating…" : "Update password"}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Delete modal */}
-      {showDeleteModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Delete account?</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}>×</button>
-            </div>
-            <p className="pp5-modal-description">This permanently removes your account and all data. It cannot be undone.</p>
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }}
+        titleId="delete-modal-title"
+        describedById="delete-modal-desc"
+        size="md"
+        role="alertdialog"
+        disableBackdropClose
+      >
+        <div className="pp5-modal-header">
+          <h2 id="delete-modal-title" className="pp5-modal-title">Delete account?</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => { setShowDeleteModal(false); setDeleteStep("confirm"); setDeleteError(""); }} aria-label="Close">×</button>
+        </div>
+        <p id="delete-modal-desc" className="pp5-modal-description">This permanently removes your account and all data. It cannot be undone.</p>
 
             {deleteStep === "confirm" && (
               <>
@@ -432,7 +490,7 @@ const Settings = () => {
               </>
             )}
 
-            {deleteStep === "code" && (
+        {deleteStep === "code" && (
               <div className="pp5-modal-body" style={{ marginTop: 16 }}>
                 <p className="type-secondary" style={{ color: "var(--color-accent-teal)" }}>Code sent. Check your email.</p>
                 <div className="pp5-field">
@@ -463,18 +521,19 @@ const Settings = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Cancel subscription modal */}
-      {showCancelModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowCancelModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Manage subscription</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowCancelModal(false)}>×</button>
-            </div>
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        titleId="cancel-modal-title"
+        size="md"
+        role="alertdialog"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="cancel-modal-title" className="pp5-modal-title">Manage subscription</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowCancelModal(false)} aria-label="Close">×</button>
+        </div>
             {!cancelResult ? (
               <>
                 <p className="pp5-modal-description">
@@ -486,8 +545,11 @@ const Settings = () => {
                   <button type="button" className="pp5-btn pp5-btn-destructive" disabled={cancelLoading} onClick={async () => {
                     setCancelLoading(true); setCancelError("");
                     try {
-                      const data = await authFetch("/api/stripe/subscription", { method: "DELETE" });
-                      setCancelResult(data);
+                      // §5 canonical cancel endpoint. Returns optimistic
+                      // success; the webhook sets the authoritative
+                      // subscriptionStatus=cancelled + subscriptionCancelAt.
+                      const data = await authFetch("/api/stripe/cancel-subscription", { method: "POST" });
+                      setCancelResult({ ...data, endDate: data?.endsAt });
                       try {
                         const refreshed = await authFetch("/api/user/me");
                         storeUser(refreshed); setUser(refreshed);
@@ -519,18 +581,20 @@ const Settings = () => {
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Reset account modal */}
-      {showResetModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowResetModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Reset onboarding?</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowResetModal(false)}>×</button>
-            </div>
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        titleId="reset-modal-title"
+        size="md"
+        role="alertdialog"
+        disableBackdropClose
+      >
+        <div className="pp5-modal-header">
+          <h2 id="reset-modal-title" className="pp5-modal-title">Reset onboarding?</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowResetModal(false)} aria-label="Close">×</button>
+        </div>
             <p className="pp5-modal-description">This removes your financial data — bills, income, expenses, and savings. Your account stays, and you'll go through setup again.</p>
             <div className="pp5-modal-body" style={{ marginTop: 20 }}>
               <div className="pp5-field">
@@ -560,19 +624,19 @@ const Settings = () => {
                 finally { setResetLoading(false); }
               }}>{resetLoading ? "Resetting…" : "Reset"}</button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Support modal */}
-      {showSupportModal && (
-        <div className="pp5-modal-overlay" onClick={() => setShowSupportModal(false)}>
-          <div className="pp5-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">Contact support</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => setShowSupportModal(false)}>×</button>
-            </div>
-            {supportMsg ? (
+      <Modal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        titleId="support-modal-title"
+        size="md"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="support-modal-title" className="pp5-modal-title">Contact support</h2>
+          <button type="button" className="pp5-modal-close" onClick={() => setShowSupportModal(false)} aria-label="Close">×</button>
+        </div>
+        {supportMsg ? (
               <>
                 <p className="pp5-modal-description" style={{ color: "var(--color-accent-teal)" }}>{supportMsg}</p>
                 <div className="pp5-modal-actions">
@@ -604,9 +668,7 @@ const Settings = () => {
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
     </PageContainer>
   );
 };

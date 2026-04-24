@@ -1,129 +1,188 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  useFloating,
+  autoUpdate,
+  offset,
+  flip,
+  shift,
+} from "@floating-ui/react";
 import { authFetch } from "../apiClient";
 import { storeUser } from "../utils/safeStorage";
+import { tourSteps, tourStepCount } from "../onboarding/tourSteps";
 
 const getFirstName = () => {
   try { return JSON.parse(localStorage.getItem("user"))?.firstName || ""; } catch { return ""; }
 };
 
-const STEPS = [
-  { selector: ".hero",              title: "Your Spendable Balance",    body: "This is your home base. The big number is what's actually yours to spend after every bill is covered. Check this before you spend anything.", pos: "below" },
-  { selector: ".hero-balance",      title: "What This Number Means",    body: "This updates every time you log an expense, pay a bill, or add to savings. If it's negative, your bills cost more than what's left before your next paycheck.", pos: "below" },
-  { selector: ".planner-section",   title: "Bills This Pay Period",     body: "These are the bills due before your next paycheck. PayPulse already subtracted them from your balance. Pay them on time and your balance stays accurate.", pos: "above" },
-  { selector: ".dash-chart-col",    title: "Spending Breakdown",        body: "A quick look at where your money went this period. Switch between This Paycheck and Year to Date to see the full picture.", pos: "above" },
-  { selector: '[href="/app/calendar"]', title: "Your Calendar",         body: "Every dollar laid out day by day. Green means money coming in. Red means money going out. Tap any day to see details or add something.", pos: "below" },
-  { selector: '[href="/app/expenses"]', title: "Expenses",              body: "Log anything you spend outside your bills here \u2014 groceries, gas, a coffee, anything. The more you log, the more accurate your balance is.", pos: "below" },
-  { selector: '[href="/app/bills"]',    title: "Bills",                 body: "Your recurring monthly bills live here. Add them once and PayPulse tracks them every month automatically.", pos: "below" },
-  { selector: '[href="/app/payment-plans"]', title: "Payment Plans",    body: "Have a Klarna installment or payments you owe on specific dates? Add them here. PayPulse puts each one on your calendar and subtracts it from the right paycheck.", pos: "below" },
-  { selector: '[href="/app/income"]',   title: "Income",                body: "Your paychecks and any extra money go here. PayPulse uses this to calculate everything \u2014 keep it accurate.", pos: "below" },
-  { selector: '[href="/app/savings"]',  title: "Savings",               body: "Money you set aside for yourself. It leaves your spendable balance but stays yours. Withdraw anytime and it comes back as income.", pos: "below" },
-  { selector: '[href="/app/settings"]', title: "Settings",              body: "Update your info, change your theme, set up bill reminders, and manage your subscription here.", pos: "below" },
-  { selector: null, title: null, body: null, final: true },
-];
+// Scroll a target element into the viewport center and wait for the
+// scroll to settle. `scrollend` doesn't fire if no scroll actually
+// occurred (target already visible), so we race it with a 600ms
+// fallback timer.
+function revealTarget(el) {
+  if (!el) return Promise.resolve();
+  el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    document.addEventListener("scrollend", finish, { once: true });
+    setTimeout(finish, 600);
+  });
+}
 
-const TourOverlay = ({ onFinish }) => {
-  const [step, setStep] = useState(0);
-  const [spotlightRect, setSpotlightRect] = useState(null);
+export default function TourOverlay({ onFinish }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [targetEl, setTargetEl] = useState(null);
+  const [spotlight, setSpotlight] = useState(null);
+  const current = tourSteps[stepIndex];
   const firstName = getFirstName();
 
-  const measureTarget = useCallback(() => {
-    const s = STEPS[step];
-    if (!s?.selector) { setSpotlightRect(null); return; }
-    const el = document.querySelector(s.selector);
-    if (el) {
-      const r = el.getBoundingClientRect();
-      setSpotlightRect({ top: r.top - 8, left: r.left - 8, width: r.width + 16, height: r.height + 16 });
-    } else {
-      setSpotlightRect(null);
-    }
-  }, [step]);
+  // Floating UI placement — middleware mirrors the §10 brief: offset,
+  // flip to fallback side when the primary side overflows, shift so
+  // the tooltip never crosses the viewport edge.
+  const { refs, floatingStyles, update } = useFloating({
+    placement: current?.placement || "bottom",
+    whileElementsMounted: autoUpdate,
+    middleware: [offset(12), flip({ fallbackAxisSideDirection: "end" }), shift({ padding: 12 })],
+  });
 
+  // Dev-only audit. Warns once per selector on mount if anything
+  // doesn't resolve so broken tours show up in the console during
+  // development instead of spotlighting empty space at runtime.
   useEffect(() => {
-    measureTarget();
-    window.addEventListener("resize", measureTarget);
-    window.addEventListener("scroll", measureTarget);
-    return () => {
-      window.removeEventListener("resize", measureTarget);
-      window.removeEventListener("scroll", measureTarget);
-    };
-  }, [measureTarget]);
+    if (!import.meta.env.DEV) return;
+    tourSteps.forEach((s, i) => {
+      if (!s.target) return;
+      if (!document.querySelector(s.target)) {
+        // eslint-disable-next-line no-console
+        console.warn(`[tour] step ${i + 1}/${tourSteps.length} selector not found: ${s.target}`);
+      }
+    });
+  }, []);
 
-  const finish = async () => {
-    try { await authFetch("/api/user/me", { method: "PUT", body: JSON.stringify({ tourCompleted: true }) }); } catch { /* ok */ }
+  // Resolve + reveal + anchor the target on step changes. For the
+  // final step we drop the anchor so the tooltip becomes a centered
+  // full-screen card (handled in render below).
+  useEffect(() => {
+    if (!current || current.final) { setTargetEl(null); return; }
+    const el = current.target ? document.querySelector(current.target) : null;
+    if (!el) { setTargetEl(null); return; }
+    let cancelled = false;
+    revealTarget(el).then(() => {
+      if (cancelled) return;
+      setTargetEl(el);
+      refs.setReference(el);
+    });
+    return () => { cancelled = true; };
+  }, [current, refs]);
+
+  // Measure spotlight rectangle once the target is pinned. useFloating
+  // already handles the tooltip; this is only for the dimming cutout.
+  useEffect(() => {
+    if (!targetEl) { setSpotlight(null); return undefined; }
+    const measure = () => {
+      const r = targetEl.getBoundingClientRect();
+      setSpotlight({ top: r.top - 8, left: r.left - 8, width: r.width + 16, height: r.height + 16 });
+      update();
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [targetEl, update]);
+
+  const finish = useCallback(async () => {
+    try {
+      await authFetch("/api/user/me", {
+        method: "PUT",
+        body: JSON.stringify({ tourCompleted: true }),
+      });
+    } catch { /* ok */ }
     try {
       const u = JSON.parse(localStorage.getItem("user") || "{}");
       u.tourCompleted = true;
+      u.tourCompletedAt = new Date().toISOString();
       storeUser(u);
     } catch { /* ok */ }
     onFinish?.();
-  };
+  }, [onFinish]);
 
-  const current = STEPS[step];
-  if (!current) return null;
+  // Keyboard: Left/Right cycles, Escape ends.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); finish(); }
+      else if (e.key === "ArrowRight") setStepIndex((i) => Math.min(tourSteps.length - 1, i + 1));
+      else if (e.key === "ArrowLeft") setStepIndex((i) => Math.max(0, i - 1));
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [finish]);
 
-  // Final full-screen card
+  const modalRoot = typeof document !== "undefined"
+    ? document.getElementById("modal-root")
+    : null;
+  if (!modalRoot || !current) return null;
+
+  // Final card: centered, no anchor, primary CTA closes the tour.
   if (current.final) {
-    return (
+    return createPortal(
       <div className="pp-tour-overlay">
         <div className="pp-tour-final">
           <h2 className="pp-tour-final-title">You're all set{firstName ? `, ${firstName}` : ""}.</h2>
-          <p className="pp-tour-final-body">PayPulse is ready. The more you use it, the more accurate your balance gets. Start by checking your bills and logging your first expense.</p>
-          <button type="button" className="primary-button pp-tour-final-btn" onClick={finish}>Let's go</button>
+          <p className="pp-tour-final-body">PayPulse is ready. The more you use it, the more accurate your balance gets — start by checking your bills and logging your first expense.</p>
+          <button type="button" className="primary-button pp-tour-final-btn" onClick={finish}>
+            Start your trial
+          </button>
         </div>
-      </div>
+      </div>,
+      modalRoot,
     );
   }
 
-  // Tooltip positioning
-  const tt = {};
-  if (spotlightRect) {
-    if (current.pos === "above") {
-      tt.bottom = window.innerHeight - spotlightRect.top + 12;
-      tt.left = Math.max(16, Math.min(spotlightRect.left, window.innerWidth - 340));
-    } else {
-      tt.top = spotlightRect.top + spotlightRect.height + 12;
-      tt.left = Math.max(16, Math.min(spotlightRect.left, window.innerWidth - 340));
-    }
-  } else {
-    tt.top = "50%";
-    tt.left = "50%";
-    tt.transform = "translate(-50%, -50%)";
-  }
+  const stepLabel = `Step ${stepIndex + 1} of ${tourStepCount}`;
 
-  return (
+  return createPortal(
     <div className="pp-tour-overlay">
-      {/* Spotlight cutout */}
-      {spotlightRect && (
+      {spotlight && (
         <div
           className="pp-tour-spotlight"
           style={{
-            top: spotlightRect.top,
-            left: spotlightRect.left,
-            width: spotlightRect.width,
-            height: spotlightRect.height,
+            top: spotlight.top,
+            left: spotlight.left,
+            width: spotlight.width,
+            height: spotlight.height,
           }}
         />
       )}
-      {/* Tooltip */}
-      <div className="pp-tour-tooltip" style={tt}>
-        <div className="pp-tour-tt-title">{current.title}</div>
-        <div className="pp-tour-tt-body">{current.body}</div>
+      <div
+        ref={refs.setFloating}
+        className="pp-tour-tooltip"
+        style={floatingStyles}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="pp-tour-title"
+        aria-describedby="pp-tour-body"
+      >
+        <div className="pp-tour-tt-title" id="pp-tour-title">{current.title}</div>
+        <div className="pp-tour-tt-body" id="pp-tour-body">{current.body}</div>
         <div className="pp-tour-tt-footer">
-          <span className="pp-tour-tt-count">{step + 1} of {STEPS.length - 1}</span>
+          <span className="pp-tour-tt-count" aria-label={stepLabel}>{stepLabel}</span>
           <div className="pp-tour-tt-actions">
             <button type="button" className="pp-tour-skip" onClick={finish}>Skip tour</button>
             <button
               type="button"
               className="primary-button pp-tour-next"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => setStepIndex((i) => i + 1)}
             >
-              {step === STEPS.length - 2 ? "Done" : "Next"}
+              {stepIndex === tourStepCount - 1 ? "Done" : "Next"}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    modalRoot,
   );
-};
-
-export default TourOverlay;
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authFetch } from "../apiClient";
+import Modal from "./ui/Modal";
 
 const UpgradeModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
@@ -32,36 +33,35 @@ const UpgradeModal = ({ onClose }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, textAlign: "center" }}>
-        <h3 style={{ margin: "0 0 0.25rem" }}>Unlock Premium</h3>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", margin: "0 0 0.75rem" }}>
-          $4.99/month or $39.99/year (save 33%)
-        </p>
-        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", textAlign: "left" }}>
-          {features.map((f) => (
-            <li key={f} style={{ padding: "0.3rem 0", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ color: "var(--teal)" }}>&#x2713;</span> {f}
-            </li>
-          ))}
-        </ul>
-        {error && (
-          <div className="inline-error" style={{ marginBottom: "0.5rem", textAlign: "left" }}>{error}</div>
-        )}
+    <Modal isOpen onClose={onClose} titleId="upgrade-modal-title" size="sm">
+      <h2 id="upgrade-modal-title" className="pp5-modal-title" style={{ textAlign: "center" }}>
+        Unlock Premium
+      </h2>
+      <p className="pp5-modal-description" style={{ textAlign: "center" }}>
+        $4.99/month or $39.99/year (save 33%)
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: "20px 0", textAlign: "left" }}>
+        {features.map((f) => (
+          <li key={f} style={{ padding: "6px 0", fontSize: "14px", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-primary)" }}>
+            <span style={{ color: "var(--color-accent-teal)" }}>&#x2713;</span> {f}
+          </li>
+        ))}
+      </ul>
+      {error && <p className="pp5-field-error">{error}</p>}
+      <div className="pp5-modal-actions-stack">
         <button
           type="button"
-          className="primary-button"
-          style={{ width: "100%", marginBottom: "0.5rem" }}
+          className="pp5-btn pp5-btn-primary pp5-btn-block"
           onClick={handleUpgrade}
           disabled={loading}
         >
-          {loading ? "Redirecting..." : "Start free trial"}
+          {loading ? "Redirecting…" : "Start free trial"}
         </button>
-        <button type="button" className="link-button" style={{ color: "var(--text-secondary)", fontSize: "0.78rem" }} onClick={onClose}>
+        <button type="button" className="pp5-btn pp5-btn-text pp5-btn-block" onClick={onClose}>
           Maybe later
         </button>
       </div>
-    </div>
+    </Modal>
   );
 };
 

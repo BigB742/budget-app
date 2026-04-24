@@ -16,15 +16,18 @@ import {
   IconShield,
 } from "./AppIcons";
 
+// data-tour attributes power the onboarding tour (§10). Keep in sync
+// with client/src/onboarding/tourSteps.js — the dev-only audit there
+// will warn on selector mismatches.
 const NAV = [
-  { to: "/app",           label: "Dashboard", Icon: IconHome,     end: true },
-  { to: "/app/calendar",  label: "Calendar",  Icon: IconCalendar },
-  { to: "/app/expenses",  label: "Expenses",  Icon: IconReceipt },
-  { to: "/app/bills",           label: "Bills",         Icon: IconCard },
-  { to: "/app/payment-plans",  label: "Plans",         Icon: IconClipboardList },
-  { to: "/app/income",         label: "Income",        Icon: IconTrending },
-  { to: "/app/savings",   label: "Savings",   Icon: IconPiggy },
-  { to: "/app/settings",  label: "Settings",  Icon: IconSettings },
+  { to: "/app",                label: "Dashboard", Icon: IconHome,           end: true, tour: "nav-dashboard" },
+  { to: "/app/calendar",       label: "Calendar",  Icon: IconCalendar,               tour: "nav-calendar" },
+  { to: "/app/expenses",       label: "Expenses",  Icon: IconReceipt,                tour: "nav-expenses" },
+  { to: "/app/bills",          label: "Bills",     Icon: IconCard,                   tour: "nav-bills" },
+  { to: "/app/payment-plans",  label: "Plans",     Icon: IconClipboardList,          tour: "nav-plans" },
+  { to: "/app/income",         label: "Income",    Icon: IconTrending,               tour: "nav-income" },
+  { to: "/app/savings",        label: "Savings",   Icon: IconPiggy,                  tour: "nav-savings" },
+  { to: "/app/settings",       label: "Settings",  Icon: IconSettings,               tour: "nav-settings" },
 ];
 
 const getStoredUser = () => {
@@ -126,11 +129,12 @@ const TopNav = ({ onLogout }) => {
 
         {/* Desktop nav — center/right, hidden on mobile */}
         <nav className="pp-top-nav" aria-label="Primary navigation" ref={navRef}>
-          {NAV.map(({ to, label, Icon, end }) => (
+          {NAV.map(({ to, label, Icon, end, tour }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
+              data-tour={tour}
               className={({ isActive }) => `pp-top-link${isActive ? " active" : ""}`}
             >
               <Icon />
@@ -159,6 +163,7 @@ const TopNav = ({ onLogout }) => {
             <button
               type="button"
               className={`pp-top-avatar${isPremiumRing ? " pp-top-avatar-premium" : ""}`}
+              data-tour="topnav-avatar"
               onClick={() => setAvatarOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={avatarOpen}

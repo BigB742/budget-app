@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "../apiClient";
 import { storeUser } from "../utils/safeStorage";
+import { toDateOnly } from "../lib/date";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -263,7 +264,7 @@ const Onboarding = () => {
               body: JSON.stringify({
                 name: "Starting Balance",
                 amount: Number(paydayTodayAmount),
-                date: new Date().toISOString().slice(0, 10),
+                date: toDateOnly(new Date()),
                 note: "Money in account before first paycheck",
               }),
             });
@@ -275,7 +276,7 @@ const Onboarding = () => {
                 description: "Overdrawn Balance",
                 amount: Number(paydayTodayAmount),
                 category: "Other",
-                date: new Date().toISOString().slice(0, 10),
+                date: toDateOnly(new Date()),
                 note: "Account was overdrawn before first paycheck",
               }),
             });

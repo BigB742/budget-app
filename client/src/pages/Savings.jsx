@@ -4,6 +4,7 @@ import { useDataCache } from "../context/DataCache";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 import AnimatedNumber from "../components/AnimatedNumber";
+import Modal from "../components/ui/Modal";
 
 // ═══════════════════════════════════════════════════════════════════
 // Savings — Phase 4 web-first rebuild
@@ -54,10 +55,9 @@ const NewGoalModal = ({ onClose, onCreated }) => {
   };
 
   return (
-    <div className="p4-modal-overlay" onClick={onClose}>
-      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="p4-modal-title">New savings goal</h2>
-        <form onSubmit={submit}>
+    <Modal isOpen onClose={onClose} titleId="sv-new-goal-title" size="md">
+      <h2 id="sv-new-goal-title" className="p4-modal-title">New savings goal</h2>
+      <form onSubmit={submit}>
           <div className="p4-field">
             <label className="p4-field-label" htmlFor="sv-name">Goal name</label>
             <input
@@ -94,8 +94,7 @@ const NewGoalModal = ({ onClose, onCreated }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -131,36 +130,34 @@ const AmountModal = ({ goal, mode, onClose, onDone }) => {
   };
 
   return (
-    <div className="p4-modal-overlay" onClick={onClose}>
-      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="p4-modal-title">{title}</h2>
-        <form onSubmit={submit}>
-          <div className="p4-field">
-            <label className="p4-field-label" htmlFor="sv-amt">Amount</label>
-            <input
-              id="sv-amt"
-              className="p4-field-input"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              autoFocus
-              required
-            />
-            {mode === "withdraw" && (
-              <span className="p4-field-help">Available: {currency.format(balance)}</span>
-            )}
-          </div>
-          {error && <p className="p4-field-error">{error}</p>}
-          <div className="p4-modal-actions">
-            <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : cta}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal isOpen onClose={onClose} titleId="sv-amount-title" size="sm">
+      <h2 id="sv-amount-title" className="p4-modal-title">{title}</h2>
+      <form onSubmit={submit}>
+        <div className="p4-field">
+          <label className="p4-field-label" htmlFor="sv-amt">Amount</label>
+          <input
+            id="sv-amt"
+            className="p4-field-input"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            autoFocus
+            required
+          />
+          {mode === "withdraw" && (
+            <span className="p4-field-help">Available: {currency.format(balance)}</span>
+          )}
+        </div>
+        {error && <p className="p4-field-error">{error}</p>}
+        <div className="p4-modal-actions">
+          <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : cta}</button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
@@ -192,33 +189,31 @@ const TargetModal = ({ goal, onClose, onDone }) => {
   };
 
   return (
-    <div className="p4-modal-overlay" onClick={onClose}>
-      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="p4-modal-title">Set target for {goal.name}</h2>
-        <form onSubmit={submit}>
-          <div className="p4-field">
-            <label className="p4-field-label" htmlFor="sv-tgt">Target</label>
-            <input
-              id="sv-tgt"
-              className="p4-field-input"
-              type="number"
-              step="0.01"
-              min="0"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="0.00"
-              autoFocus
-            />
-            <span className="p4-field-help">Leave blank to clear the target.</span>
-          </div>
-          {error && <p className="p4-field-error">{error}</p>}
-          <div className="p4-modal-actions">
-            <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal isOpen onClose={onClose} titleId="sv-target-title" size="sm">
+      <h2 id="sv-target-title" className="p4-modal-title">Set target for {goal.name}</h2>
+      <form onSubmit={submit}>
+        <div className="p4-field">
+          <label className="p4-field-label" htmlFor="sv-tgt">Target</label>
+          <input
+            id="sv-tgt"
+            className="p4-field-input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder="0.00"
+            autoFocus
+          />
+          <span className="p4-field-help">Leave blank to clear the target.</span>
+        </div>
+        {error && <p className="p4-field-error">{error}</p>}
+        <div className="p4-modal-actions">
+          <button type="button" className="p4-btn p4-btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className="p4-btn p4-btn-primary" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
@@ -242,39 +237,45 @@ const DeleteModal = ({ goal, onClose, onDone }) => {
   };
 
   return (
-    <div className="p4-modal-overlay" onClick={onClose}>
-      <div className="p4-modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="p4-modal-title">Delete this goal?</h2>
-        <p className="p4-modal-body">
-          {hasMoney
-            ? `This goal has ${currency.format(balance)} in it. What should happen to that money?`
-            : "Are you sure? This cannot be undone."}
-        </p>
-        {error && <p className="p4-field-error">{error}</p>}
-        {hasMoney ? (
-          <div className="p4-modal-actions-stack">
-            <button type="button" className="p4-btn p4-btn-primary p4-btn-block" disabled={saving} onClick={() => doDelete(true)}>
-              Withdraw and delete
-            </button>
-            <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
-              Delete only
-            </button>
-            <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div className="p4-modal-actions-stack">
-            <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
-              Delete
-            </button>
-            <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <Modal
+      isOpen
+      onClose={onClose}
+      titleId="sv-delete-title"
+      describedById="sv-delete-desc"
+      size="sm"
+      role="alertdialog"
+      disableBackdropClose
+    >
+      <h2 id="sv-delete-title" className="p4-modal-title">Delete this goal?</h2>
+      <p id="sv-delete-desc" className="p4-modal-body">
+        {hasMoney
+          ? `This goal has ${currency.format(balance)} in it. What should happen to that money?`
+          : "Are you sure? This cannot be undone."}
+      </p>
+      {error && <p className="p4-field-error">{error}</p>}
+      {hasMoney ? (
+        <div className="p4-modal-actions-stack">
+          <button type="button" className="p4-btn p4-btn-primary p4-btn-block" disabled={saving} onClick={() => doDelete(true)}>
+            Withdraw and delete
+          </button>
+          <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
+            Delete only
+          </button>
+          <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="p4-modal-actions-stack">
+          <button type="button" className="p4-btn p4-btn-danger p4-btn-block" disabled={saving} onClick={() => doDelete(false)}>
+            Delete
+          </button>
+          <button type="button" className="p4-btn p4-btn-text p4-btn-block" disabled={saving} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </Modal>
   );
 };
 

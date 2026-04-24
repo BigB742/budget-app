@@ -1,6 +1,7 @@
 const express = require("express");
 const Stripe = require("stripe");
 const User = require("../models/User");
+const StripeEvent = require("../models/StripeEvent");
 const { authRequired } = require("../middleware/auth");
 const { upsertPremiumBill, removePremiumBill } = require("../utils/subscriptionBill");
 const { reportError, reportEvent } = require("../utils/observability");
@@ -203,6 +204,75 @@ router.delete("/subscription", authRequired, async (req, res) => {
   }
 });
 
+// POST /cancel-subscription — canonical cancel endpoint introduced in §5.
+// Returns optimistic success; the webhook is the authoritative writer.
+// The existing DELETE /subscription endpoint stays for back-compat.
+router.post("/cancel-subscription", authRequired, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured." });
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (!user.stripeSubscriptionId) {
+      return res.status(400).json({ error: "no_subscription" });
+    }
+    const sub = await stripe.subscriptions.update(user.stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    });
+    const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+    const cancelAt = sub.cancel_at ?? periodEnd;
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          subscriptionStatus: "cancelled",
+          subscriptionCancelAtPeriodEnd: true,
+          subscriptionCancelAt: cancelAt ? new Date(cancelAt * 1000) : null,
+          subscriptionCurrentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+        },
+      },
+    );
+    res.json({
+      success: true,
+      endsAt: cancelAt ? new Date(cancelAt * 1000).toISOString() : null,
+    });
+  } catch (err) {
+    console.error("[Stripe] cancel-subscription error:", err?.type, "|", err?.message);
+    res.status(500).json({ success: false, error: "Failed to cancel subscription." });
+  }
+});
+
+// POST /reactivate-subscription — flips cancel_at_period_end back to
+// false so the user stays on Premium past the pending end date.
+router.post("/reactivate-subscription", authRequired, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured." });
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (!user.stripeSubscriptionId) {
+      return res.status(400).json({ error: "no_subscription" });
+    }
+    const sub = await stripe.subscriptions.update(user.stripeSubscriptionId, {
+      cancel_at_period_end: false,
+    });
+    const status = sub.status === "trialing" ? "trialing" : "active";
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          subscriptionStatus: status,
+          subscriptionCancelAtPeriodEnd: false,
+          subscriptionCancelAt: null,
+          isPremium: true,
+        },
+      },
+    );
+    res.json({ success: true, status });
+  } catch (err) {
+    console.error("[Stripe] reactivate-subscription error:", err?.type, "|", err?.message);
+    res.status(500).json({ success: false, error: "Failed to reactivate subscription." });
+  }
+});
+
 // POST /webhook — handles Stripe webhook events
 router.post("/webhook", async (req, res) => {
   if (!stripe) return res.status(503).json({ error: "Stripe not configured." });
@@ -228,13 +298,42 @@ router.post("/webhook", async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Single audit-trail log for every authenticated webhook event. Captures
-  // type + id so a missed/reordered event can be reconciled later. Anything
-  // that fails downstream below adds a follow-up event with the same id.
+  // Dedupe via StripeEvent.eventId — unique index throws on retry.
+  // Stripe retries failed deliveries for up to 3 days, so without this
+  // a 500 on any single delivery would cause each retry to re-execute
+  // the full handler body and produce duplicate state mutations.
+  try {
+    await StripeEvent.create({ eventId: event.id, type: event.type });
+  } catch (dedupErr) {
+    if (dedupErr?.code === 11000) {
+      reportEvent("stripe_webhook.duplicate", { eventId: event.id, eventType: event.type });
+      return res.json({ received: true, duplicate: true });
+    }
+    reportError(dedupErr, { source: "stripe_webhook.dedupe", eventId: event.id }, "critical");
+  }
+
   reportEvent("stripe_webhook.received", {
     eventId: event.id,
     eventType: event.type,
   });
+
+  const eventAt = new Date(event.created * 1000);
+  // Out-of-order guard: only accept a webhook write if the user's last
+  // recorded event timestamp is older than this one (or unset). Stripe
+  // does not guarantee delivery order, and a stale "deleted" arriving
+  // after a fresh "updated" would otherwise drop a user to free.
+  const staleGuard = {
+    $or: [
+      { subscriptionLastEventAt: { $lt: eventAt } },
+      { subscriptionLastEventAt: { $exists: false } },
+      { subscriptionLastEventAt: null },
+    ],
+  };
+
+  // Map Stripe subscription status → internal enum. If the user is
+  // grandfathered on "premium" we keep that label; otherwise "active".
+  const mapActiveStatus = (user) =>
+    user?.subscriptionStatus === "premium" ? "premium" : "active";
 
   try {
     switch (event.type) {
@@ -243,7 +342,6 @@ router.post("/webhook", async (req, res) => {
         const customerEmail = session.customer_email || session.customer_details?.email;
         const userId = session.client_reference_id || session.metadata?.userId;
 
-        // Find user — email first, userId fallback.
         let user = null;
         if (customerEmail) user = await User.findOne({ email: customerEmail.toLowerCase() });
         if (!user && userId) user = await User.findById(userId);
@@ -257,8 +355,6 @@ router.post("/webhook", async (req, res) => {
           break;
         }
 
-        // Use Stripe's authoritative subscription status so trial subs get
-        // "trialing" (not "premium") and trial_end is persisted.
         let subStatus = "premium";
         let trialEnd = null;
         if (session.subscription) {
@@ -279,11 +375,12 @@ router.post("/webhook", async (req, res) => {
         if (trialEnd) {
           user.trialStartDate = user.trialStartDate || new Date();
           user.trialEndDate = trialEnd;
+          user.subscriptionTrialEnd = trialEnd;
         }
         if (session.customer) user.stripeCustomerId = session.customer;
         if (session.subscription) user.stripeSubscriptionId = session.subscription;
+        user.subscriptionLastEventAt = eventAt;
         await user.save();
-        // Operational audit-trail logging removed per security audit.
 
         try {
           await upsertPremiumBill(user._id, trialEnd || new Date());
@@ -293,68 +390,108 @@ router.post("/webhook", async (req, res) => {
         break;
       }
 
+      case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object;
         let user = await User.findOne({ stripeSubscriptionId: subscription.id });
         if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
         if (!user) break;
 
-        // Map Stripe status → internal subscriptionStatus. "active" maps to
-        // the existing "premium" enum value so the frontend useSubscription
-        // hook continues to recognize paid users. past_due/unpaid preserve
-        // that information (instead of collapsing to "free") so the user
-        // sees an actionable "payment failed — update card" state.
+        const update = {
+          subscriptionLastEventAt: eventAt,
+          subscriptionCancelAtPeriodEnd: !!subscription.cancel_at_period_end,
+          subscriptionCancelAt: subscription.cancel_at
+            ? new Date(subscription.cancel_at * 1000) : null,
+          subscriptionCurrentPeriodEnd: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000) : null,
+          subscriptionTrialEnd: subscription.trial_end
+            ? new Date(subscription.trial_end * 1000) : null,
+        };
+        if (!user.stripeSubscriptionId) update.stripeSubscriptionId = subscription.id;
+
         if (subscription.status === "trialing") {
-          user.isPremium = true;
-          user.subscriptionStatus = "trialing";
-          if (subscription.trial_end) user.trialEndDate = new Date(subscription.trial_end * 1000);
-          if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
+          update.isPremium = true;
+          update.subscriptionStatus = "trialing";
+          if (subscription.trial_end) update.trialEndDate = new Date(subscription.trial_end * 1000);
         } else if (subscription.status === "active") {
-          user.isPremium = true;
-          user.subscriptionStatus = "premium";
-          if (!user.stripeSubscriptionId) user.stripeSubscriptionId = subscription.id;
+          update.isPremium = true;
+          // cancel_at_period_end + active = "cancelled (grace period)"
+          update.subscriptionStatus = subscription.cancel_at_period_end
+            ? "cancelled"
+            : mapActiveStatus(user);
         } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
-          user.isPremium = false;
-          user.subscriptionStatus = "past_due";
-        } else if (["canceled", "incomplete_expired", "incomplete", "paused"].includes(subscription.status)) {
-          user.isPremium = false;
-          user.subscriptionStatus = "free";
+          // Do NOT revoke here — keep isPremium on a dunning grace. The
+          // subscription.updated → "canceled" or .deleted event is the
+          // authoritative revocation signal.
+          update.subscriptionStatus = "past_due";
+        } else if (["incomplete_expired", "incomplete", "paused"].includes(subscription.status)) {
+          update.isPremium = false;
+          update.subscriptionStatus = "free";
         }
-        await user.save();
+
+        await User.updateOne({ _id: user._id, ...staleGuard }, { $set: update });
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
-        console.log("[Stripe Webhook] customer.subscription.deleted received — sub:", subscription.id, "customer:", subscription.customer);
-        let user = await User.findOne({ stripeSubscriptionId: subscription.id });
-        if (!user && subscription.customer) user = await User.findOne({ stripeCustomerId: subscription.customer });
+        const where = subscription.customer
+          ? { stripeCustomerId: subscription.customer, ...staleGuard }
+          : { stripeSubscriptionId: subscription.id, ...staleGuard };
+        const user = await User.findOne({
+          $or: [
+            { stripeSubscriptionId: subscription.id },
+            { stripeCustomerId: subscription.customer },
+          ],
+        });
         if (!user) {
-          console.log("[Stripe Webhook] customer.subscription.deleted — no matching user for sub/customer");
+          reportEvent("stripe_webhook.user_not_found", { eventId: event.id, eventType: event.type }, "warn");
           break;
         }
+        await User.updateOne(where, {
+          $set: {
+            subscriptionStatus: "free",
+            isPremium: false,
+            subscriptionCancelAtPeriodEnd: false,
+            subscriptionCancelAt: null,
+            subscriptionCancelledAt: eventAt,
+            subscriptionLastEventAt: eventAt,
+          },
+          $unset: { stripeSubscriptionId: "" },
+        });
+        try { await removePremiumBill(user._id); } catch (e) {
+          console.error("[Stripe Webhook] removePremiumBill failed:", e.message);
+        }
+        break;
+      }
 
-        user.subscriptionStatus = "canceled";
-        user.isPremium = false;
-        user.stripeSubscriptionId = null;
-        user.subscriptionEndDate = undefined;
-        // Stamp the moment Stripe confirmed the cancellation so the DB
-        // carries an audit trail of when the user actually dropped off.
-        user.subscriptionCancelledAt = new Date();
-        await user.save();
-        console.log("[Stripe Webhook] customer.subscription.deleted — user", String(user._id), "canceled, isPremium=false, stripeSubscriptionId cleared");
-        try { await removePremiumBill(user._id); } catch (e) { console.error("[Stripe Webhook] removePremiumBill failed:", e.message); }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        if (!invoice.subscription || !invoice.customer) break;
+        await User.updateOne(
+          { stripeCustomerId: invoice.customer, ...staleGuard },
+          {
+            $set: {
+              subscriptionCurrentPeriodEnd: invoice.period_end
+                ? new Date(invoice.period_end * 1000) : null,
+              subscriptionLastEventAt: eventAt,
+              lastPaymentFailedAt: null,
+            },
+          },
+        );
         break;
       }
 
       case "invoice.payment_failed": {
         const invoice = event.data.object;
-        const user = await User.findOne({ stripeCustomerId: invoice.customer });
-        if (!user) break;
-
-        user.subscriptionStatus = "past_due";
-        user.isPremium = false;
-        await user.save();
+        // Record the failure timestamp for UI surfacing, but DO NOT
+        // revoke premium here — Stripe dunning will eventually emit a
+        // subscription.updated or subscription.deleted event and that
+        // is where the revocation logic lives.
+        await User.updateOne(
+          { stripeCustomerId: invoice.customer },
+          { $set: { lastPaymentFailedAt: eventAt } },
+        );
         break;
       }
     }

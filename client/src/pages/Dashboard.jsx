@@ -184,7 +184,7 @@ const Dashboard = () => {
     <PageContainer>
       <div className="dashboard-page">
       {/* Hero — C.3 refinement: radial glow behind the balance, AnimatedNumber counts up on mount */}
-      <section className="hero hero-c3 hero-glow">
+      <section className="hero hero-c3 hero-glow" data-tour="dashboard-balance">
         {summaryLoading && <p className="hero-loading">Loading...</p>}
         {summary && (
           <>
@@ -281,7 +281,7 @@ const Dashboard = () => {
 
       {/* Two-column: planner + charts */}
       <div className="dash-columns">
-        <section className="planner-section">
+        <section className="planner-section" data-tour="dashboard-upcoming">
           {(() => {
             // Bills only, current month, sorted by due date
             const now = new Date();

@@ -7,74 +7,96 @@ import FreeLimitModal from "../components/FreeLimitModal";
 import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 import AnimatedNumber from "../components/AnimatedNumber";
-
-const BILL_CATS = ["Car Payment", "Gym", "Insurance", "Internet", "Phone", "Rent", "Subscriptions", "Utilities", "Other"];
-
-const emptyForm = { name: "", amount: "", dueDay: "", category: "Other", startDate: "", lastPaymentDate: "", lastPaymentAmount: "" };
+import Modal from "../components/ui/Modal";
+import PaidToggle from "../components/ui/PaidToggle";
+import BillForm from "../components/BillForm";
+import { emptyBillValues, toBillFormValues } from "../components/billFormValues";
+import { toDateOnly } from "../lib/date";
 
 const Bills = () => {
   const { isFree } = useSubscription();
   const toast = useToast();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingBill, setEditingBill] = useState(null);
   const [limitModal, setLimitModal] = useState(null);
-  const [form, setForm] = useState({ ...emptyForm });
+  // Discriminated dialog state. `mode` determines which view the modal
+  // carries; the bill payload for edits rides on the same object.
+  const [dialog, setDialog] = useState({ mode: "closed" });
+  const [saving, setSaving] = useState(false);
+
+  // Paid-for-this-month lookup — "{billId}_YYYY-MM-DD" → BillPayment.
+  // Built from the current-month range of /api/bill-payments so the
+  // PaidToggle can show the right state without refetching the full
+  // list on every flip.
+  const [paidMap, setPaidMap] = useState(() => new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const b = await authFetch("/api/bills");
+      const now = new Date();
+      const monthStart = toDateOnly(new Date(now.getFullYear(), now.getMonth(), 1));
+      const monthEnd = toDateOnly(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      const [b, payments] = await Promise.all([
+        authFetch("/api/bills"),
+        authFetch(`/api/bill-payments?from=${monthStart}&to=${monthEnd}`).catch(() => []),
+      ]);
       setBills([...(b || [])].sort((a, b2) => (a.dueDayOfMonth || 0) - (b2.dueDayOfMonth || 0)));
+      const m = new Map();
+      (payments || []).forEach((p) => {
+        if (!p.dueDate) return;
+        const key = `${p.bill}_${toDateOnly(p.dueDate)}`;
+        m.set(key, p);
+      });
+      setPaidMap(m);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  // For a given bill, return { dueKey, isPaid } for this calendar month.
+  const paidState = (bill) => {
+    const day = bill.dueDayOfMonth || bill.dueDay;
+    if (!day) return { dueKey: null, isPaid: false };
+    const now = new Date();
+    const dueKey = toDateOnly(new Date(now.getFullYear(), now.getMonth(), day));
+    return { dueKey, isPaid: paidMap.has(`${bill._id}_${dueKey}`) };
+  };
+
+  const togglePaid = async (bill) => {
+    const { dueKey, isPaid } = paidState(bill);
+    if (!dueKey) return;
+    try {
+      await authFetch(`/api/bills/${bill._id}/paid`, {
+        method: "PATCH",
+        body: JSON.stringify({ paid: !isPaid, dueDate: dueKey }),
+      });
+      await load();
+    } catch { /* ignore */ }
+  };
+
   const openAdd = () => {
     if (isFree && bills.length >= 5) { setLimitModal("bills"); return; }
-    setEditingBill(null);
-    setForm({ ...emptyForm });
-    setShowModal(true);
+    setDialog({ mode: "create" });
   };
+  const openEdit = (bill) => setDialog({ mode: "edit", bill });
+  const closeDialog = () => setDialog({ mode: "closed" });
 
-  const openEdit = (b) => {
-    setEditingBill(b);
-    setForm({
-      name: b.name || "",
-      amount: String(b.amount || ""),
-      dueDay: String(b.dueDayOfMonth || b.dueDay || ""),
-      category: b.category || "Other",
-      startDate: b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : "",
-      lastPaymentDate: b.lastPaymentDate ? new Date(b.lastPaymentDate).toISOString().slice(0, 10) : "",
-      lastPaymentAmount: b.lastPaymentAmount != null ? String(b.lastPaymentAmount) : "",
-    });
-    setShowModal(true);
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    const payload = {
-      name: form.name, amount: Number(form.amount), dueDayOfMonth: Number(form.dueDay),
-      category: form.category, startDate: form.startDate || null,
-      lastPaymentDate: form.lastPaymentDate || null,
-      lastPaymentAmount: form.lastPaymentAmount ? Number(form.lastPaymentAmount) : null,
-    };
+  const handleSave = async (payload) => {
+    setSaving(true);
     try {
-      const wasFirst = !editingBill && bills.length === 0;
-      if (editingBill) {
-        await authFetch(`/api/bills/${editingBill._id}`, { method: "PUT", body: JSON.stringify(payload) });
+      const isEdit = dialog.mode === "edit";
+      const wasFirst = !isEdit && bills.length === 0;
+      if (isEdit) {
+        await authFetch(`/api/bills/${dialog.bill._id}`, { method: "PUT", body: JSON.stringify(payload) });
       } else {
         await authFetch("/api/bills", { method: "POST", body: JSON.stringify(payload) });
       }
-      setForm({ ...emptyForm });
-      setEditingBill(null);
-      setShowModal(false);
+      closeDialog();
       load();
       if (wasFirst) toast?.showToast?.("First bill saved. PayPulse will track this every month.");
     } catch { /* ignore */ }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -115,76 +137,55 @@ const Bills = () => {
           <p className="pp5-empty">No bills yet.</p>
         ) : (
           <div className="pp5-list-card stagger-list">
-            {bills.map((b) => (
-              <div key={b._id} className="pp5-row">
-                <div className="pp5-row-left">
-                  <div className="pp5-row-primary">
-                    {b.name}
-                    {b.lastPaymentDate && <span className="pp5-pill pp5-pill-orange">Ends {formatDate(b.lastPaymentDate)}</span>}
-                    {b.startDate && <span className="pp5-pill pp5-pill-neutral">From {formatDate(b.startDate)}</span>}
+            {bills.map((b) => {
+              const { isPaid } = paidState(b);
+              const label = `${b.name}, ${currency.format(b.amount)}, due day ${b.dueDayOfMonth}`;
+              return (
+                <div key={b._id} className="pp5-row">
+                  <div className="pp5-row-left">
+                    <div className="pp5-row-primary">
+                      {b.name}
+                      {b.lastPaymentDate && <span className="pp5-pill pp5-pill-orange">Ends {formatDate(b.lastPaymentDate)}</span>}
+                      {b.startDate && <span className="pp5-pill pp5-pill-neutral">From {formatDate(b.startDate)}</span>}
+                    </div>
+                    <div className="pp5-row-secondary">Due day {b.dueDayOfMonth} · {b.category}</div>
                   </div>
-                  <div className="pp5-row-secondary">Due day {b.dueDayOfMonth} · {b.category}</div>
+                  <div className="pp5-row-right">
+                    <span className={`pp5-row-amount negative pp-amount${isPaid ? " pp-amount--paid" : ""}`}>
+                      {currency.format(b.amount)}
+                    </span>
+                    <PaidToggle paid={isPaid} label={label} onToggle={() => togglePaid(b)} />
+                    <button type="button" className="pp5-icon-btn" onClick={() => openEdit(b)} title="Edit">Edit</button>
+                    <button type="button" className="pp5-icon-btn destructive" onClick={() => handleDelete(b._id)} title="Remove">×</button>
+                  </div>
                 </div>
-                <div className="pp5-row-right">
-                  <span className="pp5-row-amount negative">{currency.format(b.amount)}</span>
-                  <button type="button" className="pp5-icon-btn" onClick={() => openEdit(b)} title="Edit">Edit</button>
-                  <button type="button" className="pp5-icon-btn destructive" onClick={() => handleDelete(b._id)} title="Remove">×</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
-      {showModal && (
-        <div className="pp5-modal-overlay" onClick={() => { setShowModal(false); setEditingBill(null); }}>
-          <div className="pp5-modal pp5-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="pp5-modal-header">
-              <h4 className="pp5-modal-title">{editingBill ? "Edit bill" : "New bill"}</h4>
-              <button type="button" className="pp5-modal-close" onClick={() => { setShowModal(false); setEditingBill(null); }}>×</button>
-            </div>
-            <form className="pp5-modal-body" onSubmit={handleSave}>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Name</label>
-                <input className="pp5-input" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Amount</label>
-                <input className="pp5-input" type="number" step="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} required />
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Due day of month</label>
-                <input className="pp5-input" type="number" min="1" max="31" value={form.dueDay} onChange={(e) => setForm((p) => ({ ...p, dueDay: e.target.value }))} required />
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Category</label>
-                <select className="pp5-select" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
-                  {BILL_CATS.map((c) => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Start date</label>
-                <input className="pp5-input" type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} />
-                <p className="pp5-field-help">Optional. When did this bill start?</p>
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">End date</label>
-                <input className="pp5-input" type="date" value={form.lastPaymentDate} onChange={(e) => setForm((p) => ({ ...p, lastPaymentDate: e.target.value }))} />
-                <p className="pp5-field-help">Optional. For payment plans or ending subscriptions.</p>
-              </div>
-              <div className="pp5-field">
-                <label className="pp5-field-label">Final payment amount</label>
-                <input className="pp5-input" type="number" step="0.01" value={form.lastPaymentAmount} onChange={(e) => setForm((p) => ({ ...p, lastPaymentAmount: e.target.value }))} placeholder="If different from regular amount" />
-                <p className="pp5-field-help">Optional.</p>
-              </div>
-              <div className="pp5-modal-actions">
-                <button type="button" className="pp5-btn pp5-btn-secondary" onClick={() => { setShowModal(false); setEditingBill(null); }}>Cancel</button>
-                <button type="submit" className="pp5-btn pp5-btn-primary">{editingBill ? "Save changes" : "Add bill"}</button>
-              </div>
-            </form>
-          </div>
+      <Modal
+        key={dialog.mode === "edit" ? `edit-${dialog.bill._id}` : dialog.mode}
+        isOpen={dialog.mode !== "closed"}
+        onClose={closeDialog}
+        titleId="bill-dialog-title"
+        size="lg"
+      >
+        <div className="pp5-modal-header">
+          <h2 id="bill-dialog-title" className="pp5-modal-title">
+            {dialog.mode === "edit" ? "Edit bill" : "New bill"}
+          </h2>
+          <button type="button" className="pp5-modal-close" onClick={closeDialog} aria-label="Close">×</button>
         </div>
-      )}
+        <BillForm
+          initialValues={dialog.mode === "edit" ? toBillFormValues(dialog.bill) : emptyBillValues()}
+          editing={dialog.mode === "edit"}
+          onSubmit={handleSave}
+          onCancel={closeDialog}
+          saving={saving}
+        />
+      </Modal>
 
       {limitModal && <FreeLimitModal type={limitModal} onClose={() => setLimitModal(null)} />}
     </PageContainer>

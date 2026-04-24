@@ -50,3 +50,4 @@ docs/launch/
 
 # Local Claude Code settings (per-developer permissions allowlist)
 .claude/settings.local.json
+.claude/worktrees/

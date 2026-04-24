@@ -1,7 +1,10 @@
 const express = require("express");
 
 const Bill = require("../models/Bill");
+const BillPayment = require("../models/BillPayment");
 const { authRequired } = require("../middleware/auth");
+const { markBillPaid, unmarkBillPayment } = require("../utils/billPaymentService");
+const { toDateOnly } = require("../utils/date");
 
 const router = express.Router();
 
@@ -113,6 +116,60 @@ router.delete("/:id", authRequired, async (req, res) => {
     res.json({ message: "Bill deactivated" });
   } catch (error) {
     console.error("Error deleting bill:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /:id/paid — toggle paid state for a specific due date. Delegates
+// to the same code path as POST /api/bill-payments + DELETE
+// /api/bill-payments/:id, so the paidEarly routing + auto-expense +
+// cascade-delete all run identically. Callers pass
+// { paid: boolean, dueDate?: "YYYY-MM-DD", paidDate?: "YYYY-MM-DD",
+//   paidAmount?: number }. Missing dueDate defaults to this month's
+// dueDayOfMonth; missing paidDate defaults to today; missing paidAmount
+// defaults to the bill's current amount.
+router.patch("/:id/paid", authRequired, async (req, res) => {
+  try {
+    const { paid, dueDate, paidDate, paidAmount, note } = req.body || {};
+    if (typeof paid !== "boolean") {
+      return res.status(400).json({ error: "paid (boolean) is required." });
+    }
+    const bill = await Bill.findOne({ _id: req.params.id, user: req.userId });
+    if (!bill) return res.status(404).json({ error: "Bill not found." });
+
+    // Resolve due-date. If the caller didn't supply one, use this
+    // month's scheduled dueDayOfMonth.
+    let resolvedDueDate = dueDate;
+    if (!resolvedDueDate) {
+      const now = new Date();
+      const day = bill.dueDayOfMonth || bill.dueDay;
+      if (!day) return res.status(400).json({ error: "Bill has no dueDayOfMonth; dueDate must be supplied." });
+      resolvedDueDate = toDateOnly(new Date(now.getFullYear(), now.getMonth(), day));
+    }
+
+    if (paid) {
+      const payment = await markBillPaid(req.userId, {
+        billId: bill._id,
+        dueDate: resolvedDueDate,
+        paidDate: paidDate || toDateOnly(new Date()),
+        paidAmount: paidAmount != null ? Number(paidAmount) : Number(bill.amount),
+        note,
+      });
+      return res.json({ success: true, payment });
+    }
+
+    const deleted = await unmarkBillPayment(req.userId, {
+      billId: bill._id,
+      dueDate: resolvedDueDate,
+    });
+    if (!deleted) {
+      // Nothing was paid — success-noop.
+      return res.json({ success: true, noop: true });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    console.error("Error toggling bill paid:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

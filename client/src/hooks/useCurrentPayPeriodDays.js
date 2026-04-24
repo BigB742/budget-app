@@ -22,7 +22,9 @@ const toDateKey = (input) => {
   if (!input) return null;
   const d = typeof input === "string" ? new Date(input) : input;
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  // Local-zone YYYY-MM-DD. Using UTC slicing flips the day near midnight
+  // and caused summaries to misalign with the Calendar grid.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 export const useCurrentPayPeriodDays = () => {

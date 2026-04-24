@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Modal from "./ui/Modal";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const WARNING_MS = 25 * 60 * 1000; // 25 minutes
@@ -36,20 +37,28 @@ const SessionTimeout = () => {
     };
   }, [resetTimers, showWarning]);
 
-  if (!showWarning) return null;
-
   return (
-    <div className="modal-overlay" style={{ zIndex: 100 }}>
-      <div className="modal-card" style={{ maxWidth: 360, textAlign: "center" }}>
-        <h4 style={{ margin: "0 0 0.5rem" }}>Still there?</h4>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "0 0 1rem" }}>
-          You've been inactive. You'll be logged out in 5 minutes for your security.
-        </p>
-        <button type="button" className="primary-button" style={{ width: "100%" }} onClick={resetTimers}>
-          Stay logged in
-        </button>
-      </div>
-    </div>
+    <Modal
+      isOpen={showWarning}
+      onClose={resetTimers}
+      titleId="session-timeout-title"
+      size="sm"
+    >
+      <h2 id="session-timeout-title" className="pp5-modal-title" style={{ textAlign: "center", marginBottom: 8 }}>
+        Still there?
+      </h2>
+      <p className="pp5-modal-description" style={{ textAlign: "center" }}>
+        You've been inactive. You'll be logged out in 5 minutes for your security.
+      </p>
+      <button
+        type="button"
+        className="pp5-btn pp5-btn-primary pp5-btn-block"
+        style={{ width: "100%", marginTop: 20 }}
+        onClick={resetTimers}
+      >
+        Stay logged in
+      </button>
+    </Modal>
   );
 };
 
