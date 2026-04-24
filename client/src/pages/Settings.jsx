@@ -19,7 +19,9 @@ const formatDate = (d) =>
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { isPremium, isTrialing, isCanceled, status, subscriptionEndDate } = useSubscription();
+  const { isPremium, isTrialing, isCanceled, isCanceledButActive, status, subscriptionEndDate } = useSubscription();
+  const [reactivating, setReactivating] = useState(false);
+  const [reactivateError, setReactivateError] = useState("");
   const [fontScaleIdx, setFontScaleIdx] = useState(() => {
     const saved = localStorage.getItem("fontScale");
     const idx = FONT_SCALES.findIndex((s) => s.key === saved);
@@ -228,7 +230,14 @@ const Settings = () => {
           </section>
         )}
 
-        {/* 4. Subscription — plain-text status + single manage action */}
+        {/* 4. Subscription — plain-text status + single manage action.
+             §5.5 table:
+               trialing / active / premium      → Manage subscription
+               cancelled AND cancelAt > now     → Reactivate + grace msg
+               cancelled AND cancelAt <= now    → Get Premium (webhook
+                                                  will have flipped us
+                                                  to free in practice)
+               free                             → Get Premium          */}
         <section className="pp5-settings-section">
           <h2 className="pp5-settings-section-title">Subscription</h2>
           {hasSub && !isCanceled && (
@@ -236,7 +245,9 @@ const Settings = () => {
               <div>
                 <p className="pp5-settings-action-label">PayPulse Premium</p>
                 <p className="pp5-settings-action-description">
-                  Active plan.{subscriptionEndDate && ` Renews ${formatDate(subscriptionEndDate)}.`}
+                  {isTrialing
+                    ? `Trial. ${subscriptionEndDate ? `Trial ends ${formatDate(subscriptionEndDate)}.` : ""}`
+                    : `Active plan.${subscriptionEndDate ? ` Renews ${formatDate(subscriptionEndDate)}.` : ""}`}
                 </p>
               </div>
               <button
@@ -248,22 +259,45 @@ const Settings = () => {
               </button>
             </div>
           )}
-          {isCanceled && subscriptionEndDate && (
+          {isCanceledButActive && (
             <div className="pp5-settings-action-row">
               <div>
                 <p className="pp5-settings-action-label">PayPulse Premium</p>
-                <p className="pp5-settings-action-description">Canceled. Access continues until {formatDate(subscriptionEndDate)}.</p>
+                <p className="pp5-settings-action-description">
+                  Your premium access ends {formatDate(subscriptionEndDate)}.
+                </p>
+                {reactivateError && <p className="pp5-field-error">{reactivateError}</p>}
               </div>
+              <button
+                type="button"
+                className="pp5-settings-action-btn teal"
+                disabled={reactivating}
+                onClick={async () => {
+                  setReactivating(true);
+                  setReactivateError("");
+                  try {
+                    await authFetch("/api/stripe/reactivate-subscription", { method: "POST" });
+                    const refreshed = await authFetch("/api/user/me");
+                    storeUser(refreshed); setUser(refreshed);
+                  } catch (err) {
+                    setReactivateError(err?.message || "Couldn't reactivate.");
+                  } finally {
+                    setReactivating(false);
+                  }
+                }}
+              >
+                {reactivating ? "Reactivating…" : "Reactivate"}
+              </button>
             </div>
           )}
-          {!hasSub && !isCanceled && (
+          {!hasSub && !isCanceledButActive && (
             <div className="pp5-settings-action-row">
               <div>
                 <p className="pp5-settings-action-label">Free plan</p>
                 <p className="pp5-settings-action-description">Upgrade for unlimited bills, projections, and priority support.</p>
               </div>
               <button type="button" className="pp5-settings-action-btn teal" onClick={() => navigate("/subscription")}>
-                Upgrade
+                Get Premium
               </button>
             </div>
           )}
@@ -493,8 +527,11 @@ const Settings = () => {
                   <button type="button" className="pp5-btn pp5-btn-destructive" disabled={cancelLoading} onClick={async () => {
                     setCancelLoading(true); setCancelError("");
                     try {
-                      const data = await authFetch("/api/stripe/subscription", { method: "DELETE" });
-                      setCancelResult(data);
+                      // §5 canonical cancel endpoint. Returns optimistic
+                      // success; the webhook sets the authoritative
+                      // subscriptionStatus=cancelled + subscriptionCancelAt.
+                      const data = await authFetch("/api/stripe/cancel-subscription", { method: "POST" });
+                      setCancelResult({ ...data, endDate: data?.endsAt });
                       try {
                         const refreshed = await authFetch("/api/user/me");
                         storeUser(refreshed); setUser(refreshed);

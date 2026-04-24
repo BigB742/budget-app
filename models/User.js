@@ -17,7 +17,10 @@ const UserSchema = new mongoose.Schema(
     locale: { type: String, default: "en" },
     subscriptionStatus: {
       type: String,
-      enum: ["free", "trialing", "premium", "premium_monthly", "premium_annual", "canceled", "expired", "past_due"],
+      // "cancelled" (British spelling) kept as a legacy alias for
+      // "canceled" — both spellings coexist in older docs. Both are
+      // mapped through isEffectivelyPremium() client-side.
+      enum: ["free", "trialing", "active", "premium", "premium_monthly", "premium_annual", "canceled", "cancelled", "expired", "past_due"],
       default: "free",
     },
     trialStartDate: { type: Date },
@@ -25,6 +28,17 @@ const UserSchema = new mongoose.Schema(
     // When the subscription access actually ends (for canceled subs, this is
     // the Stripe current_period_end — user keeps premium access until then).
     subscriptionEndDate: { type: Date },
+    // §5 additive fields — sourced from Stripe webhooks, authoritative
+    // beats optimistic route writes. `subscriptionLastEventAt` is the
+    // Stripe event.created timestamp; we skip any webhook write where
+    // our last-seen timestamp is newer so out-of-order deliveries can't
+    // clobber a newer state.
+    subscriptionCancelAtPeriodEnd: { type: Boolean, default: false },
+    subscriptionCancelAt: { type: Date, default: null },
+    subscriptionCurrentPeriodEnd: { type: Date, default: null },
+    subscriptionTrialEnd: { type: Date, default: null },
+    subscriptionLastEventAt: { type: Date, default: null },
+    lastPaymentFailedAt: { type: Date, default: null },
     // Audit timestamp set when Stripe confirms the subscription was fully
     // deleted (customer.subscription.deleted webhook). Useful for churn
     // analytics and distinguishes "user ended" from "payment failed".
