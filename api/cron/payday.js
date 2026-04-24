@@ -58,8 +58,12 @@ module.exports = async (req, res) => {
         if (lastKey === todayKey) continue;
       }
 
-      // Credit the income and stamp the date
-      await User.findByIdAndUpdate(src.user, { $inc: { currentBalance: src.amount } });
+      // Stamp the payday so we don't re-process the same day. The
+      // paycheck itself is now counted live by /summary/paycheck-current
+      // (the dashboard balance formula adds the period's totalIncome).
+      // We no longer $inc currentBalance here — that would double-count
+      // against the endpoint's income term and swing the dashboard the
+      // day after each payday.
       src.lastAutoIncomeDate = new Date();
       await src.save();
       processed++;

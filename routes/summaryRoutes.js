@@ -119,18 +119,31 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     // ═══════════════════════════════════════════════════════════════
     // SPENDABLE BALANCE FORMULA — source of truth (do not break)
     //
-    //   Spendable = currentBalance
-    //             + incomeReceivedThisPeriod
-    //             − billsDueThisPeriod          (unpaid scheduled bills)
-    //             − paymentPlansDueThisPeriod   (see rules below)
+    //   Spendable = currentBalance                (rollover into period)
+    //             + totalIncomeThisPeriod         (recurring paychecks
+    //                                              that fall in this
+    //                                              period + one-time
+    //                                              income dated in it)
+    //             − expensesThisPeriod            (scoped to the period,
+    //                                              NOT since signup)
+    //             − billsDueThisPeriod            (unpaid + paid-this-
+    //                                              period scheduled bills
+    //                                              from today → end)
+    //             − paymentPlansDueThisPeriod    (see rules below)
     //
-    // Savings transactions are NOT subtracted separately in this
-    // formula. Each deposit already decrements user.currentBalance by
-    // its amount at transaction time (see routes/savingsV2Routes.js
-    // and routes/savingsRoutes.js), so the effect is already baked
-    // into the starting `currentBalance` the formula reads. Adding a
-    // separate savingsDepositsThisPeriod term here would double-count
-    // and break Jose's test dashboard.
+    // currentBalance is the rollover entering the current pay period —
+    // onboarding seed for first-time users, or the previous period's
+    // ending balance otherwise. It is NOT a live bank-balance readout,
+    // so we add this period's income explicitly instead of relying on
+    // a cron to credit it. Prior revisions assumed the payday cron
+    // ($inc: currentBalance) had already landed and so omitted the
+    // income term — that produced the −$954 dashboard the day the cron
+    // didn't fire (or the user was running locally with no cron).
+    //
+    // Savings transactions DO still decrement user.currentBalance at
+    // transaction time (routes/savingsV2Routes.js, routes/savingsRoutes.js),
+    // so deposits/withdrawals reduce/increase the rollover in place —
+    // no separate term needed here.
     //
     // Payment plan installment counting rules:
     //   1. paid === false → deduct from period containing scheduled `date`
@@ -170,7 +183,12 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    const balance = currentBalance - totalExpensesSpent - totalBillsDue - totalPaymentPlansDue;
+    const balance =
+      currentBalance
+      + periodTotals.totalIncome
+      - periodTotals.totalExpenses
+      - totalBillsDue
+      - totalPaymentPlansDue;
 
     // Days until next paycheck
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -528,13 +546,35 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     const MAX_ITERATIONS = 26;
     const periods = [];
 
-    // Compute the current period's live balance using the EXACT same
-    // formula the dashboard uses: currentBalance - expenses(createdAt..today)
-    // - bills(today..end) - plans(start..end). This is the anchor.
-    const currentPeriodExpenses = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
-    const currentPeriodBills = sumBillsInPeriod(bills, today, currentPeriod.end, await loadOverrideMap(req.userId, currentPeriod.start, currentPeriod.end), await loadBillPayments(req.userId, currentPeriod.start, currentPeriod.end));
+    // Compute the current period via the shared engine so expenses, bills,
+    // and income all scope to [periodStart, periodEnd]. Matches the new
+    // /paycheck-current balance formula:
+    //   balance = rollover + totalIncome − expenses − billsDue − plansDue
+    const currentOverrideMap = await loadOverrideMap(req.userId, currentPeriod.start, currentPeriod.end);
+    const currentPayments = await loadBillPayments(req.userId, currentPeriod.start, currentPeriod.end);
+    const currentPeriodResult = await computePeriodBalance({
+      userId: req.userId,
+      periodStart: currentPeriod.start,
+      periodEnd: currentPeriod.end,
+      startingBalance: 0,
+      recurringIncome: currentPeriod.totalIncome,
+      bills,
+      overrideMap: currentOverrideMap,
+      payments: currentPayments,
+    });
+    const currentPeriodExpenses = currentPeriodResult.totalExpenses;
+    const currentPeriodIncome = currentPeriodResult.totalIncome;
+    // Bills DUE from today forward (unpaid + paid-this-period scheduled
+    // bills). Matches the dashboard's totalBillsDue window so the two
+    // surfaces agree.
+    const currentPeriodBills = sumBillsInPeriod(bills, today, currentPeriod.end, currentOverrideMap, currentPayments);
     const currentPeriodPlans = sumPlansDue(currentPeriod.start, currentPeriod.end);
-    const dashboardBalance = initialBalance - currentPeriodExpenses - currentPeriodBills - currentPeriodPlans;
+    const dashboardBalance =
+      initialBalance
+      + currentPeriodIncome
+      - currentPeriodExpenses
+      - currentPeriodBills
+      - currentPeriodPlans;
 
     let rollover = dashboardBalance;
     let iteration = 0;
@@ -546,7 +586,7 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     periods.push({
       start: toDateString(currentPeriod.start),
       end: toDateString(currentPeriod.end),
-      totalIncome: 0,
+      totalIncome: currentPeriodIncome,
       totalBills: currentPeriodBills,
       totalExpenses: currentPeriodExpenses,
       plansDue: currentPeriodPlans,
@@ -554,16 +594,23 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       balance: dashboardBalance,
     });
 
-    // Check if the target is IN the current period.
+    // Check if the target is IN the current period. When the click lands
+    // inside the current period we surface the period's paycheck amount
+    // explicitly so the day sheet's breakdown (rollover + paycheck −
+    // bills − plans − expenses) ties to the final balance. Showing $0
+    // here was the April 24 "Paycheck amount $0.00" regression —
+    // mathematically the formula already used the income via the
+    // rebuilt currentPeriodIncome above, but the response field the UI
+    // read was the literal zero.
     const curPStart = startOfDay(currentPeriod.start);
     const curPEnd = startOfDay(currentPeriod.end);
     const pTarget = startOfDay(targetDate);
     if (pTarget >= curPStart && pTarget <= curPEnd) {
       return res.json({
         paydayDate,
-        paycheckAmount: 0,
+        paycheckAmount: currentPeriodIncome,
         rollover: initialBalance,
-        totalAvailable: initialBalance,
+        totalAvailable: initialBalance + currentPeriodIncome,
         billsThisPeriod: currentPeriodBills,
         plansDueThisPeriod: currentPeriodPlans,
         expensesThisPeriod: currentPeriodExpenses,

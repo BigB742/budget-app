@@ -34,8 +34,9 @@ cron.schedule("0 0 * * *", async () => {
         if (lastKey === todayKey) continue;
       }
 
-      // Credit the income and stamp the date
-      await User.findByIdAndUpdate(src.user, { $inc: { currentBalance: src.amount } });
+      // Stamp the payday so we don't re-process the same day. Income
+      // is counted live by /summary/paycheck-current; $inc'ing
+      // currentBalance here would double-count against that formula.
       src.lastAutoIncomeDate = new Date();
       await src.save();
     }
