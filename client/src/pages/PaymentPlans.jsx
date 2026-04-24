@@ -5,7 +5,8 @@ import { currency } from "../utils/currency";
 import PageContainer from "../components/PageContainer";
 import Modal from "../components/ui/Modal";
 import PaidToggle from "../components/ui/PaidToggle";
-import PlanForm, { emptyPlanValues, toPlanFormValues } from "../components/PlanForm";
+import PlanForm from "../components/PlanForm";
+import { emptyPlanValues, toPlanFormValues } from "../components/planFormValues";
 
 const fmtDate = (d) => {
   if (!d) return "";

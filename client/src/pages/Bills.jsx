@@ -9,7 +9,8 @@ import PageContainer from "../components/PageContainer";
 import AnimatedNumber from "../components/AnimatedNumber";
 import Modal from "../components/ui/Modal";
 import PaidToggle from "../components/ui/PaidToggle";
-import BillForm, { emptyBillValues, toBillFormValues } from "../components/BillForm";
+import BillForm from "../components/BillForm";
+import { emptyBillValues, toBillFormValues } from "../components/billFormValues";
 import { toDateOnly } from "../lib/date";
 
 const Bills = () => {

@@ -1,34 +1,14 @@
 import { useState } from "react";
-
-const BILL_CATS = [
-  "Car Payment", "Gym", "Insurance", "Internet", "Phone",
-  "Rent", "Subscriptions", "Utilities", "Other",
-];
-
-export const emptyBillValues = () => ({
-  name: "",
-  amount: "",
-  dueDay: "",
-  category: "Other",
-  startDate: "",
-  lastPaymentDate: "",
-  lastPaymentAmount: "",
-});
-
-export const toBillFormValues = (b) => ({
-  name: b?.name || "",
-  amount: b?.amount != null ? String(b.amount) : "",
-  dueDay: String(b?.dueDayOfMonth || b?.dueDay || ""),
-  category: b?.category || "Other",
-  startDate: b?.startDate ? String(b.startDate).slice(0, 10) : "",
-  lastPaymentDate: b?.lastPaymentDate ? String(b.lastPaymentDate).slice(0, 10) : "",
-  lastPaymentAmount: b?.lastPaymentAmount != null ? String(b.lastPaymentAmount) : "",
-});
+import { BILL_CATS } from "./billFormValues";
 
 /**
- * Presentational bill form. Uses local useState seeded from initialValues
- * on mount — the parent re-mounts on open via key, so defaults are always
- * fresh.
+ * Presentational bill form. Uses local useState seeded from
+ * initialValues on mount — the parent re-mounts on open via key, so
+ * defaults are always fresh.
+ *
+ * Value factories (emptyBillValues / toBillFormValues) live in
+ * ./billFormValues.js so fast-refresh can treat this file as pure
+ * component exports.
  */
 export default function BillForm({ initialValues, editing, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(initialValues);
