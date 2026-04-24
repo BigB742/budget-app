@@ -150,7 +150,15 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     // bill the user already marked paid.
     // ───────────────────────────────────────────────────────────────────
     const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
-    const totalBillsDue = sumBillsInPeriod(bills, today, end, overrideMap, payments);
+    // Bill window is the FULL current period [start, end] — not
+    // [today, end]. Under the period-ledger model the formula adds this
+    // period's income across the whole window and subtracts expenses
+    // across the whole window, so bills must match or past-due unpaid
+    // bills and bills paid earlier in this period get silently dropped
+    // from the spendable number. sumBillsInPeriod respects paid+paidDate
+    // and bucketing — see its comment block — so paid-early cross-period
+    // outflows land here via the new paid-early loop.
+    const totalBillsDue = sumBillsInPeriod(bills, start, end, overrideMap, payments);
 
     // ═══════════════════════════════════════════════════════════════
     // SPENDABLE BALANCE FORMULA — source of truth (do not break)
@@ -198,12 +206,21 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const periodStartYMD = toYMD(start);
     const periodEndYMD = toYMD(end);
     let totalPaymentPlansDue = 0;
+    // Plan installments bucket by WHEN THE MONEY LEFT THE BANK:
+    //   • paid=true   → bucket by paidDate (includes paid-early that
+    //                   shifted out of a future period AND paid-on-
+    //                   or-after-due, which prior revisions excluded
+    //                   entirely on the assumption currentBalance
+    //                   already reflected the outflow — it doesn't,
+    //                   plan pays never mutate currentBalance)
+    //   • paid=false  → bucket by scheduled `date` (future outflow
+    //                   we need to reserve for)
+    // Under the period-ledger model this keeps plans symmetric with
+    // bills: every installment is counted exactly once across the
+    // pay-period chain, in the period where its money moved.
     allPlans.forEach((plan) => {
       (plan.payments || []).forEach((p) => {
         if (p.paid) {
-          // Only paid-early installments re-bucket into the period they
-          // were paid in. Normal paid installments are excluded.
-          if (!p.paidEarly) return;
           const dp = p.datePaid || p.paidDate;
           if (!dp) return;
           const dpYMD = toYMD(dp);
@@ -558,7 +575,11 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       new Date(userDoc.createdAt) >= startOfDay(currentPeriod.start)
     );
 
-    // Helper: sum unpaid payment plan payments whose date falls within a period.
+    // Helper: sum plan installments whose money moved within a period.
+    // Same bucketing as /paycheck-current: paid → paidDate bucket,
+    // unpaid → scheduled date bucket. Includes paid-on-or-after-due
+    // (plan pays never mutate currentBalance so the outflow is only
+    // visible through this sum).
     const sumPlansDue = (periodStart, periodEnd) => {
       const sYMD = toYMDp(periodStart);
       const eYMD = toYMDp(periodEnd);
@@ -566,7 +587,6 @@ router.get("/projected-balance", authRequired, async (req, res) => {
       allPlansForProjection.forEach((plan) => {
         (plan.payments || []).forEach((pp) => {
           if (pp.paid) {
-            if (!pp.paidEarly) return;
             const dp = pp.datePaid || pp.paidDate;
             if (!dp) return;
             const dpYMD = toYMDp(dp);
@@ -601,10 +621,10 @@ router.get("/projected-balance", authRequired, async (req, res) => {
     });
     const currentPeriodExpenses = currentPeriodResult.totalExpenses;
     const currentPeriodIncome = currentPeriodResult.totalIncome;
-    // Bills DUE from today forward (unpaid + paid-this-period scheduled
-    // bills). Matches the dashboard's totalBillsDue window so the two
-    // surfaces agree.
-    const currentPeriodBills = sumBillsInPeriod(bills, today, currentPeriod.end, currentOverrideMap, currentPayments);
+    // Bills across the whole current period (paid + unpaid). Matches
+    // the /paycheck-current window so the two surfaces agree — see the
+    // window discussion in the SPENDABLE BALANCE FORMULA block above.
+    const currentPeriodBills = sumBillsInPeriod(bills, currentPeriod.start, currentPeriod.end, currentOverrideMap, currentPayments);
     const currentPeriodPlans = sumPlansDue(currentPeriod.start, currentPeriod.end);
     const dashboardBalance =
       initialBalance
