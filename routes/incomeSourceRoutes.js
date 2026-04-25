@@ -40,19 +40,41 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(400).json({ message: "Invalid nextPayDate." });
     }
 
-    const count = await IncomeSource.countDocuments({ user: req.userId, isActive: true });
-    if (count >= 1) {
-      return res.status(403).json({ message: "You already have a primary income source. Edit your existing income source to change the amount or schedule." });
-    }
-
-    const source = await IncomeSource.create({
+    // Re-onboarding semantics: if the user already has a primary income
+    // source we OVERWRITE it in place rather than rejecting. The
+    // onboarding flow on the client treats a 403 "already have" as
+    // success and proceeds, but the old source's fields (especially
+    // nextPayDate) survive — so the dashboard kept showing the
+    // previous anchor's paydays. A user who re-onboards with a new
+    // anchor of 2026-05-08 was getting phantom 2026-04-24 paychecks
+    // because the old IncomeSource still pointed at 4/24. Upsert
+    // the primary so the user's typed-in values always win.
+    const existingPrimary = await IncomeSource.findOne({
       user: req.userId,
-      name: name.trim(),
-      amount: numericAmount,
-      frequency,
-      nextPayDate: parsedDate,
-      isPrimary: true, // always primary since only 1 allowed
+      isActive: true,
+      isPrimary: true,
     });
+    let source;
+    if (existingPrimary) {
+      existingPrimary.name = name.trim();
+      existingPrimary.amount = numericAmount;
+      existingPrimary.frequency = frequency;
+      existingPrimary.nextPayDate = parsedDate;
+      // Clear stale cron bookkeeping so future paydays aren't suppressed
+      // because the previous source had already been credited "today".
+      existingPrimary.lastAutoIncomeDate = undefined;
+      await existingPrimary.save();
+      source = existingPrimary;
+    } else {
+      source = await IncomeSource.create({
+        user: req.userId,
+        name: name.trim(),
+        amount: numericAmount,
+        frequency,
+        nextPayDate: parsedDate,
+        isPrimary: true,
+      });
+    }
 
     res.status(201).json(source);
   } catch (err) {
