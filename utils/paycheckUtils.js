@@ -192,16 +192,17 @@ const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
 
   const paydays = [];
 
+  // Pre-anchor windows have no paydays. The anchor (IncomeSource.nextPayDate
+  // set at onboarding) is the user's FIRST paycheck — paychecks before
+  // that are phantom and would inflate dashboard balance. A user who
+  // onboards 2026-04-24 with anchor 2026-05-08 must see zero income for
+  // the synthetic pre-anchor "period" the period algorithm walks back
+  // into — otherwise the dashboard credits a $1,131.17 paycheck for a
+  // payday that never happened. (Bug found 2026-04-24 during pre-onboard
+  // verification.)
   if (frequency === "weekly" || frequency === "biweekly") {
     const stepDays = frequency === "weekly" ? 7 : 14;
-
-    // Walk backward from anchor to find a payday at or before rangeStart
     let cursor = new Date(anchor);
-    while (cursor > start) {
-      cursor = addDays(cursor, -stepDays);
-    }
-
-    // Walk forward, collecting paydays in range
     while (cursor <= end) {
       if (cursor >= start) {
         paydays.push(adjustToFriday(new Date(cursor)));
@@ -209,7 +210,8 @@ const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
       cursor = addDays(cursor, stepDays);
     }
   } else if (frequency === "twicemonthly") {
-    // Generate 1st and 15th for each month in range
+    // Generate 1st and 15th for each month in range, but never before
+    // the anchor (the user's first paycheck date set at onboarding).
     let y = start.getFullYear();
     let m = start.getMonth();
     const endY = end.getFullYear();
@@ -217,19 +219,14 @@ const getPaydaysInRange = (anchorDate, frequency, rangeStart, rangeEnd) => {
     while (y < endY || (y === endY && m <= endM)) {
       const d1 = new Date(y, m, 1);
       const d15 = new Date(y, m, 15);
-      if (d1 >= start && d1 <= end) paydays.push(d1);
-      if (d15 >= start && d15 <= end) paydays.push(d15);
+      if (d1 >= start && d1 <= end && d1 >= anchor) paydays.push(d1);
+      if (d15 >= start && d15 <= end && d15 >= anchor) paydays.push(d15);
       m++;
       if (m > 11) { m = 0; y++; }
     }
   } else if (frequency === "monthly") {
     let idx = 0;
     let cursor = addMonths(anchor, idx);
-    while (cursor > start) {
-      idx--;
-      cursor = addMonths(anchor, idx);
-    }
-
     while (cursor <= end) {
       if (cursor >= start) {
         paydays.push(new Date(cursor));
