@@ -60,9 +60,6 @@ router.post("/", authRequired, async (req, res) => {
       existingPrimary.amount = numericAmount;
       existingPrimary.frequency = frequency;
       existingPrimary.nextPayDate = parsedDate;
-      // Clear stale cron bookkeeping so future paydays aren't suppressed
-      // because the previous source had already been credited "today".
-      existingPrimary.lastAutoIncomeDate = undefined;
       await existingPrimary.save();
       source = existingPrimary;
     } else {

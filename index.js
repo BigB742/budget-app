@@ -310,7 +310,6 @@ app.use((err, req, res, _next) => {
 // Cron jobs
 require("./jobs/billReminders");
 require("./jobs/savingsAutopilot");
-require("./jobs/paydayIncome");
 
 // Export for Vercel serverless
 module.exports = app;

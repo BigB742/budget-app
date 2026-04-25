@@ -6,10 +6,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/cron/payday.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/stripe/webhook.js",
       "use": "@vercel/node"
     }
@@ -20,18 +16,8 @@
       "dest": "api/stripe/webhook.js"
     },
     {
-      "src": "/api/cron/payday",
-      "dest": "api/cron/payday.js"
-    },
-    {
       "src": "/(.*)",
       "dest": "index.js"
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/payday",
-      "schedule": "0 9 * * *"
     }
   ]
 }

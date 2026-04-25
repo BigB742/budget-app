@@ -62,7 +62,6 @@ Required env vars in the **backend** Vercel project:
 - `APP_URL`, `DASHBOARD_URL`, `ALLOWED_ORIGINS`
 - `EMAIL_USER`, `EMAIL_PASS` (Gmail App Password — not the account
   password)
-- `CRON_SECRET` (signs cron requests)
 
 Required in the **frontend** Vercel project:
 
