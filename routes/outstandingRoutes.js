@@ -18,7 +18,6 @@ const PaymentPlan = require("../models/PaymentPlan");
 const User = require("../models/User");
 const { authRequired } = require("../middleware/auth");
 const { todayLocal, toDateOnly, isAfter } = require("../utils/date");
-const { startOfDayInAppTz } = require("../utils/appTz");
 const { toLocalDate } = require("../utils/paycheckUtils");
 
 const router = express.Router();
@@ -44,7 +43,20 @@ router.get("/", authRequired, async (req, res) => {
     if (!onboardingDate) {
       return res.json({ bills: [], plans: [], expenses: [] });
     }
-    const onboardLA = startOfDayInAppTz(onboardingDate);
+    // Compare against onboardingDate using a YMD integer (year*10000 +
+    // month*100 + day) — pure integer compare, no Date round-trips, no
+    // tz-projection drift. onboardingDate is stamped via todayInAppTz()
+    // so its **server-local** y/m/d equals LA y/m/d. On Vercel (UTC
+    // server) server-local = UTC, so getUTCFullYear/Month/Date recover
+    // the LA calendar y/m/d directly. Commit 11860b8 used a Date-based
+    // comparison via the LA-projection helper from utils/appTz, which
+    // round-tripped UTC y/m/d → instant → LA-projected y/m/d, sometimes
+    // landing one day off and letting April 1 occurrences slip past the
+    // filter on production.
+    const onbD = new Date(onboardingDate);
+    const onboardYMD = Number.isNaN(onbD.getTime())
+      ? null
+      : onbD.getUTCFullYear() * 10000 + (onbD.getUTCMonth() + 1) * 100 + onbD.getUTCDate();
 
     const now = new Date();
     const todayYMD = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
@@ -82,8 +94,7 @@ router.get("/", authRequired, async (req, res) => {
       const dueYMD = toYMD(thisMonthDue);
       if (dueYMD > todayYMD) return;
       // Pre-onboarding occurrences are invisible to the user — skip.
-      const occLA = startOfDayInAppTz(thisMonthDue);
-      if (!occLA || (onboardLA && occLA < onboardLA)) return;
+      if (onboardYMD && dueYMD < onboardYMD) return;
       // Respect startDate / lastPaymentDate gates so inactive periods
       // don't appear in the queue.
       if (b.startDate) {
@@ -107,18 +118,22 @@ router.get("/", authRequired, async (req, res) => {
     });
 
     // Plans: flatten unpaid payments due today-or-earlier, but no
-    // earlier than onboardingDate. Plan-installment dates are stored
-    // as Mongo Date instances (sometimes UTC midnight, sometimes LA
-    // noon depending on the writer); pipe through toLocalDate +
-    // startOfDayInAppTz to mirror computeSpendable's plan-side reads.
+    // earlier than onboardingDate. Plan-installment dates land in Mongo
+    // as either UTC midnight or LA noon depending on the writer;
+    // toLocalDate recovers the intended calendar y/m/d as server-local
+    // components, then we read those directly into a YMD integer for
+    // the same drift-free compare the bill side uses.
     const outstandingPlans = [];
     (plans || []).forEach((plan) => {
       (plan.payments || []).forEach((p) => {
         if (p.paid) return;
         if (!p.date) return;
         if (toYMD(p.date) > todayYMD) return;
-        const dLA = startOfDayInAppTz(toLocalDate(p.date));
-        if (!dLA || (onboardLA && dLA < onboardLA)) return;
+        const ld = toLocalDate(p.date);
+        const dYMD = ld
+          ? ld.getFullYear() * 10000 + (ld.getMonth() + 1) * 100 + ld.getDate()
+          : null;
+        if (onboardYMD && dYMD && dYMD < onboardYMD) return;
         outstandingPlans.push({
           id: `${plan._id}:${p.id}`,
           planId: String(plan._id),
@@ -133,8 +148,10 @@ router.get("/", authRequired, async (req, res) => {
 
     const outstandingExpenses = (expenses || [])
       .filter((e) => {
-        const eLA = startOfDayInAppTz(toLocalDate(e.date));
-        return eLA && (!onboardLA || eLA >= onboardLA);
+        const ld = toLocalDate(e.date);
+        if (!ld) return false;
+        const eYMD = ld.getFullYear() * 10000 + (ld.getMonth() + 1) * 100 + ld.getDate();
+        return onboardYMD ? eYMD >= onboardYMD : true;
       })
       .map((e) => ({
         id: String(e._id),
