@@ -19,6 +19,7 @@ const {
   loadOverrideMap,
   loadBillPayments,
   computePeriodBalance,
+  computeSpendable,
 } = require("../utils/financeEngine");
 const { todayInAppTz } = require("../utils/appTz");
 
@@ -44,9 +45,11 @@ function resolveToday(req) {
 router.get("/paycheck-current", authRequired, async (req, res) => {
   try {
     // Brand-new accounts (no income sources yet) still need a real
-    // balance number. We show the onboarding balance minus any expenses
-    // they've logged so far — they can't have bills in this state
-    // without going through onboarding, so totalBillsDue is 0.
+    // balance number. The cumulative formula degrades gracefully — with
+    // no anchor it returns spendable=currentBalance, but we want a few
+    // extra display fields here so the empty-state UI doesn't hit
+    // missing keys. The expense total is "since signup" because there
+    // is no pay period yet.
     const buildEmptyResponse = async () => {
       const u = await User.findById(req.userId).select("currentBalance createdAt");
       const cb = Number(u?.currentBalance) || 0;
@@ -54,9 +57,10 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       const spent = await sumExpensesInPeriod(req.userId, createdAt, new Date());
       return {
         period: null, totalIncome: 0, recurringIncome: 0, oneTimeIncome: 0,
-        totalBills: 0, totalExpenses: 0, totalBillsDue: 0, totalExpensesSpent: spent,
+        totalBills: 0, totalExpenses: 0, totalPaymentPlans: 0,
+        totalExpensesSpent: spent,
         savingsThisPeriod: 0, investmentsThisPeriod: 0,
-        balance: cb - spent, currentBalance: cb, leftToSpend: cb - spent,
+        balance: cb - spent, components: null, currentBalance: cb, leftToSpend: cb - spent,
         nextPayDate: null, daysUntilNextPaycheck: null,
         nextPaycheckBalance: null, nextPeriod: null, sources: [],
         periodLabel: { start: null, end: null }, nextPayDateLabel: null, empty: true,
@@ -73,16 +77,17 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     const budget = getBudgetPeriod(sources, today);
     if (!budget) return res.json(await buildEmptyResponse());
 
-    const { start, end, nextPayDate, totalIncome: recurringIncome, sources: sourceBreakdown } = budget;
+    const { start, end, nextPayDate, sources: sourceBreakdown } = budget;
 
-    // Prefetch bills + period-scoped override/payment maps once — reused by
-    // both engine calls below.
+    // Prefetch bills + override map once and reuse across both
+    // computeSpendable calls (current period + next-paycheck projection).
     const bills = await Bill.find({ user: req.userId, isActive: { $ne: false } });
     const overrideMap = await loadOverrideMap(req.userId, start, end);
-    const payments = await loadBillPayments(req.userId, start, end);
 
-    // Savings + investments (informational response fields — not part of
-    // the spendable math because the engine handles that).
+    // Savings + investments — informational response fields, NOT part of
+    // the spendable formula. Savings already mutate user.currentBalance
+    // at transaction time so they show up via the seed; investments are
+    // displayed but not counted as outflows.
     const savingsGoals = await SavingsGoal.find({ userId: req.userId });
     const savingsThisPeriod = savingsGoals.reduce((s, g) => s + (Number(g.perPaycheckAmount) || 0), 0);
     const totalSaved = savingsGoals.reduce((s, g) => s + (Number(g.savedAmount) || 0), 0);
@@ -96,138 +101,46 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       });
     });
 
-    const userDoc = await User.findById(req.userId).select("currentBalance createdAt");
+    const userDoc = await User.findById(req.userId).select("currentBalance createdAt onboardingDate");
     const currentBalance = Number(userDoc?.currentBalance) || 0;
-    const userCreatedAt = userDoc?.createdAt ? new Date(userDoc.createdAt) : new Date(0);
+    const onboardingDate = userDoc?.onboardingDate || null;
 
-    // Informational full-period totals used by the dashboard stat cards
-    // (totalIncome, totalBills, totalExpenses for the current pay period).
-    // This is NOT the balance source of truth anymore — see below.
-    const periodTotals = await computePeriodBalance({
+    // ═══════════════════════════════════════════════════════════════
+    // SPENDABLE BALANCE — source of truth.
+    //
+    // computeSpendable returns the cumulative-from-onboarding balance
+    // over [onboardingDate, currentPeriod.end] plus a component
+    // breakdown. Every dashboard surface (hero number, stat cards,
+    // breakdown chips) reads from `result.spendable` and
+    // `result.components.*`. The legacy per-period formula
+    // (currentBalance + thisPeriodIncome − thisPeriodOutflows) silently
+    // drifted past period 1 because currentBalance was never rolled
+    // forward — see commit b950722 in this branch and the spec doc for
+    // the full rationale.
+    //
+    // /year-to-date and /period-history continue to call
+    // computePeriodBalance for per-period retrospectives — that
+    // function is untouched.
+    // ═══════════════════════════════════════════════════════════════
+    const result = await computeSpendable({
       userId: req.userId,
-      periodStart: start,
-      periodEnd: end,
-      startingBalance: 0,
-      recurringIncome,
+      asOfDate: end,
+      sources,
+      currentBalance,
+      onboardingDate,
       bills,
       overrideMap,
-      payments,
     });
 
-    // ───────────────────────────────────────────────────────────────────
-    // "You Can Spend" — SOURCE OF TRUTH
-    //
-    //   balance = user.currentBalance
-    //           − SUM(expenses where createdAt ≤ date ≤ today)
-    //           − SUM(bills due from today through next paycheck)
-    //
-    // Income/paycheck projections deliberately DO NOT feed this number.
-    // The user enters their real bank balance during onboarding; that is
-    // the seed, and every expense they log decrements from it. Expenses
-    // dated BEFORE signup are historical stats only and are excluded
-    // from the sum by the date >= createdAt filter.
-    //
-    // Bills are recurring (dueDayOfMonth), so we reuse sumBillsInPeriod
-    // with a window of [today, end-of-current-pay-period]. That helper
-    // respects payment overrides and already-paid bills, matching the
-    // "bills due before next paycheck" intent without double-counting a
-    // bill the user already marked paid.
-    // ───────────────────────────────────────────────────────────────────
-    const totalExpensesSpent = await sumExpensesInPeriod(req.userId, userCreatedAt, today);
-    // Bill window is the FULL current period [start, end] — not
-    // [today, end]. Under the period-ledger model the formula adds this
-    // period's income across the whole window and subtracts expenses
-    // across the whole window, so bills must match or past-due unpaid
-    // bills and bills paid earlier in this period get silently dropped
-    // from the spendable number. sumBillsInPeriod respects paid+paidDate
-    // and bucketing — see its comment block — so paid-early cross-period
-    // outflows land here via the new paid-early loop.
-    const totalBillsDue = sumBillsInPeriod(bills, start, end, overrideMap, payments);
+    // Derive legacy-shape totals from the component breakdown so existing
+    // client surfaces (dashboard stat cards, "spent this period" label,
+    // etc.) keep working without a client-side change.
+    const totalBills = result.components.unpaidBills + result.components.paidBills;
+    const totalIncome = result.components.incomeRecurring + result.components.incomeOneTime;
+    const totalExpenses = result.components.expenses;
+    const totalPaymentPlans = result.components.unpaidPlans + result.components.paidPlans;
 
-    // ═══════════════════════════════════════════════════════════════
-    // SPENDABLE BALANCE FORMULA — source of truth (do not break)
-    //
-    //   Spendable = currentBalance                (rollover into period)
-    //             + totalIncomeThisPeriod         (recurring paychecks
-    //                                              that fall in this
-    //                                              period + one-time
-    //                                              income dated in it)
-    //             − expensesThisPeriod            (scoped to the period,
-    //                                              NOT since signup)
-    //             − billsDueThisPeriod            (unpaid + paid-this-
-    //                                              period scheduled bills
-    //                                              from today → end)
-    //             − paymentPlansDueThisPeriod    (see rules below)
-    //
-    // currentBalance is the rollover entering the current pay period —
-    // onboarding seed for first-time users, or the previous period's
-    // ending balance otherwise. It is NOT a live bank-balance readout,
-    // so we add this period's income explicitly instead of relying on
-    // a cron to credit it. Prior revisions assumed the payday cron
-    // ($inc: currentBalance) had already landed and so omitted the
-    // income term — that produced the −$954 dashboard the day the cron
-    // didn't fire (or the user was running locally with no cron).
-    //
-    // Savings transactions DO still decrement user.currentBalance at
-    // transaction time (routes/savingsV2Routes.js, routes/savingsRoutes.js),
-    // so deposits/withdrawals reduce/increase the rollover in place —
-    // no separate term needed here.
-    //
-    // Payment plan installment counting rules:
-    //   1. paid === false → deduct from period containing scheduled `date`
-    //   2. paid === true && paidEarly === true → deduct from period
-    //      containing `datePaid` (shifted out of its original future
-    //      period into the period the user actually paid in)
-    //   3. paid === true && paidEarly === false → NEVER count. Money
-    //      already left the bank on or after its scheduled date; it is
-    //      already reflected in the user's real bank balance. Counting
-    //      these is the regression from 2026-04-21: it double-deducted
-    //      auto-marked-past-paid installments and swung the dashboard
-    //      from +$36 to −$437.
-    // ═══════════════════════════════════════════════════════════════
-    const allPlans = await PaymentPlan.find({ userId: req.userId });
-    const toYMD = (d) => { const dt = new Date(d); return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate(); };
-    const periodStartYMD = toYMD(start);
-    const periodEndYMD = toYMD(end);
-    let totalPaymentPlansDue = 0;
-    // Plan installments bucket by WHEN THE MONEY LEFT THE BANK:
-    //   • paid=true   → bucket by paidDate (includes paid-early that
-    //                   shifted out of a future period AND paid-on-
-    //                   or-after-due, which prior revisions excluded
-    //                   entirely on the assumption currentBalance
-    //                   already reflected the outflow — it doesn't,
-    //                   plan pays never mutate currentBalance)
-    //   • paid=false  → bucket by scheduled `date` (future outflow
-    //                   we need to reserve for)
-    // Under the period-ledger model this keeps plans symmetric with
-    // bills: every installment is counted exactly once across the
-    // pay-period chain, in the period where its money moved.
-    allPlans.forEach((plan) => {
-      (plan.payments || []).forEach((p) => {
-        if (p.paid) {
-          const dp = p.datePaid || p.paidDate;
-          if (!dp) return;
-          const dpYMD = toYMD(dp);
-          if (dpYMD >= periodStartYMD && dpYMD <= periodEndYMD) {
-            totalPaymentPlansDue += Number(p.amount) || 0;
-          }
-          return;
-        }
-        const ymd = toYMD(p.date);
-        if (ymd >= periodStartYMD && ymd <= periodEndYMD) {
-          totalPaymentPlansDue += Number(p.amount) || 0;
-        }
-      });
-    });
-
-    const balance =
-      currentBalance
-      + periodTotals.totalIncome
-      - periodTotals.totalExpenses
-      - totalBillsDue
-      - totalPaymentPlansDue;
-
-    // Days until next paycheck
+    // Days until next paycheck (LA-pinned via the resolveToday "today").
     const msPerDay = 24 * 60 * 60 * 1000;
     let daysUntilNextPaycheck = null;
     if (nextPayDate) {
@@ -243,9 +156,11 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       daysUntilNextPaycheck = diffDays;
     }
 
-    // ── Next Paycheck Balance (routed through the engine) ──────
-    // Previous period boundaries — used by the Expense page "Last period" tab
-    // and the "spent less" celebration modal.
+    // Previous-period boundaries + spent total. Used by the Expense
+    // page "Last period" tab and the "spent less" celebration modal.
+    // sumExpensesInPeriod here is the legacy per-period sum (not the
+    // accountedFor-filtered one) — these surfaces are retrospective,
+    // not balance-driving, so behavior is unchanged.
     let previousPeriod = null;
     let spentPreviousPeriod = null;
     const prevDate = new Date(start);
@@ -256,60 +171,34 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
       spentPreviousPeriod = await sumExpensesInPeriod(req.userId, prevBudget.start, prevBudget.end);
     }
 
+    // Next-paycheck projection — what the user will have on the day
+    // their next paycheck lands. Same cumulative formula extended to
+    // the next period's end.
     let nextPaycheckBalance = null;
     let nextPeriod = null;
     if (nextPayDate) {
       const nextBudget = getBudgetPeriod(sources, nextPayDate);
       if (nextBudget) {
         const nextOverrideMap = await loadOverrideMap(req.userId, nextBudget.start, nextBudget.end);
-        const nextPayments = await loadBillPayments(req.userId, nextBudget.start, nextBudget.end);
-
-        const nextResult = await computePeriodBalance({
+        const nextResult = await computeSpendable({
           userId: req.userId,
-          periodStart: nextBudget.start,
-          periodEnd: nextBudget.end,
-          startingBalance: balance, // rollover from the current period's end
-          recurringIncome: nextBudget.totalIncome,
+          asOfDate: nextBudget.end,
+          sources,
+          currentBalance,
+          onboardingDate,
           bills,
           overrideMap: nextOverrideMap,
-          payments: nextPayments,
         });
-
-        // Payment plans due in the next period — same date-only comparison
-        // used by the current period and the calendar snapshot so all three
-        // numbers agree.
-        const nextStartYMD = toYMD(nextBudget.start);
-        const nextEndYMD = toYMD(nextBudget.end);
-        let nextPlansDue = 0;
-        allPlans.forEach((plan) => {
-          (plan.payments || []).forEach((p) => {
-            if (p.paid) {
-              if (!p.paidEarly) return;
-              const dp = p.datePaid || p.paidDate;
-              if (!dp) return;
-              const dpYMD = toYMD(dp);
-              if (dpYMD >= nextStartYMD && dpYMD <= nextEndYMD) {
-                nextPlansDue += Number(p.amount) || 0;
-              }
-              return;
-            }
-            const ymd = toYMD(p.date);
-            if (ymd >= nextStartYMD && ymd <= nextEndYMD) {
-              nextPlansDue += Number(p.amount) || 0;
-            }
-          });
-        });
-
-        nextPaycheckBalance = nextResult.estimatedEnd - nextPlansDue;
+        nextPaycheckBalance = nextResult.spendable;
         nextPeriod = {
           start: toDateString(nextBudget.start),
           end: toDateString(nextBudget.end),
-          recurringIncome: nextResult.recurringIncome,
-          oneTimeIncome: nextResult.oneTimeIncome,
-          totalIncome: nextResult.totalIncome,
-          totalBills: nextResult.totalBills,
-          totalExpenses: nextResult.totalExpenses,
-          totalPaymentPlansDue: nextPlansDue,
+          recurringIncome: nextResult.components.incomeRecurring,
+          oneTimeIncome: nextResult.components.incomeOneTime,
+          totalIncome: nextResult.components.incomeRecurring + nextResult.components.incomeOneTime,
+          totalBills: nextResult.components.unpaidBills + nextResult.components.paidBills,
+          totalExpenses: nextResult.components.expenses,
+          totalPaymentPlans: nextResult.components.unpaidPlans + nextResult.components.paidPlans,
         };
       }
     }
@@ -317,22 +206,22 @@ router.get("/paycheck-current", authRequired, async (req, res) => {
     res.json({
       period: { start, end },
       previousPeriod,
-      recurringIncome: periodTotals.recurringIncome,
-      oneTimeIncome: periodTotals.oneTimeIncome,
-      totalIncome: periodTotals.totalIncome,
-      totalBills: periodTotals.totalBills,
-      totalExpenses: periodTotals.totalExpenses,
-      // Fields that drive the balance-of-truth formula. The dashboard
-      // can display these directly or recompute locally if it wants.
-      totalBillsDue,
-      totalExpensesSpent,
-      totalPaymentPlansDue,
-      spentCurrentPeriod: periodTotals.totalExpenses,
+      recurringIncome: result.components.incomeRecurring,
+      oneTimeIncome: result.components.incomeOneTime,
+      totalIncome,
+      totalBills,
+      totalExpenses,
+      totalPaymentPlans,
+      spentCurrentPeriod: totalExpenses,
       spentPreviousPeriod,
       savingsThisPeriod,
       totalSaved,
       investmentsThisPeriod,
-      balance,
+      balance: result.spendable,
+      // Full component breakdown for client-side debugging and future
+      // dashboard surfaces. The dashboard hero reads `balance`; the
+      // stat cards read these.
+      components: result.components,
       currentBalance,
       nextPayDate,
       daysUntilNextPaycheck,
