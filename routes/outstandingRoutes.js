@@ -15,8 +15,11 @@ const Bill = require("../models/Bill");
 const BillPayment = require("../models/BillPayment");
 const Expense = require("../models/Expense");
 const PaymentPlan = require("../models/PaymentPlan");
+const User = require("../models/User");
 const { authRequired } = require("../middleware/auth");
 const { todayLocal, toDateOnly, isAfter } = require("../utils/date");
+const { startOfDayInAppTz } = require("../utils/appTz");
+const { toLocalDate } = require("../utils/paycheckUtils");
 
 const router = express.Router();
 
@@ -30,6 +33,19 @@ const toYMD = (d) => {
 
 router.get("/", authRequired, async (req, res) => {
   try {
+    // PayPulse only tracks activity from User.onboardingDate forward.
+    // Bills, plan installments, and expenses dated before that anchor
+    // are outside the user's awareness — they shouldn't be surfaced in
+    // the "Did you pay this?" queue. Users with onboardingDate=null
+    // (legacy / pre-backfill) get an empty queue until the backfill
+    // runs; we have no defined tracking window for them.
+    const userDoc = await User.findById(req.userId).select("onboardingDate");
+    const onboardingDate = userDoc?.onboardingDate || null;
+    if (!onboardingDate) {
+      return res.json({ bills: [], plans: [], expenses: [] });
+    }
+    const onboardLA = startOfDayInAppTz(onboardingDate);
+
     const now = new Date();
     const todayYMD = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
 
@@ -65,6 +81,9 @@ router.get("/", authRequired, async (req, res) => {
       const thisMonthDue = new Date(now.getFullYear(), now.getMonth(), day);
       const dueYMD = toYMD(thisMonthDue);
       if (dueYMD > todayYMD) return;
+      // Pre-onboarding occurrences are invisible to the user — skip.
+      const occLA = startOfDayInAppTz(thisMonthDue);
+      if (!occLA || (onboardLA && occLA < onboardLA)) return;
       // Respect startDate / lastPaymentDate gates so inactive periods
       // don't appear in the queue.
       if (b.startDate) {
@@ -87,13 +106,19 @@ router.get("/", authRequired, async (req, res) => {
       });
     });
 
-    // Plans: flatten unpaid payments due today-or-earlier.
+    // Plans: flatten unpaid payments due today-or-earlier, but no
+    // earlier than onboardingDate. Plan-installment dates are stored
+    // as Mongo Date instances (sometimes UTC midnight, sometimes LA
+    // noon depending on the writer); pipe through toLocalDate +
+    // startOfDayInAppTz to mirror computeSpendable's plan-side reads.
     const outstandingPlans = [];
     (plans || []).forEach((plan) => {
       (plan.payments || []).forEach((p) => {
         if (p.paid) return;
         if (!p.date) return;
         if (toYMD(p.date) > todayYMD) return;
+        const dLA = startOfDayInAppTz(toLocalDate(p.date));
+        if (!dLA || (onboardLA && dLA < onboardLA)) return;
         outstandingPlans.push({
           id: `${plan._id}:${p.id}`,
           planId: String(plan._id),
@@ -106,13 +131,18 @@ router.get("/", authRequired, async (req, res) => {
       });
     });
 
-    const outstandingExpenses = (expenses || []).map((e) => ({
-      id: String(e._id),
-      name: e.description || e.category || "Expense",
-      amount: e.amount,
-      date: toDateOnly(e.date),
-      paid: false,
-    }));
+    const outstandingExpenses = (expenses || [])
+      .filter((e) => {
+        const eLA = startOfDayInAppTz(toLocalDate(e.date));
+        return eLA && (!onboardLA || eLA >= onboardLA);
+      })
+      .map((e) => ({
+        id: String(e._id),
+        name: e.description || e.category || "Expense",
+        amount: e.amount,
+        date: toDateOnly(e.date),
+        paid: false,
+      }));
 
     res.json({
       bills: outstandingBills,
