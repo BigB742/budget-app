@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema(
     dateOfBirth: { type: Date },
     passwordHash: { type: String, required: true },
     onboardingComplete: { type: Boolean, default: false },
+    onboardingDate: { type: Date, default: null },
     isPremium: { type: Boolean, default: false },
     premiumSince: { type: Date },
     stripeCustomerId: { type: String },

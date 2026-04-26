@@ -262,6 +262,7 @@ router.post("/reset-account", authRequired, async (req, res) => {
 
     // Reset financial fields but keep user account
     user.onboardingComplete = false;
+    user.onboardingDate = null;
     user.tourCompleted = false;
     user.currentBalance = 0;
     user.totalSavings = 0;
@@ -280,8 +281,18 @@ router.post("/reset-account", authRequired, async (req, res) => {
 router.post("/complete-onboarding", authRequired, async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id || req.userId;
-    const user = await User.findByIdAndUpdate(userId, { onboardingComplete: true }, { new: true });
+    const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+    user.onboardingComplete = true;
+    // Stamp the cumulative-formula anchor on first onboarding completion.
+    // Idempotent — re-calling this endpoint after a previous completion
+    // does NOT overwrite the original onboarding date. The reset-account
+    // handler clears this field, so re-onboarding after a reset does
+    // produce a fresh stamp.
+    if (!user.onboardingDate) {
+      user.onboardingDate = new Date();
+    }
+    await user.save();
     res.json(userResponse(user));
   } catch (error) {
     console.error("Complete onboarding error:", error);
