@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 
 const { authRequired } = require("../middleware/auth");
+const { todayInAppTz } = require("../utils/appTz");
 const User = require("../models/User");
 const { sendEmail } = require("../utils/email");
 const { buildDeleteAccountEmail } = require("../utils/emailTemplates");
@@ -290,7 +291,10 @@ router.post("/complete-onboarding", authRequired, async (req, res) => {
     // handler clears this field, so re-onboarding after a reset does
     // produce a fresh stamp.
     if (!user.onboardingDate) {
-      user.onboardingDate = new Date();
+      // Stamp as LA-day-midnight (NOT server-wall-clock) so an evening-LA
+      // onboarding doesn't shift the cumulative-formula anchor by a day
+      // on Vercel (UTC). See utils/appTz.js for the pinning rationale.
+      user.onboardingDate = todayInAppTz();
     }
     await user.save();
     res.json(userResponse(user));

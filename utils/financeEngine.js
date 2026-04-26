@@ -21,11 +21,19 @@ const OneTimeIncome = require("../models/OneTimeIncome");
 const Bill = require("../models/Bill");
 const PaymentPlan = require("../models/PaymentPlan");
 const { toLocalDate, clampDueDay, getPaydaysInRange } = require("./paycheckUtils");
+const { startOfDayInAppTz } = require("./appTz");
 
-// Snap a Date to midnight local time (strips HH:MM:SS).
-function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
+// All date-snapping in this file routes through utils/appTz so PayPulse's
+// "today" is always interpreted in America/Los_Angeles, regardless of
+// where the server runs (Vercel = UTC). The local startOfDay alias
+// preserves existing call sites in sumBillsInPeriod, sumExpensesInPeriod,
+// loadOverrideMap, loadBillPayments, and sumOneTimeIncomeInPeriod —
+// they all pass through Dates whose server-local y/m/d already encode
+// LA y/m/d (callers feed them values derived from resolveToday + the
+// LA-pinned getCurrentPayPeriod chain), so re-projecting through Intl
+// is a no-op for safety. New code (computeSpendable, sumPaychecksInRange)
+// calls startOfDayInAppTz directly for explicitness.
+const startOfDay = startOfDayInAppTz;
 
 // End-of-day (23:59:59.999) for inclusive range queries.
 function endOfDay(d) {
@@ -324,9 +332,9 @@ async function computePeriodBalance(params) {
  */
 function sumPaychecksInRange(sources, start, end) {
   if (!Array.isArray(sources) || !sources.length) return 0;
-  const from = startOfDay(new Date(start));
-  const to = startOfDay(new Date(end));
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 0;
+  const from = startOfDayInAppTz(start);
+  const to = startOfDayInAppTz(end);
+  if (!from || !to) return 0;
   if (to < from) return 0;
   let total = 0;
   for (const src of sources) {
@@ -436,9 +444,9 @@ async function computeSpendable({
     };
   }
 
-  const start = startOfDay(new Date(onboardingDate));
-  const end = startOfDay(new Date(asOfDate));
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  const start = startOfDayInAppTz(onboardingDate);
+  const end = startOfDayInAppTz(asOfDate);
+  if (!start || !end) {
     return {
       spendable: cb,
       components: emptyComponents,
@@ -553,6 +561,13 @@ async function computeSpendable({
   paidBills += legacyPaidBillsTotal;
 
   // ── Plans ─────────────────────────────────────────────────────────
+  // Plan-installment date reads mirror the bill-side pattern: pass the
+  // raw stored field through `toLocalDate` (recovers UTC-midnight Mongo
+  // date-only values into server-local y/m/d) and then through
+  // `startOfDayInAppTz` (snaps wall-clock instants to the LA calendar
+  // day). Commit 4 used `new Date(...)` directly here, which offset
+  // matching by one day for UTC-stored fields on PT-aware reads — this
+  // commit unifies the pattern with bills.
   const planDocs = await PaymentPlan.find({ userId });
   let unpaidPlans = 0;
   let paidPlans = 0;
@@ -562,14 +577,14 @@ async function computeSpendable({
       if (p.paid === true) {
         const dp = p.paidDate || p.datePaid;
         if (!dp) return;
-        const dpLocal = startOfDay(new Date(dp));
-        if (Number.isNaN(dpLocal.getTime())) return;
+        const dpLocal = startOfDayInAppTz(toLocalDate(dp));
+        if (!dpLocal) return;
         if (dpLocal < start || dpLocal > end) return;
         paidPlans += Number(p.amount) || 0;
       } else {
         if (!p.date) return;
-        const dLocal = startOfDay(new Date(p.date));
-        if (Number.isNaN(dLocal.getTime())) return;
+        const dLocal = startOfDayInAppTz(toLocalDate(p.date));
+        if (!dLocal) return;
         if (dLocal < start || dLocal > end) return;
         unpaidPlans += Number(p.amount) || 0;
       }

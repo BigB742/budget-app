@@ -20,30 +20,14 @@ const {
   loadBillPayments,
   computePeriodBalance,
 } = require("../utils/financeEngine");
+const { todayInAppTz } = require("../utils/appTz");
 
 const router = express.Router();
 
-// PayPulse is pinned to America/Los_Angeles regardless of where the
-// server runs (Vercel = UTC) or where the user's browser clock claims
-// to be. All pay-period math uses "today in LA" so the dashboard never
-// flips a calendar day early for users west of UTC, and so two users
-// in different timezones see the same pay period on the same wall
-// clock moment. The client can still override with ?localDate=YYYY-MM-DD
-// for testing, but the default is LA.
-const APP_TZ = "America/Los_Angeles";
-function todayInAppTz() {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = fmt.formatToParts(new Date());
-  const y = Number(parts.find((p) => p.type === "year").value);
-  const m = Number(parts.find((p) => p.type === "month").value);
-  const d = Number(parts.find((p) => p.type === "day").value);
-  return new Date(y, m - 1, d);
-}
+// PayPulse pins every server-side calendar-day calculation to
+// America/Los_Angeles via utils/appTz. resolveToday honors a client-
+// supplied ?localDate=YYYY-MM-DD override (used by tests / future
+// multi-tz callers) and falls back to LA today.
 function resolveToday(req) {
   const ld = req.query.localDate;
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(ld || ""))) {
