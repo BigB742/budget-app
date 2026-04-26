@@ -13,6 +13,7 @@ const billSchema = new mongoose.Schema(
     // this flag is mainly for one-shot bills like the auto-created PayPulse
     // Premium bill where we want the doc to self-describe its paid-ness.
     paid: { type: Boolean, default: false },
+    accountedFor: { type: Boolean, default: false },
     // §6 — mirror-of-paid audit timestamp. The canonical paid state for
     // recurring bills still lives in BillPayment (one row per due date);
     // these two fields make the Bill document self-describing for the

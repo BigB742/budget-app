@@ -6,6 +6,7 @@ const billPaymentSchema = new mongoose.Schema({
   dueDate: { type: Date, required: true },
   paidDate: { type: Date, required: true },
   paidAmount: { type: Number, required: true },
+  accountedFor: { type: Boolean, default: false },
   note: { type: String, default: "" },
 }, { timestamps: true });
 

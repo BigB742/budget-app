@@ -9,6 +9,7 @@ const PaymentEntrySchema = new mongoose.Schema(
     date: { type: Date, required: true },
     amount: { type: Number, required: true, min: 0 },
     paid: { type: Boolean, default: false },
+    accountedFor: { type: Boolean, default: false },
     // `datePaid` (preferred) and legacy `paidDate` both exist. New code
     // reads datePaid; legacy docs still have paidDate. The PATCH route
     // sets BOTH for forward compatibility.

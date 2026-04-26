@@ -40,6 +40,7 @@ const expenseSchema = new mongoose.Schema(
     // dated expenses stay unpaid until the user marks them paid from the
     // outstanding queue or the expense row itself.
     paid: { type: Boolean, default: false },
+    accountedFor: { type: Boolean, default: false },
     markedPaidAt: { type: Date, default: null },
   },
   { timestamps: true }
