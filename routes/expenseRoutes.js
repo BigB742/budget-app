@@ -123,7 +123,7 @@ router.get("/day", authRequired, async (req, res) => {
 // widget reads from GET /api/summary/paycheck-current.
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { date, amount, category, note, description } = req.body;
+    const { date, amount, category, note, description, paid: paidInput, accountedFor: accountedForInput } = req.body;
     const expenseDate = date ? new Date(date) : new Date();
     if (Number.isNaN(expenseDate.getTime())) {
       return res.status(400).json({ message: "Invalid date." });
@@ -133,12 +133,17 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(400).json({ message: "Invalid amount." });
     }
 
-    // §6 auto-mark-paid rule: if the expense is dated today (user's
-    // local calendar day), it's already money spent — mark paid
-    // immediately. Future-dated expenses stay unpaid until the user
-    // confirms them via the outstanding queue or the row toggle.
-    const paid = isSameLocalDay(expenseDate, new Date());
+    // Per-expense paid / accountedFor flags come from the
+    // PaymentStatusModal flow on the client. When the client omits them
+    // we fall back to the §6 auto-mark-paid rule: an expense dated
+    // today is already money spent. Future-dated expenses stay unpaid
+    // until the user confirms via the outstanding queue or the row
+    // toggle.
+    const paid = paidInput !== undefined
+      ? !!paidInput
+      : isSameLocalDay(expenseDate, new Date());
     const markedPaidAt = paid ? new Date() : null;
+    const accountedFor = accountedForInput === true;
 
     const expense = await Expense.create({
       user: req.userId,
@@ -149,6 +154,7 @@ router.post("/", authRequired, async (req, res) => {
       description: description || note,
       paid,
       markedPaidAt,
+      accountedFor,
     });
     res.status(201).json(expense);
   } catch (error) {
