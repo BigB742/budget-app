@@ -3,47 +3,11 @@ import { authFetch } from "../apiClient";
 import { storeUser } from "../utils/safeStorage";
 import { toDateOnly } from "../lib/date";
 import PaymentStatusModal from "../components/PaymentStatusModal";
-
-// LA-pinned today (y/m/d). Mirrors the server's resolveToday so the
-// "is this occurrence in the past?" check uses the same calendar as
-// the engine.
-const todayInAppTzClient = () => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  return {
-    year: Number(parts.find((p) => p.type === "year").value),
-    month: Number(parts.find((p) => p.type === "month").value), // 1-12
-    day: Number(parts.find((p) => p.type === "day").value),
-  };
-};
-
-// Most-recent occurrence of a recurring dueDayOfMonth bill, walking
-// back from today. Returns { y, m, d, ymd } or null if the
-// occurrence is today or in the future.
-const mostRecentPastOccurrence = (dueDayOfMonth) => {
-  const t = todayInAppTzClient();
-  const tYMD = t.year * 10000 + t.month * 100 + t.day;
-  // Clamp to month length.
-  const lastDayOfMonth = (y, m) => new Date(y, m, 0).getDate();
-  let occYear = t.year;
-  let occMonth = t.month;
-  let occDay = Math.min(dueDayOfMonth, lastDayOfMonth(occYear, occMonth));
-  let occYMD = occYear * 10000 + occMonth * 100 + occDay;
-  if (occYMD >= tYMD) {
-    // Walk back one month.
-    occMonth -= 1;
-    if (occMonth < 1) { occMonth = 12; occYear -= 1; }
-    occDay = Math.min(dueDayOfMonth, lastDayOfMonth(occYear, occMonth));
-    occYMD = occYear * 10000 + occMonth * 100 + occDay;
-  }
-  if (occYMD >= tYMD) return null; // belt-and-suspenders
-  const iso = `${occYear}-${String(occMonth).padStart(2, "0")}-${String(occDay).padStart(2, "0")}`;
-  return { y: occYear, m: occMonth, d: occDay, ymd: occYMD, iso };
-};
+import {
+  mostRecentOccurrence,
+  todayInLA,
+  shouldShowPaymentStatusModal,
+} from "../utils/billPaymentService";
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -592,9 +556,22 @@ const Onboarding = () => {
       setBill1Error("");
       const day = Number(bill1.dueDay);
       if (day < 1 || day > 31) { setBill1Error("Due day must be between 1 and 31."); return; }
-      const occurrence = mostRecentPastOccurrence(day);
-      if (occurrence) {
-        // Past occurrence exists → ask the user about its status before saving.
+      // Onboarding stamps onboardingDate AFTER all bills are added (in
+      // /api/user/complete-onboarding at step 9), so during steps 7–8
+      // the user has no onboardingDate yet. Treat "today" as the
+      // implicit onboarding boundary: any occurrence strictly before
+      // today is pre-onboarding history (suppress), today's occurrence
+      // is the only candidate for the modal. Use LA todayYMD (not
+      // browser-local) so the boundary matches what the server will
+      // stamp at step 9.
+      const occurrence = mostRecentOccurrence(day);
+      const todayYMD = todayInLA().ymd;
+      const prompt = shouldShowPaymentStatusModal({
+        occYMD: occurrence.ymd,
+        todayYMD,
+        onboardingYMD: todayYMD,
+      });
+      if (prompt) {
         setPaymentPrompt({
           bill: bill1,
           occurrence,
@@ -616,7 +593,7 @@ const Onboarding = () => {
         });
         return;
       }
-      // No past occurrence — save with default flags and advance.
+      // Pre-onboarding or future occurrence — save with default flags.
       setSaving(true);
       try {
         await saveBillWithStatus(bill1, "unpaid", null);
@@ -656,7 +633,7 @@ const Onboarding = () => {
           onSelect={(status) => paymentPrompt?.onChosen?.(status)}
           itemName={paymentPrompt?.bill?.name || ""}
           itemAmount={Number(paymentPrompt?.bill?.amount) || 0}
-          itemDueDate={paymentPrompt?.occurrence?.iso || null}
+          itemDueDate={paymentPrompt?.occurrence?.displayDate || null}
           itemKind="bill"
         />
       </>
@@ -671,8 +648,15 @@ const Onboarding = () => {
       setBill2Error("");
       const day = Number(bill2.dueDay);
       if (day < 1 || day > 31) { setBill2Error("Due day must be between 1 and 31."); return; }
-      const occurrence = mostRecentPastOccurrence(day);
-      if (occurrence) {
+      // See step 7 comment — implicit onboardingDate = today in LA.
+      const occurrence = mostRecentOccurrence(day);
+      const todayYMD = todayInLA().ymd;
+      const prompt = shouldShowPaymentStatusModal({
+        occYMD: occurrence.ymd,
+        todayYMD,
+        onboardingYMD: todayYMD,
+      });
+      if (prompt) {
         setPaymentPrompt({
           bill: bill2,
           occurrence,
@@ -732,7 +716,7 @@ const Onboarding = () => {
           onSelect={(status) => paymentPrompt?.onChosen?.(status)}
           itemName={paymentPrompt?.bill?.name || ""}
           itemAmount={Number(paymentPrompt?.bill?.amount) || 0}
-          itemDueDate={paymentPrompt?.occurrence?.iso || null}
+          itemDueDate={paymentPrompt?.occurrence?.displayDate || null}
           itemKind="bill"
         />
       </>
