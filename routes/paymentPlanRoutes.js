@@ -37,6 +37,10 @@ router.post("/", authRequired, async (req, res) => {
       }
     }
 
+    // Per-installment paid/paidDate/accountedFor flags come from the
+    // PaymentStatusModal flow on the client. When the client omits them
+    // (legacy callers) we keep the prior behavior of auto-marking
+    // past-dated installments paid as a defensive fallback.
     const todayStart = todayLocalStart();
     const plan = await PaymentPlan.create({
       userId: req.userId,
@@ -45,11 +49,14 @@ router.post("/", authRequired, async (req, res) => {
       payments: payments.map((p) => {
         const d = parseLocalDate(p.date);
         const isPast = d && d < todayStart;
+        const explicitPaid = p.paid !== undefined ? !!p.paid : isPast;
+        const explicitPaidDate = p.paidDate ? parseLocalDate(p.paidDate) : null;
         return {
           date: d,
           amount: Number(p.amount),
-          paid: isPast,
-          paidDate: isPast ? new Date() : undefined,
+          paid: explicitPaid,
+          paidDate: explicitPaidDate || (explicitPaid ? new Date() : undefined),
+          accountedFor: p.accountedFor === true,
         };
       }),
     });

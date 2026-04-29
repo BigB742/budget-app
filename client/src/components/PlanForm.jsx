@@ -51,11 +51,16 @@ export default function PlanForm({ initialValues, editing, onSubmit, onCancel, s
     onSubmit({
       name: form.name.trim(),
       totalAmount: computedTotal,
+      // Pass paid / paidDate / accountedFor through if the parent set
+      // them via the PaymentStatusModal flow. The plan POST forwards
+      // these per installment so the engine sees the right state.
       payments: form.payments.map((p) => ({
         id: p.id,
         date: p.date,
         amount: Number(p.amount),
         paid: !!p.paid,
+        paidDate: p.paidDate || undefined,
+        accountedFor: p.accountedFor === true,
       })),
     });
   };

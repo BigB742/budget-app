@@ -7,6 +7,42 @@ import Modal from "../components/ui/Modal";
 import PaidToggle from "../components/ui/PaidToggle";
 import PlanForm from "../components/PlanForm";
 import { emptyPlanValues, toPlanFormValues } from "../components/planFormValues";
+import PaymentStatusModal from "../components/PaymentStatusModal";
+
+// LA-pinned today (y/m/d → integer key). Mirrors server resolveToday.
+const todayYMDLA = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const y = Number(parts.find((p) => p.type === "year").value);
+  const m = Number(parts.find((p) => p.type === "month").value);
+  const d = Number(parts.find((p) => p.type === "day").value);
+  return y * 10000 + m * 100 + d;
+};
+
+// onboardingDate as YMD integer, read from the cached user profile.
+const readOnboardingYMD = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "{}");
+    if (!u?.onboardingDate) return null;
+    const dt = new Date(u.onboardingDate);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
+  } catch {
+    return null;
+  }
+};
+
+// Convert a YYYY-MM-DD form input to a YMD integer.
+const ymdFromIso = (iso) => {
+  if (!iso || typeof iso !== "string") return null;
+  const parts = iso.slice(0, 10).split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  return parts[0] * 10000 + parts[1] * 100 + parts[2];
+};
 
 const fmtDate = (d) => {
   if (!d) return "";
@@ -20,6 +56,11 @@ const PaymentPlans = () => {
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState({ mode: "closed" });
   const [saving, setSaving] = useState(false);
+  // Sequential per-installment PaymentStatusModal queue. Holds the
+  // pending plan body, an index into payments[] for the next prompt,
+  // and the running list of installment overrides (paid/paidDate/
+  // accountedFor) the user has selected so far.
+  const [planPrompt, setPlanPrompt] = useState(null);
 
   const loadPlans = useCallback(async () => {
     setLoading(true);
@@ -36,7 +77,10 @@ const PaymentPlans = () => {
   const openEdit = (plan) => setDialog({ mode: "edit", plan });
   const closeDialog = () => setDialog({ mode: "closed" });
 
-  const handleSubmit = async (body) => {
+  // Persist a plan body to the API. Used both for direct save (no
+  // past installments needing the modal) and as the final step of
+  // the sequential prompt walk.
+  const persistPlan = async (body) => {
     setSaving(true);
     try {
       if (dialog.mode === "edit") {
@@ -49,6 +93,77 @@ const PaymentPlans = () => {
       cache?.fetchSummary?.(true);
     } catch { /* ignore */ }
     finally { setSaving(false); }
+  };
+
+  // Apply a chosen status onto a single installment in the body's
+  // payments[] array. Returns a new body without mutating the input.
+  const applyStatusToPayment = (body, idx, status) => {
+    const next = body.payments.map((p, i) => {
+      if (i !== idx) return p;
+      if (status === "unpaid") {
+        return { ...p, paid: false, paidDate: undefined, accountedFor: false };
+      }
+      if (status === "paid_deduct") {
+        return { ...p, paid: true, paidDate: p.date, accountedFor: false };
+      }
+      // paid_accounted
+      return { ...p, paid: true, paidDate: p.date, accountedFor: true };
+    });
+    return { ...body, payments: next };
+  };
+
+  // Walk past-or-today installments one at a time, opening
+  // PaymentStatusModal for each. After the last, POST the plan with
+  // the collected overrides. Cancel mid-sequence aborts the whole
+  // save (no partial plan written).
+  const advancePromptQueue = (body, queue, queueIdx) => {
+    if (queueIdx >= queue.length) {
+      persistPlan(body);
+      setPlanPrompt(null);
+      return;
+    }
+    const targetIdx = queue[queueIdx];
+    const installment = body.payments[targetIdx];
+    setPlanPrompt({
+      body,
+      queue,
+      queueIdx,
+      installment,
+      planName: body.name,
+      onChosen: (status) => {
+        const nextBody = applyStatusToPayment(body, targetIdx, status);
+        advancePromptQueue(nextBody, queue, queueIdx + 1);
+      },
+      onCancel: () => setPlanPrompt(null),
+    });
+  };
+
+  const handleSubmit = async (body) => {
+    // For edits, skip the prompt flow — the user is amending an
+    // existing plan via the inline form, not declaring fresh state.
+    if (dialog.mode === "edit") {
+      await persistPlan(body);
+      return;
+    }
+    // Find unpaid installments whose scheduled date is in
+    // [onboardingDate, today]. Pre-onboarding and future installments
+    // save with default flags (no prompt).
+    const onboardYMD = readOnboardingYMD();
+    const tYMD = todayYMDLA();
+    const queue = [];
+    body.payments.forEach((p, i) => {
+      if (p.paid) return; // already-paid installments skip the prompt
+      const ymd = ymdFromIso(p.date);
+      if (ymd == null) return;
+      if (onboardYMD && ymd < onboardYMD) return;
+      if (ymd > tYMD) return;
+      queue.push(i);
+    });
+    if (queue.length === 0) {
+      await persistPlan(body);
+      return;
+    }
+    advancePromptQueue(body, queue, 0);
   };
 
   const handleDelete = async (id) => {
@@ -183,6 +298,16 @@ const PaymentPlans = () => {
           saving={saving}
         />
       </Modal>
+
+      <PaymentStatusModal
+        isOpen={!!planPrompt}
+        onClose={() => planPrompt?.onCancel?.()}
+        onSelect={(status) => planPrompt?.onChosen?.(status)}
+        itemName={planPrompt ? `${planPrompt.planName} — ${currency.format(Number(planPrompt.installment?.amount) || 0)}` : ""}
+        itemAmount={Number(planPrompt?.installment?.amount) || 0}
+        itemDueDate={planPrompt?.installment?.date || null}
+        itemKind="plan_installment"
+      />
     </PageContainer>
   );
 };
