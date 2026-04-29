@@ -12,6 +12,57 @@ import PaidToggle from "../components/ui/PaidToggle";
 import BillForm from "../components/BillForm";
 import { emptyBillValues, toBillFormValues } from "../components/billFormValues";
 import { toDateOnly } from "../lib/date";
+import PaymentStatusModal from "../components/PaymentStatusModal";
+
+// LA-pinned today-y/m/d. Mirrors server resolveToday — used by the
+// "is most-recent occurrence in [onboardingDate, today]?" check below.
+const todayPartsLA = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  return {
+    year: Number(parts.find((p) => p.type === "year").value),
+    month: Number(parts.find((p) => p.type === "month").value),
+    day: Number(parts.find((p) => p.type === "day").value),
+  };
+};
+
+// Most-recent occurrence of a recurring dueDayOfMonth bill, walking
+// back from today. Returns { iso, ymd } or null if today/future.
+const mostRecentPastOccurrence = (dueDayOfMonth) => {
+  const t = todayPartsLA();
+  const tYMD = t.year * 10000 + t.month * 100 + t.day;
+  const lastDayOfMonth = (y, m) => new Date(y, m, 0).getDate();
+  let y = t.year;
+  let m = t.month;
+  let d = Math.min(dueDayOfMonth, lastDayOfMonth(y, m));
+  let ymd = y * 10000 + m * 100 + d;
+  if (ymd >= tYMD) {
+    m -= 1;
+    if (m < 1) { m = 12; y -= 1; }
+    d = Math.min(dueDayOfMonth, lastDayOfMonth(y, m));
+    ymd = y * 10000 + m * 100 + d;
+  }
+  if (ymd >= tYMD) return null;
+  return { ymd, iso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
+};
+
+// Read User.onboardingDate from the cached user object. Returns its
+// YMD integer or null if missing/legacy.
+const readOnboardingYMD = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "{}");
+    if (!u?.onboardingDate) return null;
+    const dt = new Date(u.onboardingDate);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
+  } catch {
+    return null;
+  }
+};
 
 const Bills = () => {
   const { isFree } = useSubscription();
@@ -23,6 +74,9 @@ const Bills = () => {
   // carries; the bill payload for edits rides on the same object.
   const [dialog, setDialog] = useState({ mode: "closed" });
   const [saving, setSaving] = useState(false);
+  // PaymentStatusModal queue for newly-added bills whose most-recent
+  // occurrence already passed AND falls inside [onboardingDate, today].
+  const [paymentPrompt, setPaymentPrompt] = useState(null);
 
   // Paid-for-this-month lookup — "{billId}_YYYY-MM-DD" → BillPayment.
   // Built from the current-month range of /api/bill-payments so the
@@ -89,12 +143,51 @@ const Bills = () => {
       const wasFirst = !isEdit && bills.length === 0;
       if (isEdit) {
         await authFetch(`/api/bills/${dialog.bill._id}`, { method: "PUT", body: JSON.stringify(payload) });
-      } else {
-        await authFetch("/api/bills", { method: "POST", body: JSON.stringify(payload) });
+        closeDialog();
+        load();
+        return;
       }
+      // Create — capture the new bill so we can prompt about its
+      // most-recent occurrence if needed.
+      const created = await authFetch("/api/bills", { method: "POST", body: JSON.stringify(payload) });
       closeDialog();
       load();
       if (wasFirst) toast?.showToast?.("First bill saved. PayPulse will track this every month.");
+
+      // Prompt about payment status only when the most-recent occurrence
+      // falls inside [onboardingDate, today]. Pre-onboarding occurrences
+      // are excluded by the engine regardless; future occurrences haven't
+      // happened yet. Both paths skip the modal silently.
+      const day = Number(payload?.dueDayOfMonth || payload?.dueDay) || 0;
+      if (!day || !created?._id) return;
+      const occurrence = mostRecentPastOccurrence(day);
+      if (!occurrence) return;
+      const onboardYMD = readOnboardingYMD();
+      if (onboardYMD && occurrence.ymd < onboardYMD) return;
+
+      setPaymentPrompt({
+        bill: { _id: created._id, name: payload.name, amount: payload.amount },
+        occurrence,
+        onChosen: async (status) => {
+          try {
+            if (status !== "unpaid") {
+              await authFetch("/api/bill-payments", {
+                method: "POST",
+                body: JSON.stringify({
+                  billId: created._id,
+                  dueDate: occurrence.iso,
+                  paidDate: occurrence.iso,
+                  paidAmount: Number(payload.amount),
+                  accountedFor: status === "paid_accounted",
+                }),
+              });
+              load();
+            }
+          } catch { /* non-critical: bill is saved either way */ }
+          finally { setPaymentPrompt(null); }
+        },
+        onCancel: () => setPaymentPrompt(null),
+      });
     } catch { /* ignore */ }
     finally { setSaving(false); }
   };
@@ -188,6 +281,16 @@ const Bills = () => {
       </Modal>
 
       {limitModal && <FreeLimitModal type={limitModal} onClose={() => setLimitModal(null)} />}
+
+      <PaymentStatusModal
+        isOpen={!!paymentPrompt}
+        onClose={() => paymentPrompt?.onCancel?.()}
+        onSelect={(status) => paymentPrompt?.onChosen?.(status)}
+        itemName={paymentPrompt?.bill?.name || ""}
+        itemAmount={Number(paymentPrompt?.bill?.amount) || 0}
+        itemDueDate={paymentPrompt?.occurrence?.iso || null}
+        itemKind="bill"
+      />
     </PageContainer>
   );
 };

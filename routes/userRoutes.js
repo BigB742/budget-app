@@ -20,6 +20,7 @@ const userResponse = (user) => ({
   phone: user.phone,
   dateOfBirth: user.dateOfBirth,
   onboardingComplete: !!user.onboardingComplete,
+  onboardingDate: user.onboardingDate || null,
   isPremium: !!user.isPremium,
   subscriptionStatus: user.subscriptionStatus || "free",
   trialEndDate: user.trialEndDate || null,
