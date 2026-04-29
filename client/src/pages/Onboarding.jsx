@@ -2,6 +2,48 @@ import { useState } from "react";
 import { authFetch } from "../apiClient";
 import { storeUser } from "../utils/safeStorage";
 import { toDateOnly } from "../lib/date";
+import PaymentStatusModal from "../components/PaymentStatusModal";
+
+// LA-pinned today (y/m/d). Mirrors the server's resolveToday so the
+// "is this occurrence in the past?" check uses the same calendar as
+// the engine.
+const todayInAppTzClient = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  return {
+    year: Number(parts.find((p) => p.type === "year").value),
+    month: Number(parts.find((p) => p.type === "month").value), // 1-12
+    day: Number(parts.find((p) => p.type === "day").value),
+  };
+};
+
+// Most-recent occurrence of a recurring dueDayOfMonth bill, walking
+// back from today. Returns { y, m, d, ymd } or null if the
+// occurrence is today or in the future.
+const mostRecentPastOccurrence = (dueDayOfMonth) => {
+  const t = todayInAppTzClient();
+  const tYMD = t.year * 10000 + t.month * 100 + t.day;
+  // Clamp to month length.
+  const lastDayOfMonth = (y, m) => new Date(y, m, 0).getDate();
+  let occYear = t.year;
+  let occMonth = t.month;
+  let occDay = Math.min(dueDayOfMonth, lastDayOfMonth(occYear, occMonth));
+  let occYMD = occYear * 10000 + occMonth * 100 + occDay;
+  if (occYMD >= tYMD) {
+    // Walk back one month.
+    occMonth -= 1;
+    if (occMonth < 1) { occMonth = 12; occYear -= 1; }
+    occDay = Math.min(dueDayOfMonth, lastDayOfMonth(occYear, occMonth));
+    occYMD = occYear * 10000 + occMonth * 100 + occDay;
+  }
+  if (occYMD >= tYMD) return null; // belt-and-suspenders
+  const iso = `${occYear}-${String(occMonth).padStart(2, "0")}-${String(occDay).padStart(2, "0")}`;
+  return { y: occYear, m: occMonth, d: occDay, ymd: occYMD, iso };
+};
 
 const FREQ_OPTIONS = [
   { value: "weekly", label: "Weekly" },
@@ -50,6 +92,40 @@ const Onboarding = () => {
   const [bill2, setBill2] = useState({ name: "", amount: "", dueDay: "" });
   const [bill2Error, setBill2Error] = useState("");
   const [bill2Saved, setBill2Saved] = useState(false);
+
+  // PaymentStatusModal queue. When a bill's most-recent occurrence
+  // already passed, we open the modal before saving the bill so the
+  // user can declare its status (unpaid / paid+deduct / paid+accounted).
+  const [paymentPrompt, setPaymentPrompt] = useState(null);
+
+  // Save a bill with optional payment status. status ∈
+  // {"unpaid","paid_deduct","paid_accounted"}. occurrence is the
+  // most-recent past occurrence as { iso, ymd, ... } (only used when
+  // status !== "unpaid"). Returns the new bill _id on success.
+  const saveBillWithStatus = async (bill, status, occurrence) => {
+    const day = Number(bill.dueDay);
+    const created = await authFetch("/api/bills", {
+      method: "POST",
+      body: JSON.stringify({
+        name: bill.name,
+        amount: Number(bill.amount),
+        dueDayOfMonth: day,
+      }),
+    });
+    if (status !== "unpaid" && created?._id && occurrence?.iso) {
+      await authFetch("/api/bill-payments", {
+        method: "POST",
+        body: JSON.stringify({
+          billId: created._id,
+          dueDate: occurrence.iso,
+          paidDate: occurrence.iso,
+          paidAmount: Number(bill.amount),
+          accountedFor: status === "paid_accounted",
+        }),
+      });
+    }
+    return created;
+  };
 
   const anythingSkipped = !incomeSaved || (!bill1Saved && !bill2Saved);
 
@@ -516,12 +592,34 @@ const Onboarding = () => {
       setBill1Error("");
       const day = Number(bill1.dueDay);
       if (day < 1 || day > 31) { setBill1Error("Due day must be between 1 and 31."); return; }
+      const occurrence = mostRecentPastOccurrence(day);
+      if (occurrence) {
+        // Past occurrence exists → ask the user about its status before saving.
+        setPaymentPrompt({
+          bill: bill1,
+          occurrence,
+          onChosen: async (status) => {
+            setSaving(true);
+            try {
+              await saveBillWithStatus(bill1, status, occurrence);
+              setBill1Saved(true);
+              setBill1Error("");
+              setStep(8);
+            } catch (err) {
+              setBill1Error(err.message || "Couldn't save bill. You can add it later.");
+            } finally {
+              setSaving(false);
+              setPaymentPrompt(null);
+            }
+          },
+          onCancel: () => setPaymentPrompt(null),
+        });
+        return;
+      }
+      // No past occurrence — save with default flags and advance.
       setSaving(true);
       try {
-        await authFetch("/api/bills", {
-          method: "POST",
-          body: JSON.stringify({ name: bill1.name, amount: Number(bill1.amount), dueDayOfMonth: day }),
-        });
+        await saveBillWithStatus(bill1, "unpaid", null);
         setBill1Saved(true);
       } catch (err) {
         setBill1Error(err.message || "Couldn't save bill. You can add it later.");
@@ -532,25 +630,36 @@ const Onboarding = () => {
     };
 
     return (
-      <div className="onboarding-page">
-        <ProgressBar step={step} />
-        <div className="ob-step">
-          <h2>Add your first bill.</h2>
-          <p className="ob-subtitle">What's something you pay every month?</p>
-          <div className="ob-form">
-            <label>Bill name<input type="text" placeholder="e.g. Rent, Phone, Netflix" value={bill1.name} onChange={(e) => setBill1((p) => ({ ...p, name: e.target.value }))} /></label>
-            <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill1.amount} onChange={(e) => setBill1((p) => ({ ...p, amount: e.target.value }))} /></label>
-            <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill1.dueDay} onChange={(e) => setBill1((p) => ({ ...p, dueDay: e.target.value }))} /></label>
-          </div>
-          {bill1Error && <p className="ob-error">{bill1Error}</p>}
-          <div className="ob-actions-col">
-            <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
-              {saving ? "Saving..." : "Add Bill →"}
-            </button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(8)}>Skip for now →</button>
+      <>
+        <div className="onboarding-page">
+          <ProgressBar step={step} />
+          <div className="ob-step">
+            <h2>Add your first bill.</h2>
+            <p className="ob-subtitle">What's something you pay every month?</p>
+            <div className="ob-form">
+              <label>Bill name<input type="text" placeholder="e.g. Rent, Phone, Netflix" value={bill1.name} onChange={(e) => setBill1((p) => ({ ...p, name: e.target.value }))} /></label>
+              <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill1.amount} onChange={(e) => setBill1((p) => ({ ...p, amount: e.target.value }))} /></label>
+              <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill1.dueDay} onChange={(e) => setBill1((p) => ({ ...p, dueDay: e.target.value }))} /></label>
+            </div>
+            {bill1Error && <p className="ob-error">{bill1Error}</p>}
+            <div className="ob-actions-col">
+              <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
+                {saving ? "Saving..." : "Add Bill →"}
+              </button>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(8)}>Skip for now →</button>
+            </div>
           </div>
         </div>
-      </div>
+        <PaymentStatusModal
+          isOpen={!!paymentPrompt}
+          onClose={() => paymentPrompt?.onCancel?.()}
+          onSelect={(status) => paymentPrompt?.onChosen?.(status)}
+          itemName={paymentPrompt?.bill?.name || ""}
+          itemAmount={Number(paymentPrompt?.bill?.amount) || 0}
+          itemDueDate={paymentPrompt?.occurrence?.iso || null}
+          itemKind="bill"
+        />
+      </>
     );
   }
 
@@ -562,12 +671,32 @@ const Onboarding = () => {
       setBill2Error("");
       const day = Number(bill2.dueDay);
       if (day < 1 || day > 31) { setBill2Error("Due day must be between 1 and 31."); return; }
+      const occurrence = mostRecentPastOccurrence(day);
+      if (occurrence) {
+        setPaymentPrompt({
+          bill: bill2,
+          occurrence,
+          onChosen: async (status) => {
+            setSaving(true);
+            try {
+              await saveBillWithStatus(bill2, status, occurrence);
+              setBill2Saved(true);
+              setBill2Error("");
+              setStep(9);
+            } catch (err) {
+              setBill2Error(err.message || "Couldn't save bill. You can add it later.");
+            } finally {
+              setSaving(false);
+              setPaymentPrompt(null);
+            }
+          },
+          onCancel: () => setPaymentPrompt(null),
+        });
+        return;
+      }
       setSaving(true);
       try {
-        await authFetch("/api/bills", {
-          method: "POST",
-          body: JSON.stringify({ name: bill2.name, amount: Number(bill2.amount), dueDayOfMonth: day }),
-        });
+        await saveBillWithStatus(bill2, "unpaid", null);
         setBill2Saved(true);
       } catch (err) {
         setBill2Error(err.message || "Couldn't save bill. You can add it later.");
@@ -578,24 +707,35 @@ const Onboarding = () => {
     };
 
     return (
-      <div className="onboarding-page">
-        <ProgressBar step={step} />
-        <div className="ob-step">
-          <h2>Great! Add one more bill.</h2>
-          <div className="ob-form">
-            <label>Bill name<input type="text" placeholder="e.g. Car payment, Internet" value={bill2.name} onChange={(e) => setBill2((p) => ({ ...p, name: e.target.value }))} /></label>
-            <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill2.amount} onChange={(e) => setBill2((p) => ({ ...p, amount: e.target.value }))} /></label>
-            <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill2.dueDay} onChange={(e) => setBill2((p) => ({ ...p, dueDay: e.target.value }))} /></label>
-          </div>
-          {bill2Error && <p className="ob-error">{bill2Error}</p>}
-          <div className="ob-actions-col">
-            <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
-              {saving ? "Saving..." : "Add Bill →"}
-            </button>
-            <button type="button" className="link-button ob-skip" onClick={() => setStep(9)}>Skip for now →</button>
+      <>
+        <div className="onboarding-page">
+          <ProgressBar step={step} />
+          <div className="ob-step">
+            <h2>Great! Add one more bill.</h2>
+            <div className="ob-form">
+              <label>Bill name<input type="text" placeholder="e.g. Car payment, Internet" value={bill2.name} onChange={(e) => setBill2((p) => ({ ...p, name: e.target.value }))} /></label>
+              <label>Amount<input type="number" min="0" step="0.01" placeholder="0.00" value={bill2.amount} onChange={(e) => setBill2((p) => ({ ...p, amount: e.target.value }))} /></label>
+              <label>Due date (day of month)<input type="number" min="1" max="31" placeholder="1 – 31" value={bill2.dueDay} onChange={(e) => setBill2((p) => ({ ...p, dueDay: e.target.value }))} /></label>
+            </div>
+            {bill2Error && <p className="ob-error">{bill2Error}</p>}
+            <div className="ob-actions-col">
+              <button type="button" className="primary-button" style={{ width: "100%" }} onClick={handleAddBill} disabled={!canAdd || saving}>
+                {saving ? "Saving..." : "Add Bill →"}
+              </button>
+              <button type="button" className="link-button ob-skip" onClick={() => setStep(9)}>Skip for now →</button>
+            </div>
           </div>
         </div>
-      </div>
+        <PaymentStatusModal
+          isOpen={!!paymentPrompt}
+          onClose={() => paymentPrompt?.onCancel?.()}
+          onSelect={(status) => paymentPrompt?.onChosen?.(status)}
+          itemName={paymentPrompt?.bill?.name || ""}
+          itemAmount={Number(paymentPrompt?.bill?.amount) || 0}
+          itemDueDate={paymentPrompt?.occurrence?.iso || null}
+          itemKind="bill"
+        />
+      </>
     );
   }
 

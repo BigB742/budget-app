@@ -31,7 +31,7 @@ const { getBudgetPeriod } = require("./paycheckUtils");
  *           paidAmount: number, note?: string }} input
  */
 async function markBillPaid(userId, input) {
-  const { billId, dueDate, paidDate, paidAmount, note } = input;
+  const { billId, dueDate, paidDate, paidAmount, note, accountedFor } = input;
   if (!billId || !dueDate || !paidDate || paidAmount == null) {
     const err = new Error("billId, dueDate, paidDate, and paidAmount are required.");
     err.status = 400;
@@ -47,10 +47,16 @@ async function markBillPaid(userId, input) {
   };
   const dueDateObj = toDate(dueDate);
   const paidDateObj = toDate(paidDate);
+  const accountedForFlag = accountedFor === true;
 
   const payment = await BillPayment.findOneAndUpdate(
     { user: userId, bill: billId, dueDate: dueDateObj },
-    { paidDate: paidDateObj, paidAmount: Number(paidAmount), note: note || "" },
+    {
+      paidDate: paidDateObj,
+      paidAmount: Number(paidAmount),
+      note: note || "",
+      accountedFor: accountedForFlag,
+    },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   if (!payment.user) {
@@ -58,11 +64,14 @@ async function markBillPaid(userId, input) {
     await payment.save();
   }
 
-  // Mirror the self-describing fields on the Bill doc.
+  // Mirror the self-describing fields on the Bill doc. accountedFor
+  // mirrors here too so the dashboard's accountedFor:true filter on
+  // unpaid bill enumeration excludes this Bill on subsequent reads —
+  // see computeSpendable in utils/financeEngine.js.
   try {
     await Bill.findOneAndUpdate(
       { _id: billId, user: userId },
-      { $set: { paid: true, markedPaidAt: new Date() } },
+      { $set: { paid: true, markedPaidAt: new Date(), accountedFor: accountedForFlag } },
     );
   } catch { /* non-critical */ }
 
