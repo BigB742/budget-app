@@ -225,21 +225,21 @@ router.put("/:id", authRequired, async (req, res) => {
 // time). We still bump markedPaidAt for the audit trail.
 router.patch("/:id/paid", authRequired, async (req, res) => {
   try {
-    const { paid } = req.body || {};
+    const { paid, accountedFor } = req.body || {};
     if (typeof paid !== "boolean") {
       return res.status(400).json({ message: "paid (boolean) is required." });
     }
+    const set = {
+      paid,
+      markedPaidAt: paid ? new Date() : null,
+    };
+    if (accountedFor !== undefined) set.accountedFor = accountedFor === true;
     const updated = await Expense.findOneAndUpdate(
       {
         _id: req.params.id,
         $or: [{ user: req.userId }, { userId: req.userId }],
       },
-      {
-        $set: {
-          paid,
-          markedPaidAt: paid ? new Date() : null,
-        },
-      },
+      { $set: set },
       { new: true },
     );
     if (!updated) return res.status(404).json({ message: "Expense not found" });

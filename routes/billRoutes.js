@@ -130,7 +130,7 @@ router.delete("/:id", authRequired, async (req, res) => {
 // defaults to the bill's current amount.
 router.patch("/:id/paid", authRequired, async (req, res) => {
   try {
-    const { paid, dueDate, paidDate, paidAmount, note } = req.body || {};
+    const { paid, dueDate, paidDate, paidAmount, note, accountedFor } = req.body || {};
     if (typeof paid !== "boolean") {
       return res.status(400).json({ error: "paid (boolean) is required." });
     }
@@ -154,6 +154,7 @@ router.patch("/:id/paid", authRequired, async (req, res) => {
         paidDate: paidDate || toDateOnly(new Date()),
         paidAmount: paidAmount != null ? Number(paidAmount) : Number(bill.amount),
         note,
+        accountedFor: accountedFor === true,
       });
       return res.json({ success: true, payment });
     }

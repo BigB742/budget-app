@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { authFetch } from "../../apiClient";
 import { parseDateOnly } from "../../lib/date";
+import { useDataCache } from "../../context/DataCache";
 
 const typeWeight = { bill: 0, plan: 1, expense: 2 };
 
@@ -16,6 +17,7 @@ const typeWeight = { bill: 0, plan: 1, expense: 2 };
  *    them and the queue rebuilds from server state.
  */
 export function useOutstandingQueue() {
+  const cache = useDataCache();
   const [items, setItems] = useState([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -55,31 +57,48 @@ export function useOutstandingQueue() {
     setIndex((i) => i + 1);
   }, [current]);
 
-  const markPaid = useCallback(async () => {
+  // Three-way action driven by PaymentStatusModal:
+  //   "unpaid"          → in-session dismiss (no API call). Re-prompts
+  //                       on next login.
+  //   "paid_deduct"     → PATCH paid:true, accountedFor:false.
+  //   "paid_accounted"  → PATCH paid:true, accountedFor:true (item is
+  //                       already reflected in the user's onboarding
+  //                       seed balance — engine will skip both sides).
+  // Any "paid_*" call triggers a dashboard summary refresh so the
+  // spendable card updates immediately. "unpaid" doesn't change server
+  // state so no refresh is needed.
+  const select = useCallback(async (status) => {
     if (!current) return;
+    if (status === "unpaid") {
+      dismissedRef.current.add(`${current.type}:${current.id}`);
+      setIndex((i) => i + 1);
+      return;
+    }
+    const accountedFor = status === "paid_accounted";
     try {
       if (current.type === "bill") {
         await authFetch(`/api/bills/${current.id}/paid`, {
           method: "PATCH",
-          body: JSON.stringify({ paid: true, dueDate: current.dueDate }),
+          body: JSON.stringify({ paid: true, dueDate: current.dueDate, accountedFor }),
         });
       } else if (current.type === "plan") {
         await authFetch(`/api/payment-plans/${current.planId}/payments/${current.paymentId}/paid`, {
           method: "PATCH",
-          body: JSON.stringify({ paid: true }),
+          body: JSON.stringify({ paid: true, accountedFor }),
         });
       } else if (current.type === "expense") {
         await authFetch(`/api/expenses/${current.id}/paid`, {
           method: "PATCH",
-          body: JSON.stringify({ paid: true }),
+          body: JSON.stringify({ paid: true, accountedFor }),
         });
       }
     } catch { /* non-critical; queue advances regardless */ }
+    cache?.fetchSummary?.(true);
     setIndex((i) => i + 1);
-  }, [current]);
+  }, [current, cache]);
 
   return useMemo(
-    () => ({ current, dismiss, markPaid, isEmpty, loading }),
-    [current, dismiss, markPaid, isEmpty, loading],
+    () => ({ current, dismiss, select, isEmpty, loading }),
+    [current, dismiss, select, isEmpty, loading],
   );
 }

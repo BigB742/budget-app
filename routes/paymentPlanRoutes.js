@@ -121,7 +121,7 @@ router.delete("/:id", authRequired, async (req, res) => {
 //   PATCH /:id/payments/:paymentId         (legacy path)
 //   PATCH /:id/payments/:paymentId/paid    (§6 canonical path)
 // so the paidEarly routing lives in exactly one place.
-async function togglePaymentPaid(userId, planId, paymentId, paid) {
+async function togglePaymentPaid(userId, planId, paymentId, paid, accountedFor) {
   const plan = await PaymentPlan.findOne({ _id: planId, userId });
   if (!plan) { const e = new Error("Plan not found."); e.status = 404; throw e; }
   const entry = plan.payments.find((p) => p.id === paymentId);
@@ -132,6 +132,7 @@ async function togglePaymentPaid(userId, planId, paymentId, paid) {
     entry.datePaid = undefined;
     entry.paidDate = undefined;
     entry.paidEarly = false;
+    entry.accountedFor = false;
   } else {
     const today = new Date();
     const todayYMD = today.getUTCFullYear() * 10000 + (today.getUTCMonth() + 1) * 100 + today.getUTCDate();
@@ -141,6 +142,7 @@ async function togglePaymentPaid(userId, planId, paymentId, paid) {
     entry.datePaid = today;
     entry.paidDate = today;
     entry.paidEarly = todayYMD < scheduledYMD;
+    if (accountedFor !== undefined) entry.accountedFor = accountedFor === true;
   }
   await plan.save();
   return plan;
@@ -151,7 +153,8 @@ async function togglePaymentPaid(userId, planId, paymentId, paid) {
 router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
   try {
     const paid = req.body?.paid === false ? false : true;
-    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid);
+    const accountedFor = req.body?.accountedFor;
+    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid, accountedFor);
     res.json(plan);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ message: err.message });
@@ -165,11 +168,11 @@ router.patch("/:id/payments/:paymentId", authRequired, async (req, res) => {
 // is computed identically.
 router.patch("/:id/payments/:paymentId/paid", authRequired, async (req, res) => {
   try {
-    const { paid } = req.body || {};
+    const { paid, accountedFor } = req.body || {};
     if (typeof paid !== "boolean") {
       return res.status(400).json({ message: "paid (boolean) is required." });
     }
-    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid);
+    const plan = await togglePaymentPaid(req.userId, req.params.id, req.params.paymentId, paid, accountedFor);
     res.json(plan);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ message: err.message });
